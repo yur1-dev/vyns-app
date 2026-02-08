@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   CheckCircle,
   XCircle,
@@ -17,6 +18,36 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+
+// ────────────────────────────────────────────────
+// Same VYNSLogo component used in dashboard & marketplace
+// ────────────────────────────────────────────────
+const VYNSLogo = ({
+  size = "md",
+  animated = false,
+}: {
+  size?: "sm" | "md" | "lg" | "xl";
+  animated?: boolean;
+}) => {
+  const sizes = { sm: 40, md: 48, lg: 80, xl: 128 };
+  const dim = sizes[size] || 48;
+
+  return (
+    <div className={`relative w-[${dim}px] h-[${dim}px]`}>
+      <Image
+        src="/vyns-logo.png"
+        alt="VYNS"
+        width={dim}
+        height={dim}
+        className={`object-contain ${animated ? "animate-pulse" : ""}`}
+        priority={size === "xl" || size === "lg"}
+      />
+      {animated && (
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-400 rounded-full animate-ping" />
+      )}
+    </div>
+  );
+};
 
 interface UsernameResult {
   username: string;
@@ -137,15 +168,16 @@ export default function SearchPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 text-gray-100">
       {/* Navigation */}
       <nav className="border-b border-gray-800 bg-black/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex justify-between items-center">
             <Link
               href="/"
-              className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-400 to-indigo-500 bg-clip-text text-transparent"
+              className="flex items-center hover:opacity-90 transition-opacity"
             >
-              VYNS
+              <VYNSLogo size="xl" />
             </Link>
-            <div className="flex items-center gap-3 sm:gap-6">
+
+            <div className="flex items-center gap-6 sm:gap-8">
               <Link
                 href="/marketplace"
                 className="text-sm sm:text-base text-gray-300 hover:text-white transition"
@@ -154,7 +186,7 @@ export default function SearchPage() {
               </Link>
               <Link
                 href="/app"
-                className="bg-gradient-to-r from-teal-600 to-indigo-700 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-sm sm:text-base font-semibold hover:shadow-lg transition-all"
+                className="bg-gradient-to-r from-teal-600 to-indigo-700 text-white px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-sm sm:text-base font-semibold hover:shadow-lg transition-all"
               >
                 Launch App
               </Link>
@@ -208,179 +240,171 @@ export default function SearchPage() {
 
             {/* Loading State */}
             {loading && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-12 sm:p-16 text-center">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4 sm:mb-6" />
-                <p className="text-lg sm:text-xl text-gray-300">
-                  Searching blockchain...
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-8 sm:p-12 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400 mb-4"></div>
+                <p className="text-gray-400 text-sm sm:text-base">
+                  Searching for @{query}...
                 </p>
               </div>
             )}
 
             {/* Error State */}
             {error && !loading && (
-              <div className="bg-red-900/20 border border-red-800/50 rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center">
-                <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mx-auto mb-3 sm:mb-4" />
-                <h2 className="text-xl sm:text-2xl font-bold mb-2 text-red-400">
-                  Error
-                </h2>
-                <p className="text-sm sm:text-base text-gray-300">{error}</p>
-              </div>
-            )}
-
-            {/* Available Result */}
-            {result && !loading && result.available && (
-              <div className="bg-gradient-to-br from-teal-900/30 to-indigo-900/30 border-2 border-teal-500/50 rounded-xl sm:rounded-2xl overflow-hidden">
-                <div className="p-5 sm:p-8">
-                  <div className="mb-4 sm:mb-6">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                      <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-teal-400 flex-shrink-0" />
-                      <span className="bg-teal-900/50 text-teal-300 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-teal-700">
-                        AVAILABLE
-                      </span>
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 break-all">
-                      @{result.username}
-                    </h2>
-                    <p className="text-base sm:text-lg md:text-xl text-gray-300">
-                      Be the first owner of this username
+              <div className="bg-red-900/20 border border-red-800 rounded-xl sm:rounded-2xl p-6 sm:p-8">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <XCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-semibold text-red-400 mb-2">
+                      Error
+                    </h3>
+                    <p className="text-gray-300 text-sm sm:text-base">
+                      {error}
                     </p>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-700">
-                      <p className="text-xs sm:text-sm text-gray-400 mb-1">
-                        Registration
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold text-teal-400">
-                        0.1 SOL
-                      </p>
-                    </div>
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-700">
-                      <p className="text-xs sm:text-sm text-gray-400 mb-1">
-                        Annual Fee
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold text-teal-400">
-                        0.05 SOL
-                      </p>
-                    </div>
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-700">
-                      <p className="text-xs sm:text-sm text-gray-400 mb-1">
-                        Est. Yield
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold text-yellow-400">
-                        5%+ APY
-                      </p>
-                    </div>
-                  </div>
-
-                  <Link
-                    href={`/app/claim?username=${result.username}`}
-                    className="flex items-center justify-center gap-2 sm:gap-3 w-full bg-gradient-to-r from-teal-500 to-indigo-600 text-white py-3 sm:py-4 rounded-xl text-base sm:text-lg font-bold hover:shadow-xl hover:shadow-teal-500/50 transition-all group"
-                  >
-                    Claim @{result.username}
-                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
-                  </Link>
                 </div>
               </div>
             )}
 
-            {/* Taken Result */}
-            {result && !loading && !result.available && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl overflow-hidden">
-                <div className="p-5 sm:p-8">
-                  <div className="mb-4 sm:mb-6">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                      <XCircle className="w-8 h-8 sm:w-10 sm:h-10 text-red-400 flex-shrink-0" />
-                      <span className="bg-red-900/50 text-red-300 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-red-700">
-                        TAKEN
-                      </span>
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 break-all">
-                      @{result.username}
+            {/* Result - Available */}
+            {result && !loading && result.available && (
+              <div className="bg-gradient-to-br from-green-900/20 to-teal-900/20 border border-green-800/50 rounded-xl sm:rounded-2xl p-6 sm:p-8">
+                <div className="flex items-start gap-3 sm:gap-4 mb-6">
+                  <CheckCircle className="w-8 h-8 text-green-400 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h2 className="text-xl sm:text-2xl font-bold text-green-400 mb-2">
+                      Available!
                     </h2>
-                    <p className="text-base sm:text-lg md:text-xl text-gray-400">
-                      This username is already registered
+                    <p className="text-gray-300 text-sm sm:text-base">
+                      This username is available for registration.
                     </p>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-4 sm:p-5 border border-gray-700">
-                      <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-teal-400 mb-2 sm:mb-3" />
-                      <p className="text-xs sm:text-sm text-gray-400 mb-2">
-                        Owner
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-mono text-xs sm:text-sm text-teal-300 truncate flex-1">
-                          {result.owner
-                            ? `${result.owner.slice(
-                                0,
-                                6,
-                              )}...${result.owner.slice(-4)}`
-                            : "Unknown"}
-                        </p>
-                        {result.owner && (
-                          <button
-                            onClick={copyOwnerAddress}
-                            className="flex-shrink-0 p-1.5 hover:bg-gray-700 rounded transition-colors"
-                            title="Copy address"
-                          >
-                            {copiedOwner ? (
-                              <Check className="w-4 h-4 text-green-400" />
-                            ) : (
-                              <Copy className="w-4 h-4 text-gray-400" />
-                            )}
-                          </button>
-                        )}
+                <div className="grid sm:grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-900/50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+                      <Wallet className="w-4 h-4" />
+                      <span>Registration Price</span>
+                    </div>
+                    <p className="text-xl sm:text-2xl font-bold text-white">
+                      {result.price || 10} VYNS
+                    </p>
+                  </div>
+                  <div className="bg-gray-900/50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+                      <TrendingUp className="w-4 h-4" />
+                      <span>Starting Level</span>
+                    </div>
+                    <p className="text-xl sm:text-2xl font-bold text-white">
+                      Level {result.level || 1}
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/app?register=${query}`}
+                  className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+                >
+                  Register @{query}
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+              </div>
+            )}
+
+            {/* Result - Taken */}
+            {result && !loading && !result.available && (
+              <div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 border border-red-800/50 rounded-xl sm:rounded-2xl p-6 sm:p-8">
+                <div className="flex items-start gap-3 sm:gap-4 mb-6">
+                  <XCircle className="w-8 h-8 text-red-400 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h2 className="text-xl sm:text-2xl font-bold text-red-400 mb-2">
+                      Already Registered
+                    </h2>
+                    <p className="text-gray-300 text-sm sm:text-base">
+                      This username is owned by another user.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {result.owner && (
+                    <div className="bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 text-gray-400 text-sm">
+                          <Wallet className="w-4 h-4" />
+                          <span>Owner Address</span>
+                        </div>
+                        <button
+                          onClick={copyOwnerAddress}
+                          className="text-teal-400 hover:text-teal-300 transition-colors"
+                          title="Copy address"
+                        >
+                          {copiedOwner ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
                       </div>
+                      <p className="text-sm font-mono text-white break-all">
+                        {result.owner}
+                      </p>
                     </div>
+                  )}
 
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-4 sm:p-5 border border-gray-700">
-                      <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 mb-2 sm:mb-3" />
-                      <p className="text-xs sm:text-sm text-gray-400 mb-2">
-                        Level
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold text-indigo-300">
-                        {result.level || 1}
-                      </p>
-                    </div>
-
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-4 sm:p-5 border border-gray-700">
-                      <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-teal-400 mb-2 sm:mb-3" />
-                      <p className="text-xs sm:text-sm text-gray-400 mb-2">
-                        Registered
-                      </p>
-                      <p className="text-base sm:text-lg font-semibold text-gray-300">
-                        {result.registeredAt || "N/A"}
-                      </p>
-                    </div>
-
-                    <div className="bg-black/40 rounded-lg sm:rounded-xl p-4 sm:p-5 border border-gray-700">
-                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 mb-2 sm:mb-3" />
-                      <p className="text-xs sm:text-sm text-gray-400 mb-2">
-                        Price
-                      </p>
-                      <p className="text-xl sm:text-2xl font-bold text-yellow-300 truncate">
-                        {result.price ? `${result.price} SOL` : "Not Listed"}
-                      </p>
-                    </div>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {result.level && (
+                      <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                          <Sparkles className="w-4 h-4" />
+                          <span>Level</span>
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          {result.level}
+                        </p>
+                      </div>
+                    )}
+                    {result.totalYield !== undefined && (
+                      <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                          <TrendingUp className="w-4 h-4" />
+                          <span>Total Yield</span>
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          {result.totalYield} VYNS
+                        </p>
+                      </div>
+                    )}
+                    {result.registeredAt && (
+                      <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>Registered</span>
+                        </div>
+                        <p className="text-sm font-bold text-white">
+                          {new Date(result.registeredAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  {result.price ? (
-                    <Link
-                      href={`/username/${result.username}`}
-                      className="flex items-center justify-center gap-2 sm:gap-3 w-full bg-gradient-to-r from-teal-600 to-indigo-700 text-white py-3 sm:py-4 rounded-xl text-base sm:text-lg font-bold hover:shadow-xl transition-all group"
-                    >
-                      View Details & Make Offer
-                      <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
-                    </Link>
-                  ) : (
-                    <div className="text-center py-4 sm:py-6 text-gray-400">
-                      <p className="text-base sm:text-lg">
-                        Not currently for sale
-                      </p>
-                      <p className="text-xs sm:text-sm mt-2">
-                        Check the marketplace for similar names
-                      </p>
+                  {result.price && (
+                    <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-800/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-300 text-sm">
+                          Listed for Sale
+                        </span>
+                        <span className="text-xl font-bold text-orange-400">
+                          {result.price} VYNS
+                        </span>
+                      </div>
+                      <Link
+                        href={`/marketplace/${query}`}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                      >
+                        View on Marketplace
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -391,87 +415,72 @@ export default function SearchPage() {
           {/* Right Column: Recommended Alternatives */}
           <div className="lg:col-span-1">
             <div className="lg:sticky lg:top-24 space-y-4 sm:space-y-6">
+              {/* Similar Names */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-teal-400 flex-shrink-0" />
-                  <h3 className="text-lg sm:text-xl font-bold">
-                    Recommended Alternatives
-                  </h3>
-                </div>
-
-                <div className="space-y-2 sm:space-y-3">
-                  {similarNames.map((name, index) => (
+                <h3 className="text-base sm:text-lg font-semibold mb-4 text-gray-300">
+                  Similar Usernames
+                </h3>
+                <div className="space-y-2">
+                  {similarNames.slice(0, 6).map((name) => (
                     <Link
-                      key={index}
+                      key={name.username}
                       href={`/search?q=${name.username}`}
-                      className="block bg-gray-800/50 hover:bg-gray-800 border border-gray-700 hover:border-teal-600 rounded-lg sm:rounded-xl p-3 sm:p-4 transition-all group"
+                      className="block bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-lg p-3 transition-all group"
                     >
-                      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
-                        <span className="font-bold text-base sm:text-lg text-teal-400 group-hover:text-teal-300 truncate flex-1">
-                          @{name.username}
-                        </span>
-                        {name.available ? (
-                          <span className="bg-teal-900/50 text-teal-300 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold border border-teal-700 flex-shrink-0">
-                            Available
-                          </span>
-                        ) : (
-                          <span className="bg-gray-700 text-gray-300 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0">
-                            Taken
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs sm:text-sm">
-                        <span className="text-gray-400 truncate">
-                          {name.available
-                            ? "0.1 SOL"
-                            : name.price
-                              ? `${name.price} SOL`
-                              : "Not listed"}
-                        </span>
-                        <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 group-hover:text-teal-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            @{name.username}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {name.available ? (
+                              <span className="text-green-400">Available</span>
+                            ) : (
+                              <span className="text-red-400">
+                                Taken • {name.price} VYNS
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-teal-400 transition-colors flex-shrink-0 ml-2" />
                       </div>
                     </Link>
                   ))}
                 </div>
-
-                <Link
-                  href="/marketplace"
-                  className="mt-4 sm:mt-6 flex items-center justify-center gap-2 w-full border-2 border-gray-700 hover:border-teal-600 text-gray-300 hover:text-teal-400 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all"
-                >
-                  Browse All Names
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                </Link>
               </div>
 
               {/* Quick Stats */}
-              <div className="bg-gradient-to-br from-teal-900/20 to-indigo-900/20 border border-gray-800 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <h4 className="text-xs sm:text-sm font-semibold text-gray-400 mb-3 sm:mb-4">
-                  VYNS STATS
-                </h4>
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-sm sm:text-base text-gray-400">
-                      Total Names
+              <div className="bg-gradient-to-br from-teal-900/20 to-indigo-900/20 border border-teal-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-6">
+                <h3 className="text-base sm:text-lg font-semibold mb-4 text-gray-300">
+                  Platform Stats
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">
+                      Total Usernames
                     </span>
-                    <span className="font-bold text-sm sm:text-base text-teal-400">
-                      250K+
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-sm sm:text-base text-gray-400">
-                      Avg Price
-                    </span>
-                    <span className="font-bold text-sm sm:text-base text-indigo-400">
-                      2.5 SOL
+                    <span className="text-base font-semibold text-white">
+                      12,847
                     </span>
                   </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-sm sm:text-base text-gray-400">
-                      Market Cap
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Available Now</span>
+                    <span className="text-base font-semibold text-green-400">
+                      8,432
                     </span>
-                    <span className="font-bold text-sm sm:text-base text-yellow-400">
-                      $420M
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">
+                      Listed for Sale
+                    </span>
+                    <span className="text-base font-semibold text-orange-400">
+                      234
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-700">
+                    <span className="text-sm text-gray-400">Floor Price</span>
+                    <span className="text-base font-semibold text-teal-400">
+                      15 VYNS
                     </span>
                   </div>
                 </div>
