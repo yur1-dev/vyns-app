@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -13,15 +13,13 @@ import {
   AlertCircle,
   ArrowLeft,
   Sparkles,
-  Shield,
   Zap,
   WalletIcon,
-  ArrowRight,
   Coins,
   Clock,
 } from "lucide-react";
 
-export default function ClaimPage() {
+function ClaimPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const username = searchParams.get("username")?.toLowerCase().trim() || "";
@@ -87,7 +85,7 @@ export default function ClaimPage() {
             href="/"
             className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-indigo-500 bg-clip-text text-transparent"
           >
-            VY accueillirNS
+            VYNS
           </Link>
           <WalletMultiButton className="!bg-gradient-to-r !from-teal-600 !to-indigo-700 !rounded-full !px-8 !py-3 !font-semibold" />
         </div>
@@ -253,5 +251,19 @@ export default function ClaimPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ClaimPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-teal-400 animate-spin" />
+        </div>
+      }
+    >
+      <ClaimPageInner />
+    </Suspense>
   );
 }
