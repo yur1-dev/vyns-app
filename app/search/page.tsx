@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -18,6 +18,9 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+
+// Add this export to prevent static generation
+export const dynamic = "force-dynamic";
 
 // ────────────────────────────────────────────────
 // Same VYNSLogo component used in dashboard & marketplace
@@ -66,7 +69,7 @@ interface SimilarUsername {
   level?: number;
 }
 
-export default function SearchPage() {
+function SearchPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = searchParams.get("q")?.toLowerCase() || "";
@@ -496,5 +499,19 @@ export default function SearchPage() {
         <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-indigo-600/5 rounded-full blur-3xl" />
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400"></div>
+        </div>
+      }
+    >
+      <SearchPageInner />
+    </Suspense>
   );
 }
