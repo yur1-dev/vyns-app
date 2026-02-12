@@ -3,15 +3,15 @@ import clientPromise from "@/lib/mongodb";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> },
 ) {
   try {
-    const username = params.username;
+    const { username } = await params;
 
     if (!username) {
       return NextResponse.json(
         { error: "Username is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -28,7 +28,7 @@ export async function GET(
     if (!usernameData) {
       return NextResponse.json(
         { error: "Username not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -72,7 +72,7 @@ export async function GET(
     console.error("Get username error:", error);
     return NextResponse.json(
       { error: "Failed to fetch username details" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
