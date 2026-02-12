@@ -3,15 +3,15 @@ import clientPromise from "@/lib/mongodb";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { wallet: string } }
+  { params }: { params: Promise<{ wallet: string }> },
 ) {
   try {
-    const walletAddress = params.wallet;
+    const { wallet: walletAddress } = await params;
 
     if (!walletAddress) {
       return NextResponse.json(
         { error: "Wallet address is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -42,7 +42,7 @@ export async function GET(
           acc.totalTransactions + (username.total_transactions || 0),
         totalVolume: acc.totalVolume + (username.total_volume || 0),
       }),
-      { totalYield: 0, totalTransactions: 0, totalVolume: 0 }
+      { totalYield: 0, totalTransactions: 0, totalVolume: 0 },
     );
 
     // Get recent activity
@@ -83,7 +83,7 @@ export async function GET(
     console.error("User profile error:", error);
     return NextResponse.json(
       { error: "Failed to fetch user profile" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

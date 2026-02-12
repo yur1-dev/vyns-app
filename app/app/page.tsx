@@ -783,7 +783,7 @@ export default function VYNSDashboard() {
               )}
 
               <div className="flex items-center gap-2">
-                <VYNSLogo size="md" />
+                <VYNSLogo size="xl" />
               </div>
             </div>
 
