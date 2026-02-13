@@ -347,15 +347,16 @@ export default function LandingPage() {
         </div>
 
         {/* Headline */}
-        <h1 className="text-[clamp(48px,7vw,84px)] font-bold leading-[1.05] tracking-[-0.03em] text-white mb-4">
-          Own Your{" "}
+        <h1 className="text-[clamp(48px,7vw,74px)] font-bold leading-[1.05] tracking-[-0.03em] text-white mb-4">
           <span className="bg-gradient-to-r from-teal-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent">
-            @Username
-          </span>
+            Vincu Yield Name Service:
+          </span>{" "}
+          Own Once, <br></br>
+          Farm Forever
         </h1>
-        <p className="text-[clamp(22px,3.2vw,34px)] font-semibold text-slate-400 tracking-[-0.01em] mb-6">
+        {/* <p className="text-[clamp(22px,3.2vw,34px)] font-semibold text-slate-400 tracking-[-0.01em] mb-6">
           Earn While You Use It
-        </p>
+        </p> */}
 
         {/* Sub */}
         <p className="text-[clamp(15px,1.7vw,17px)] text-slate-400 max-w-[520px] mx-auto leading-relaxed mb-10 font-normal">
