@@ -151,6 +151,8 @@ export default function LandingPage() {
   const [searching, setSearching] = useState(false);
   const [showHist, setShowHist] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [scrolled, setScrolled] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +164,37 @@ export default function LandingPage() {
       const s = localStorage.getItem("vyns_sh");
       if (s) setHistory(JSON.parse(s));
     } catch {}
+  }, []);
+
+  /* handle scroll for navbar - ULTRA SMOOTH */
+  useEffect(() => {
+    let rafId: number;
+
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const maxScroll = 80; // Reduced for quicker response
+      const progress = Math.min(scrollY / maxScroll, 1);
+
+      setScrollProgress(progress);
+      setScrolled(scrollY > 20); // Triggers earlier
+    };
+
+    const onScroll = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(handleScroll);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    handleScroll(); // Initial call
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, []);
 
   const pushHistory = (v: string) => {
@@ -217,9 +250,30 @@ export default function LandingPage() {
       </div>
 
       {/* ── NAV ────────────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 px-4 pt-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 px-4 pt-4">
         <div className="max-w-6xl mx-auto">
-          <div className="bg-[#080f1a]/80 backdrop-blur-2xl border border-white/[0.07] rounded-2xl px-5 py-3 flex items-center justify-between shadow-2xl">
+          <div
+            style={{
+              willChange:
+                "background-color, border-color, box-shadow, backdrop-filter",
+              transform: "translate3d(0, 0, 0)",
+              backgroundColor: `rgba(8, 15, 26, ${scrollProgress * 0.9})`,
+              borderColor: `rgba(255, 255, 255, ${scrollProgress * 0.12})`,
+              boxShadow:
+                scrollProgress > 0.5
+                  ? `0 25px 50px -12px rgba(0, 0, 0, ${scrollProgress * 0.25})`
+                  : "none",
+              backdropFilter:
+                scrollProgress > 0.3
+                  ? `blur(${scrollProgress * 24}px)`
+                  : "none",
+              WebkitBackdropFilter:
+                scrollProgress > 0.3
+                  ? `blur(${scrollProgress * 24}px)`
+                  : "none",
+            }}
+            className="rounded-2xl px-5 py-3 flex items-center justify-between border border-transparent transition-[border-radius] duration-300"
+          >
             {/* Logo */}
             <Image
               src="/vyns-logo.png"
@@ -285,7 +339,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ───────────────────────────────────────────────────── */}
-      <section className="relative z-10 max-w-4xl mx-auto px-4 pt-20 pb-28 text-center">
+      <section className="relative z-10 max-w-4xl mx-auto px-4 pt-32 pb-28 text-center">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 border border-teal-500/25 bg-teal-500/[0.05] text-teal-400 text-[10px] font-semibold tracking-[0.12em] uppercase px-4 py-2 rounded-lg mb-10">
           <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
@@ -299,7 +353,7 @@ export default function LandingPage() {
             @Username
           </span>
         </h1>
-        <p className="text-[clamp(22px,3.2vw,34px)] font-semibold text-slate-500 tracking-[-0.01em] mb-6">
+        <p className="text-[clamp(22px,3.2vw,34px)] font-semibold text-slate-400 tracking-[-0.01em] mb-6">
           Earn While You Use It
         </p>
 
@@ -930,7 +984,7 @@ export default function LandingPage() {
 
           <div className="border-t border-white/[0.05] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-slate-600 font-medium">
-              © 2025 VYNS Protocol. All rights reserved.
+              © 2026 VYNS Protocol. All rights reserved.
             </p>
             <div className="inline-flex items-center gap-2 bg-teal-500/[0.05] border border-teal-500/[0.12] text-teal-400 text-[10px] font-semibold uppercase tracking-[0.08em] px-3 py-1.5 rounded-lg">
               <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
