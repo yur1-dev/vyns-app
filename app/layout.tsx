@@ -33,11 +33,11 @@ export const metadata: Metadata = {
   authors: [{ name: "VYNS Protocol" }],
   creator: "VYNS Protocol",
   publisher: "VYNS Protocol",
-  metadataBase: new URL("https://vyns.io"), // Replace with your actual domain
+  metadataBase: new URL("https://vyns-app.vercel.app"),
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://vyns.io",
+    url: "https://vyns-app.vercel.app",
     siteName: "VYNS - Yield Name Service",
     title: "VYNS - Your Name. Your Yield. On-Chain.",
     description:
