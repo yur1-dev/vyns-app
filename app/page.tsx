@@ -275,13 +275,25 @@ export default function LandingPage() {
             className="rounded-2xl px-5 py-3 flex items-center justify-between border border-transparent transition-[border-radius] duration-300"
           >
             {/* Logo */}
-            <Image
-              src="/vyns-logo.png"
-              alt="VYNS"
-              width={120}
-              height={32}
-              className="object-contain"
-            />
+            <Link
+              href="/"
+              className="cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={(e) => {
+                // If already on homepage, scroll to top smoothly
+                if (window.location.pathname === "/") {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+            >
+              <Image
+                src="/vyns-logo.png"
+                alt="VYNS"
+                width={120}
+                height={32}
+                className="object-contain"
+              />
+            </Link>
 
             {/* Desktop links */}
             <div className="hidden md:flex items-center gap-7">
