@@ -6,7 +6,6 @@ if (!MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable in .env");
 }
 
-// Cache the connection to avoid multiple connections in development
 let cached = global as typeof global & {
   mongoose: {
     conn: typeof mongoose | null;

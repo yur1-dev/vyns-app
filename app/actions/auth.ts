@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import clientPromise from "@/lib/mongodb";
+import connectDB from "@/lib/mongodb";
+import { User } from "@/models";
 import {
   hashPassword,
   verifyPassword,
@@ -20,25 +21,24 @@ export async function signupWithEmail(email: string, password: string) {
       return { error: "Password must be at least 6 characters" };
     }
 
-    const client = await clientPromise;
-    const db = client.db("dashboard");
+    await connectDB();
 
-    // Check if user already exists
-    const existingUser = await db.collection("users").findOne({ email });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return { error: "User already exists with this email" };
     }
 
-    // Create new user
     const hashedPassword = await hashPassword(password);
-    const result = await db.collection("users").insertOne({
+    const user = await User.create({
       email,
       password: hashedPassword,
       createdAt: new Date(),
     });
 
-    // Create token and set cookie
-    const token = await createToken(result.insertedId.toString());
+    const token = await createToken({
+      userId: user._id.toString(),
+      email,
+    });
     await setAuthCookie(token);
 
     return { success: true };
@@ -54,23 +54,22 @@ export async function loginWithEmail(email: string, password: string) {
       return { error: "Email and password are required" };
     }
 
-    const client = await clientPromise;
-    const db = client.db("dashboard");
+    await connectDB();
 
-    // Find user
-    const user = await db.collection("users").findOne({ email });
+    const user = await User.findOne({ email });
     if (!user || !user.password) {
       return { error: "Invalid email or password" };
     }
 
-    // Verify password
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
       return { error: "Invalid email or password" };
     }
 
-    // Create token and set cookie
-    const token = await createToken(user._id.toString());
+    const token = await createToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
     await setAuthCookie(token);
 
     return { success: true };
@@ -83,30 +82,28 @@ export async function loginWithEmail(email: string, password: string) {
 export async function loginWithWallet(
   walletAddress: string,
   signature: string,
-  message: string
+  message: string,
 ) {
   try {
     if (!walletAddress || !signature || !message) {
       return { error: "Invalid wallet connection data" };
     }
 
-    // Verify signature (basic check - in production, verify cryptographically)
-    const client = await clientPromise;
-    const db = client.db("dashboard");
+    await connectDB();
 
-    // Find or create wallet user
-    let user = await db.collection("users").findOne({ walletAddress });
+    let user = await User.findOne({ wallet: walletAddress });
 
     if (!user) {
-      const result = await db.collection("users").insertOne({
-        walletAddress,
+      user = await User.create({
+        wallet: walletAddress,
         createdAt: new Date(),
       });
-      user = { _id: result.insertedId };
     }
 
-    // Create token and set cookie
-    const token = await createToken(user._id.toString());
+    const token = await createToken({
+      userId: user._id.toString(),
+      wallet: walletAddress,
+    });
     await setAuthCookie(token);
 
     return { success: true };
