@@ -49,14 +49,14 @@ export default async function DashboardPage() {
                 </div>
               </div>
             )}
-            {user.walletAddress && (
+            {user.wallet && (
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <Wallet className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium">Wallet Address</p>
                   <p className="text-sm text-muted-foreground font-mono">
-                    {user.walletAddress.slice(0, 4)}...
-                    {user.walletAddress.slice(-4)}
+                    {user.wallet.slice(0, 4)}...
+                    {user.wallet.slice(-4)}
                   </p>
                 </div>
               </div>
@@ -64,9 +64,9 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
               <User className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Member Since</p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(user.createdAt).toLocaleDateString()}
+                <p className="text-sm font-medium">User ID</p>
+                <p className="text-sm text-muted-foreground font-mono">
+                  {user.userId}
                 </p>
               </div>
             </div>
