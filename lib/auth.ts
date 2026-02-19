@@ -62,6 +62,18 @@ export async function removeAuthCookie() {
   });
 }
 
+// ─── Get Current User ─────────────────────────────────────
+export async function getUser(): Promise<AuthPayload | null> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("auth-token")?.value;
+    if (!token) return null;
+    return await verifyToken(token);
+  } catch {
+    return null;
+  }
+}
+
 // ─── Request Auth Verification ────────────────────────────
 export async function verifyAuth(
   req: NextRequest,
