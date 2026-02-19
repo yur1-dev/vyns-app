@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,7 @@ export const metadata: Metadata = {
     description:
       "Premium Web3 identity that generates passive income. Own your @username forever.",
     images: ["/preview.png"],
-    creator: "@vyns_protocol", // Replace with your actual Twitter handle
+    creator: "@vyns_protocol",
   },
   robots: {
     index: true,
@@ -79,9 +80,7 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   verification: {
-    google: "your-google-verification-code", // Add your Google Search Console verification
-    // yandex: "your-yandex-verification-code",
-    // bing: "your-bing-verification-code",
+    google: "your-google-verification-code",
   },
 };
 
@@ -103,7 +102,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
