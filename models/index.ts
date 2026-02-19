@@ -7,6 +7,7 @@ export interface IUser extends Document {
   wallet?: string;
   email?: string;
   name?: string;
+  password?: string; // ← ADD THIS
   googleId?: string;
   username?: string;
   avatar?: string;
@@ -25,6 +26,7 @@ const UserSchema = new Schema<IUser>(
     wallet: { type: String, unique: true, sparse: true },
     email: { type: String, unique: true, sparse: true },
     name: { type: String },
+    password: { type: String }, // ← ADD THIS
     googleId: { type: String, unique: true, sparse: true },
     username: { type: String, unique: true, sparse: true },
     avatar: { type: String },
