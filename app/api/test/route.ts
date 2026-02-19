@@ -1,23 +1,18 @@
 import { NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import connectDB from "@/lib/mongodb";
 
 export async function GET() {
   try {
-    const client = await clientPromise;
-    const db = client.db("vyns_db");
-    await db.command({ ping: 1 });
-
+    await connectDB();
     return NextResponse.json({
-      message: "MongoDB connected successfully!",
-      database: "vyns_db",
+      success: true,
+      message: "Database connection successful",
     });
   } catch (error) {
+    console.error("DB test error:", error);
     return NextResponse.json(
-      {
-        error: "MongoDB connection failed",
-        details: error,
-      },
-      { status: 500 }
+      { success: false, error: "Database connection failed" },
+      { status: 500 },
     );
   }
 }
