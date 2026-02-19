@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   Coins,
   Users,
@@ -70,6 +71,8 @@ interface UserData {
 
 export default function VYNSDashboard() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -101,22 +104,33 @@ export default function VYNSDashboard() {
 
   // ─── Check auth on mount ───────────────────────────────
   useEffect(() => {
+    if (status === "loading") return; // Wait for session to load
+
     const wallet = localStorage.getItem("vyns_wallet");
-    const provider = localStorage.getItem("vyns_provider");
     const token = localStorage.getItem("vyns_token");
+    const provider = localStorage.getItem("vyns_provider");
 
-    if (!wallet || !token) {
-      // Not authenticated — redirect to login
+    if (session?.user) {
+      // Logged in via Google
+      setWalletAddress(session.user.email || "");
+      setWalletProvider("Google");
+      setUserData((prev) => ({
+        ...prev,
+        isNewUser: false,
+      }));
+      setLoading(false);
+    } else if (wallet && token) {
+      // Logged in via wallet
+      setWalletAddress(wallet);
+      setWalletProvider(provider || "Wallet");
+      fetchUserData(wallet, token);
+      fetchBalance(wallet);
+      setLoading(false);
+    } else {
+      // Not authenticated
       router.push("/login");
-      return;
     }
-
-    setWalletAddress(wallet);
-    setWalletProvider(provider || "");
-    fetchUserData(wallet, token);
-    fetchBalance(wallet);
-    setLoading(false);
-  }, []);
+  }, [session, status]);
 
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? "hidden" : "";
@@ -185,7 +199,12 @@ export default function VYNSDashboard() {
     localStorage.removeItem("vyns_wallet");
     localStorage.removeItem("vyns_provider");
     localStorage.removeItem("vyns_token");
-    router.push("/login");
+
+    if (session) {
+      await signOut({ callbackUrl: "/login" });
+    } else {
+      router.push("/login");
+    }
   };
 
   // ─── Claim username ────────────────────────────────────
@@ -249,9 +268,11 @@ export default function VYNSDashboard() {
     }
   };
 
-  const displayName = walletAddress
-    ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
-    : "User";
+  const displayName = session?.user?.name
+    ? session.user.name
+    : walletAddress
+      ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
+      : "User";
 
   const progressPercentage = (userData.xp / userData.nextLevelXp) * 100;
 
@@ -275,7 +296,7 @@ export default function VYNSDashboard() {
   ];
 
   // Loading state
-  if (loading) {
+  if (loading || status === "loading") {
     return (
       <div className="min-h-screen bg-[#030811] flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
@@ -389,20 +410,22 @@ export default function VYNSDashboard() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-white/[0.07] text-sm">
-                <Coins className="h-4 w-4 text-teal-400" />
-                {balanceLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                ) : (
-                  <span className="font-semibold">{balance.toFixed(4)}</span>
-                )}
-                <button
-                  onClick={() => walletAddress && fetchBalance(walletAddress)}
-                  className="p-1 hover:bg-slate-700 rounded transition-colors cursor-pointer"
-                >
-                  <RefreshCw className="h-3 w-3 text-slate-400 hover:text-teal-400" />
-                </button>
-              </div>
+              {!session && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-white/[0.07] text-sm">
+                  <Coins className="h-4 w-4 text-teal-400" />
+                  {balanceLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                  ) : (
+                    <span className="font-semibold">{balance.toFixed(4)}</span>
+                  )}
+                  <button
+                    onClick={() => walletAddress && fetchBalance(walletAddress)}
+                    className="p-1 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="h-3 w-3 text-slate-400 hover:text-teal-400" />
+                  </button>
+                </div>
+              )}
 
               <div className="relative">
                 <button
@@ -445,7 +468,7 @@ export default function VYNSDashboard() {
               <div className="relative group">
                 <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
                   <div className="h-7 w-7 rounded-full bg-gradient-to-br from-teal-500 to-indigo-600 flex items-center justify-center text-xs font-bold shadow-lg">
-                    {displayName[0].toUpperCase()}
+                    {displayName[0]?.toUpperCase()}
                   </div>
                   <div className="hidden md:block text-left">
                     <p className="text-xs font-semibold">{displayName}</p>
@@ -457,13 +480,15 @@ export default function VYNSDashboard() {
                 </button>
                 <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/[0.07] bg-slate-900/95 backdrop-blur-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                   <div className="p-3">
-                    {walletAddress && (
-                      <div className="px-3 py-2 bg-slate-800/50 rounded-lg mb-2">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <span className="text-xs text-slate-400 font-mono">
-                            {walletAddress.slice(0, 10)}...
-                            {walletAddress.slice(-10)}
-                          </span>
+                    <div className="px-3 py-2 bg-slate-800/50 rounded-lg mb-2">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xs text-slate-400 font-mono truncate">
+                          {session?.user?.email ||
+                            (walletAddress
+                              ? `${walletAddress.slice(0, 10)}...${walletAddress.slice(-10)}`
+                              : "")}
+                        </span>
+                        {!session && (
                           <button
                             onClick={copyAddress}
                             className="p-1 hover:bg-slate-700 rounded transition-colors cursor-pointer"
@@ -474,15 +499,17 @@ export default function VYNSDashboard() {
                               <Copy className="h-3 w-3 text-teal-400" />
                             )}
                           </button>
-                        </div>
+                        )}
+                      </div>
+                      {!session && (
                         <div className="flex items-center gap-1.5 text-sm">
                           <Coins className="h-4 w-4 text-teal-400" />
                           <span className="font-semibold">
                             {balance.toFixed(4)} SOL
                           </span>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     <div className="border-t border-white/[0.07] pt-2">
                       <button
                         onClick={handleLogout}
@@ -574,12 +601,12 @@ export default function VYNSDashboard() {
                   <h1 className="text-2xl font-bold text-white mb-2">
                     {userData.isNewUser
                       ? "Welcome to VYNS! 🎉"
-                      : "Welcome back! 👋"}
+                      : `Welcome back, ${session?.user?.name?.split(" ")[0] || displayName}! 👋`}
                   </h1>
                   <p className="text-base text-slate-300 mb-4">
                     {userData.isNewUser
                       ? "Let's get you started. Claim your first username to begin earning!"
-                      : `You have ${userData.usernames.length} username${userData.usernames.length !== 1 ? "s" : ""} and ${balance.toFixed(4)} SOL`}
+                      : `You have ${userData.usernames.length} username${userData.usernames.length !== 1 ? "s" : ""}${!session ? ` and ${balance.toFixed(4)} SOL` : ""}`}
                   </p>
                   {userData.isNewUser ? (
                     <button
