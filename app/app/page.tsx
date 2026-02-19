@@ -132,12 +132,23 @@ export default function VYNSDashboard() {
     }
   }, [session, status]);
 
+  // FIX: only lock body scroll on mobile, not on desktop
   useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    const isMobile = window.innerWidth < 1024;
+    document.body.style.overflow = sidebarOpen && isMobile ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [sidebarOpen]);
+
+  // FIX: auto-close sidebar when resizing to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setSidebarOpen(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // ─── Fetch user from MongoDB ───────────────────────────
   const fetchUserData = async (wallet: string, token: string) => {
@@ -527,17 +538,27 @@ export default function VYNSDashboard() {
         </div>
       </header>
 
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div className="flex">
+        {/* Mobile overlay — inside same stacking context as sidebar */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 top-16 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-      <div className="flex relative z-10">
-        {/* Sidebar */}
+        {/* Sidebar
+            Mobile: fixed + z-50 (above overlay at z-40), slides in/out
+            Desktop: sticky + shrink-0 (in flex flow, never overlaps)
+        */}
         <aside
-          className={`fixed lg:sticky top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64 border-r border-white/[0.07] bg-slate-900/80 backdrop-blur-2xl transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+          className={`
+            fixed top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64
+            border-r border-white/[0.07] bg-slate-900/80 backdrop-blur-2xl
+            transition-transform duration-300
+            lg:sticky lg:z-auto lg:translate-x-0 lg:shrink-0
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          `}
         >
           <div className="flex h-full flex-col p-4">
             <div className="p-4 mb-4 rounded-xl bg-gradient-to-br from-teal-500/10 to-indigo-500/10 border border-teal-500/20">
@@ -591,8 +612,8 @@ export default function VYNSDashboard() {
           </div>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 w-full">
+        {/* Main Content — FIX: min-w-0 prevents flex overflow on mobile */}
+        <main className="flex-1 min-w-0 w-full">
           <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
             <div className="max-w-7xl mx-auto space-y-6">
               {/* Welcome Banner */}
