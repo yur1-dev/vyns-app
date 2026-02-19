@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongodb";
+import connectDB from "@/lib/mongodb";
+import { Username } from "@/models";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,12 +9,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
 
-    const client = await clientPromise;
-    const db = client.db("vyns_db");
+    await connectDB();
 
-    // Build sort criteria
     let sortCriteria: any = {};
-
     switch (sort) {
       case "price-low":
         sortCriteria = { listed_price: 1 };
@@ -29,24 +27,19 @@ export async function GET(request: NextRequest) {
         sortCriteria = { created_at: -1 };
     }
 
-    // Get listed usernames only (those with a price)
-    const listings = await db
-      .collection("usernames")
-      .find({
-        listed_price: { $ne: null, $gt: 0 },
-      })
-      .sort(sortCriteria)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .toArray();
+    const filter = { listed_price: { $ne: null, $gt: 0 } };
 
-    // Get total count for pagination
-    const totalCount = await db.collection("usernames").countDocuments({
-      listed_price: { $ne: null, $gt: 0 },
-    });
+    const [listings, totalCount] = await Promise.all([
+      Username.find(filter)
+        .sort(sortCriteria)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Username.countDocuments(filter),
+    ]);
 
     return NextResponse.json({
-      listings: listings.map((item) => ({
+      listings: listings.map((item: any) => ({
         username: item.username,
         price: item.listed_price,
         owner: item.wallet_address,
@@ -66,7 +59,7 @@ export async function GET(request: NextRequest) {
     console.error("Marketplace error:", error);
     return NextResponse.json(
       { error: "Failed to fetch marketplace listings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
