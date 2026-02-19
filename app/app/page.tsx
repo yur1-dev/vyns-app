@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Coins,
   Users,
@@ -21,19 +22,13 @@ import {
   AlertCircle,
   Menu,
   X,
-  Wallet,
   Activity,
   Gift,
   Copy,
-  Trash2,
   TrendingUp,
   Clock,
   Check,
-  ExternalLink,
   RefreshCw,
-  Eye,
-  EyeOff,
-  ArrowLeft,
 } from "lucide-react";
 
 const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
@@ -74,26 +69,20 @@ interface UserData {
 }
 
 export default function VYNSDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showAuthPage, setShowAuthPage] = useState(true);
-  const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot">(
-    "signin",
-  );
-  const [authLoading, setAuthLoading] = useState(false);
-  const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletProvider, setWalletProvider] = useState("");
   const [balance, setBalance] = useState(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
   const [notifications, setNotifications] = useState(3);
-  const [showPassword, setShowPassword] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const [userData, setUserData] = useState<UserData>({
     walletAddress: "",
@@ -110,6 +99,25 @@ export default function VYNSDashboard() {
     isNewUser: true,
   });
 
+  // ─── Check auth on mount ───────────────────────────────
+  useEffect(() => {
+    const wallet = localStorage.getItem("vyns_wallet");
+    const provider = localStorage.getItem("vyns_provider");
+    const token = localStorage.getItem("vyns_token");
+
+    if (!wallet || !token) {
+      // Not authenticated — redirect to login
+      router.push("/login");
+      return;
+    }
+
+    setWalletAddress(wallet);
+    setWalletProvider(provider || "");
+    fetchUserData(wallet, token);
+    fetchBalance(wallet);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? "hidden" : "";
     return () => {
@@ -117,35 +125,30 @@ export default function VYNSDashboard() {
     };
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    if (walletAddress) {
-      fetchBalance(walletAddress);
-      const key = `vyns_user_${walletAddress}`;
-      const stored = sessionStorage.getItem(key);
-      if (stored) {
-        const parsedData = JSON.parse(stored);
-        setUserData(parsedData);
-      } else {
-        const newUserData = {
-          ...userData,
-          walletAddress,
-          isNewUser: true,
-        };
-        setUserData(newUserData);
+  // ─── Fetch user from MongoDB ───────────────────────────
+  const fetchUserData = async (wallet: string, token: string) => {
+    try {
+      const res = await fetch(`/api/user/${wallet}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUserData((prev) => ({
+          ...prev,
+          walletAddress: wallet,
+          level: data.user.level,
+          xp: data.user.xp,
+          earnings: { today: 0, week: 0, allTime: data.user.earnings },
+          stakedAmount: data.user.stakedAmount,
+          isNewUser: !data.user.username,
+        }));
       }
-    }
-  }, [walletAddress]);
-
-  const saveUserData = (data: UserData) => {
-    if (walletAddress) {
-      sessionStorage.setItem(
-        `vyns_user_${walletAddress}`,
-        JSON.stringify(data),
-      );
-      setUserData(data);
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
     }
   };
 
+  // ─── Fetch SOL balance ─────────────────────────────────
   const fetchBalance = async (publicKey: string) => {
     setBalanceLoading(true);
     try {
@@ -165,113 +168,77 @@ export default function VYNSDashboard() {
       }
     } catch (err) {
       console.error("Balance fetch failed:", err);
-      setBalance(0);
     } finally {
       setBalanceLoading(false);
     }
   };
 
-  const connectWallet = async (
-    walletType: "phantom" | "solflare" | "backpack",
-  ) => {
-    setAuthLoading(true);
-    setError("");
-    setShowWalletModal(false);
-
+  // ─── Logout ────────────────────────────────────────────
+  const handleLogout = async () => {
     try {
       const w = window as any;
-      let provider: any = null;
-      let name = "";
+      if (w.phantom?.solana?.disconnect) await w.phantom.solana.disconnect();
+      if (w.solflare?.disconnect) await w.solflare.disconnect();
+      if (w.backpack?.disconnect) await w.backpack.disconnect();
+    } catch {}
 
-      if (walletType === "phantom") {
-        provider = w.phantom?.solana;
-        name = "Phantom";
-        if (!provider) throw new Error("Phantom not installed");
-      } else if (walletType === "solflare") {
-        provider = w.solflare;
-        name = "Solflare";
-        if (!provider) throw new Error("Solflare not installed");
-      } else {
-        provider = w.backpack;
-        name = "Backpack";
-        if (!provider) throw new Error("Backpack not installed");
-      }
-
-      const response = await provider.connect();
-      const publicKey = response.publicKey.toString();
-
-      setWalletAddress(publicKey);
-      setWalletProvider(name);
-      setIsAuthenticated(true);
-      setShowAuthPage(false);
-      await fetchBalance(publicKey);
-    } catch (err: any) {
-      setError(err.message || "Connection failed");
-    } finally {
-      setAuthLoading(false);
-    }
+    localStorage.removeItem("vyns_wallet");
+    localStorage.removeItem("vyns_provider");
+    localStorage.removeItem("vyns_token");
+    router.push("/login");
   };
 
-  const handleLogout = async () => {
-    if (walletAddress) {
-      try {
-        const w = window as any;
-        if (w.phantom?.solana?.disconnect) await w.phantom.solana.disconnect();
-        if (w.solflare?.disconnect) await w.solflare.disconnect();
-        if (w.backpack?.disconnect) await w.backpack.disconnect();
-      } catch (err) {
-        console.error("Disconnect error:", err);
-      }
-    }
-    setIsAuthenticated(false);
-    setShowAuthPage(true);
-    setWalletAddress(null);
-    setWalletProvider("");
-    setBalance(0);
-    setSidebarOpen(false);
-  };
-
-  const handleEmailAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    const isSignup = authMode === "signup";
-    setShowAuthPage(false);
-    setIsAuthenticated(true);
-
-    setUserData({
-      ...userData,
-      isNewUser: isSignup,
-    });
-  };
-
-  const claimUsername = () => {
-    const trimmed = newUsername.trim();
-    if (!trimmed || !trimmed.startsWith("@")) {
-      setError("Username must start with @");
+  // ─── Claim username ────────────────────────────────────
+  const claimUsername = async () => {
+    const trimmed = newUsername.trim().replace("@", "");
+    if (!trimmed) {
+      setError("Please enter a username");
       return;
     }
 
-    const username: Username = {
-      id: Date.now().toString(),
-      name: trimmed,
-      level: 1,
-      yield: 0,
-      staked: false,
-      value: 0.1,
-      tier: "Bronze",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const token = localStorage.getItem("vyns_token");
+      const res = await fetch("/api/username/claim", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ wallet: walletAddress, username: trimmed }),
+      });
 
-    const newData = {
-      ...userData,
-      usernames: [...userData.usernames, username],
-      xp: userData.xp + 100,
-      isNewUser: false,
-    };
+      const data = await res.json();
 
-    saveUserData(newData);
-    setNewUsername("");
-    setShowUsernameModal(false);
-    setError("");
+      if (!data.success) {
+        setError(data.error || "Failed to claim username");
+        return;
+      }
+
+      setUserData((prev) => ({
+        ...prev,
+        xp: prev.xp + 100,
+        isNewUser: false,
+        usernames: [
+          ...prev.usernames,
+          {
+            id: Date.now().toString(),
+            name: data.username,
+            level: 1,
+            yield: 0,
+            staked: false,
+            value: 0.1,
+            tier: "Bronze",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }));
+
+      setNewUsername("");
+      setShowUsernameModal(false);
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Failed to claim username");
+    }
   };
 
   const copyAddress = () => {
@@ -279,12 +246,6 @@ export default function VYNSDashboard() {
       navigator.clipboard.writeText(walletAddress);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-    }
-  };
-
-  const handleRefreshBalance = () => {
-    if (walletAddress) {
-      fetchBalance(walletAddress);
     }
   };
 
@@ -313,330 +274,22 @@ export default function VYNSDashboard() {
     { id: "settings", icon: Settings, label: "Settings" },
   ];
 
-  const getWelcomeMessage = () => {
-    if (userData.isNewUser) {
-      return "Welcome to VYNS! 🎉";
-    }
-    return "Welcome back! 👋";
-  };
-
-  const getWelcomeSubtext = () => {
-    if (userData.isNewUser) {
-      return "Let's get you started. Claim your first username to begin earning!";
-    }
-    return `You have ${userData.usernames.length} username${userData.usernames.length !== 1 ? "s" : ""} and ${balance.toFixed(4)} SOL`;
-  };
-
-  // Authentication Page
-  if (showAuthPage) {
+  // Loading state
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#030811] text-slate-200 overflow-x-hidden font-sans antialiased relative">
-        {/* Ambient glow background */}
-        <div className="pointer-events-none fixed inset-0 z-0">
-          <div className="absolute -top-52 -left-52 w-[700px] h-[700px] rounded-full bg-teal-500/[0.07] blur-[160px]" />
-          <div className="absolute bottom-0 -right-40 w-[550px] h-[550px] rounded-full bg-indigo-500/[0.08] blur-[160px]" />
-        </div>
-
-        {/* Glassmorphic Background Pattern */}
-        <div className="fixed inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/20 via-transparent to-slate-900/20" />
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.05) 1px, transparent 0)`,
-              backgroundSize: "40px 40px",
-            }}
-          />
-        </div>
-
-        {/* Wallet Connect Modal */}
-        {showWalletModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/80 backdrop-blur-md"
-              onClick={() => setShowWalletModal(false)}
-            />
-            <div
-              className="w-full max-w-sm rounded-2xl border border-white/[0.1] bg-slate-900/80 backdrop-blur-2xl p-6 shadow-2xl relative z-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-white">
-                  Connect Wallet
-                </h2>
-                <button
-                  onClick={() => setShowWalletModal(false)}
-                  className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
-                >
-                  <X className="h-4 w-4 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {[
-                  {
-                    type: "phantom",
-                    name: "Phantom",
-                    src: "/phantom-wallet.png",
-                  },
-                  {
-                    type: "solflare",
-                    name: "Solflare",
-                    src: "/solflare-wallet.png",
-                  },
-                  {
-                    type: "backpack",
-                    name: "Backpack",
-                    src: "/backpack-wallet.png",
-                  },
-                ].map((w) => (
-                  <button
-                    key={w.type}
-                    onClick={() => connectWallet(w.type as any)}
-                    disabled={authLoading}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/[0.07] bg-slate-800/50 hover:border-teal-500/50 hover:bg-slate-800 transition-all disabled:opacity-60 group cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-lg overflow-hidden">
-                      <Image
-                        src={w.src}
-                        alt={w.name}
-                        width={40}
-                        height={40}
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="font-semibold text-base text-white">
-                        {w.name}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        Connect to {w.name}
-                      </div>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-slate-600 group-hover:text-teal-400 transition-colors" />
-                  </button>
-                ))}
-              </div>
-
-              {authLoading && (
-                <div className="mt-4 flex items-center justify-center gap-2 text-teal-400 p-3 bg-teal-500/10 rounded-lg border border-teal-500/20">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm font-medium">Connecting...</span>
-                </div>
-              )}
-
-              {error && (
-                <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-red-400">{error}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Auth Modal */}
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md relative z-10">
-            {/* Logo and Header */}
-            <div className="text-center mb-8">
-              <div className="flex justify-center mb-5">
-                <Link href="/" className="cursor-pointer">
-                  <Image
-                    src="/vyns-logo.png"
-                    alt="VYNS"
-                    width={120}
-                    height={40}
-                    className="object-contain hover:opacity-80 transition-opacity"
-                  />
-                </Link>
-              </div>
-              <h1 className="text-[clamp(24px,4vw,32px)] font-bold text-white mb-2">
-                {authMode === "signin" && "Welcome Back"}
-                {authMode === "signup" && "Welcome to VYNS!"}
-                {authMode === "forgot" && "Reset Your Password"}
-              </h1>
-              <p className="text-slate-400 text-base font-normal">
-                {authMode === "signin" && "Sign in to your VYNS dashboard"}
-                {authMode === "signup" &&
-                  "Create your account and start earning"}
-                {authMode === "forgot" && "We'll send you a reset link"}
-              </p>
-            </div>
-
-            {/* Auth Card */}
-            <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 shadow-2xl">
-              <button
-                type="button"
-                onClick={() => setShowWalletModal(true)}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-indigo-500 hover:opacity-90 text-white py-3.5 rounded-xl font-semibold transition-all shadow-lg shadow-teal-500/20 mb-5 cursor-pointer"
-              >
-                <Wallet className="h-5 w-5" />
-                Connect Wallet
-              </button>
-
-              {authMode !== "forgot" && (
-                <div className="relative my-5">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/[0.07]"></div>
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="px-3 bg-slate-900/80 text-slate-500 font-medium">
-                      Or continue with email
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                {authMode === "signup" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="John Doe"
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-white/[0.07] rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="your@email.com"
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-white/[0.07] rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all"
-                  />
-                </div>
-
-                {authMode !== "forgot" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••••"
-                        className="w-full px-4 py-3 bg-slate-800/50 border border-white/[0.07] rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all pr-12"
-                      />
-                      {authMode === "signin" && (
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors cursor-pointer"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {authMode === "signin" && (
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setAuthMode("forgot")}
-                      className="text-sm text-teal-400 hover:text-teal-300 font-medium transition-colors cursor-pointer"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full bg-slate-800 hover:bg-slate-700 border border-white/[0.08] hover:border-teal-500/50 text-white py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer"
-                >
-                  {authMode === "signin" && "Sign In"}
-                  {authMode === "signup" && "Create Account"}
-                  {authMode === "forgot" && "Send Reset Link"}
-                </button>
-              </form>
-
-              <div className="mt-5 text-center">
-                <p className="text-sm text-slate-400 font-normal">
-                  {authMode === "signin" && (
-                    <>
-                      Don't have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode("signup")}
-                        className="text-teal-400 hover:text-teal-300 font-semibold transition-colors cursor-pointer"
-                      >
-                        Sign up
-                      </button>
-                    </>
-                  )}
-                  {authMode === "signup" && (
-                    <>
-                      Already have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode("signin")}
-                        className="text-teal-400 hover:text-teal-300 font-semibold transition-colors cursor-pointer"
-                      >
-                        Sign in
-                      </button>
-                    </>
-                  )}
-                  {authMode === "forgot" && (
-                    <>
-                      Remember your password?{" "}
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode("signin")}
-                        className="text-teal-400 hover:text-teal-300 font-semibold transition-colors cursor-pointer"
-                      >
-                        Sign in
-                      </button>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <p className="text-center text-xs text-slate-500 mt-5 leading-relaxed font-normal">
-              By continuing, you agree to VYNS's{" "}
-              <a
-                href="#"
-                className="text-teal-400 hover:text-teal-300 transition-colors"
-              >
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a
-                href="#"
-                className="text-teal-400 hover:text-teal-300 transition-colors"
-              >
-                Privacy Policy
-              </a>
-            </p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-[#030811] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
       </div>
     );
   }
 
-  // Main Dashboard with Fixed Layout
   return (
     <div className="min-h-screen bg-[#030811] text-slate-200 font-sans antialiased">
-      {/* Ambient glow background */}
+      {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute -top-52 -left-52 w-[700px] h-[700px] rounded-full bg-teal-500/[0.07] blur-[160px]" />
         <div className="absolute bottom-0 -right-40 w-[550px] h-[550px] rounded-full bg-indigo-500/[0.08] blur-[160px]" />
       </div>
-
-      {/* Glassmorphic Background Pattern */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/20 via-transparent to-slate-900/20" />
         <div
@@ -669,7 +322,6 @@ export default function VYNSDashboard() {
                 <X className="h-4 w-4 text-slate-400" />
               </button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2 text-slate-300">
@@ -682,29 +334,23 @@ export default function VYNSDashboard() {
                   onChange={(e) => setNewUsername(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-white/[0.07] focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-sm text-slate-200 placeholder-slate-500 transition-all"
                 />
-                <p className="text-xs text-slate-500 mt-2 font-normal">
-                  Must start with @
-                </p>
               </div>
-
               <div className="p-4 rounded-xl bg-slate-800/50 border border-white/[0.07]">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-400 font-normal">Fee</span>
+                  <span className="text-slate-400">Fee</span>
                   <span className="font-semibold text-white">0.1 SOL</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400 font-normal">Duration</span>
+                  <span className="text-slate-400">Duration</span>
                   <span className="font-semibold text-white">1 Year</span>
                 </div>
               </div>
-
               {error && (
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-red-400">{error}</p>
                 </div>
               )}
-
               <button
                 onClick={claimUsername}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-500 to-indigo-500 hover:opacity-90 font-semibold text-sm shadow-lg shadow-teal-500/20 transition-all text-white cursor-pointer"
@@ -716,7 +362,7 @@ export default function VYNSDashboard() {
         </div>
       )}
 
-      {/* Fixed Header */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-[#030811]/80 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -731,7 +377,7 @@ export default function VYNSDashboard() {
                   <Menu className="h-5 w-5" />
                 )}
               </button>
-              <Link href="/" className="cursor-pointer">
+              <Link href="/">
                 <Image
                   src="/vyns-logo.png"
                   alt="VYNS"
@@ -751,9 +397,8 @@ export default function VYNSDashboard() {
                   <span className="font-semibold">{balance.toFixed(4)}</span>
                 )}
                 <button
-                  onClick={handleRefreshBalance}
+                  onClick={() => walletAddress && fetchBalance(walletAddress)}
                   className="p-1 hover:bg-slate-700 rounded transition-colors cursor-pointer"
-                  title="Refresh balance"
                 >
                   <RefreshCw className="h-3 w-3 text-slate-400 hover:text-teal-400" />
                 </button>
@@ -766,10 +411,9 @@ export default function VYNSDashboard() {
                 >
                   <Bell className="h-4 w-4" />
                   {notifications > 0 && (
-                    <span className="absolute right-1 top-1 w-2 h-2 bg-teal-400 rounded-full"></span>
+                    <span className="absolute right-1 top-1 w-2 h-2 bg-teal-400 rounded-full" />
                   )}
                 </button>
-
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-72 rounded-xl border border-white/[0.07] bg-slate-900/95 backdrop-blur-xl shadow-2xl p-4">
                     <div className="flex items-center justify-between mb-3">
@@ -777,27 +421,22 @@ export default function VYNSDashboard() {
                         Notifications
                       </h3>
                       <button
-                        onClick={() => setShowNotifications(false)}
+                        onClick={() => {
+                          setNotifications(0);
+                          setShowNotifications(false);
+                        }}
                         className="text-xs text-teal-400 hover:text-teal-300 cursor-pointer"
                       >
                         Clear all
                       </button>
                     </div>
-                    <div className="space-y-2">
-                      {notifications > 0 ? (
-                        <div className="p-3 bg-slate-800/50 rounded-lg">
-                          <p className="text-sm text-white mb-1">
-                            Welcome to VYNS!
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            Get started by claiming your first username
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-400 text-center py-4">
-                          No new notifications
-                        </p>
-                      )}
+                    <div className="p-3 bg-slate-800/50 rounded-lg">
+                      <p className="text-sm text-white mb-1">
+                        Welcome to VYNS!
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Get started by claiming your first username
+                      </p>
                     </div>
                   </div>
                 )}
@@ -811,12 +450,11 @@ export default function VYNSDashboard() {
                   <div className="hidden md:block text-left">
                     <p className="text-xs font-semibold">{displayName}</p>
                     <p className="text-[10px] text-teal-400">
-                      {walletProvider || "Email"}
+                      {walletProvider || "Wallet"}
                     </p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-slate-400 hidden sm:block" />
                 </button>
-
                 <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/[0.07] bg-slate-900/95 backdrop-blur-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                   <div className="p-3">
                     {walletAddress && (
@@ -862,7 +500,6 @@ export default function VYNSDashboard() {
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
@@ -873,9 +510,7 @@ export default function VYNSDashboard() {
       <div className="flex relative z-10">
         {/* Sidebar */}
         <aside
-          className={`fixed lg:sticky top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64 border-r border-white/[0.07] bg-slate-900/80 backdrop-blur-2xl transition-transform duration-300 lg:translate-x-0 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className={`fixed lg:sticky top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64 border-r border-white/[0.07] bg-slate-900/80 backdrop-blur-2xl transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         >
           <div className="flex h-full flex-col p-4">
             <div className="p-4 mb-4 rounded-xl bg-gradient-to-br from-teal-500/10 to-indigo-500/10 border border-teal-500/20">
@@ -891,7 +526,7 @@ export default function VYNSDashboard() {
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-400 font-normal">
+              <p className="text-xs text-slate-400">
                 {userData.xp} / {userData.nextLevelXp} XP
               </p>
             </div>
@@ -904,11 +539,7 @@ export default function VYNSDashboard() {
                     setActiveTab(item.id);
                     setSidebarOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                    activeTab === item.id
-                      ? "bg-slate-800 text-white shadow-lg"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                  }`}
+                  className={`flex w-full items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${activeTab === item.id ? "bg-slate-800 text-white shadow-lg" : "text-slate-400 hover:bg-slate-800/50 hover:text-white"}`}
                 >
                   <div className="flex items-center gap-3">
                     <item.icon className="h-4 w-4" />
@@ -933,7 +564,7 @@ export default function VYNSDashboard() {
           </div>
         </aside>
 
-        {/* Main Content - Fixed Width Container */}
+        {/* Main Content */}
         <main className="flex-1 w-full">
           <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -941,13 +572,16 @@ export default function VYNSDashboard() {
               <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-500/10 via-indigo-500/10 to-purple-500/10 border border-white/[0.07] p-6 backdrop-blur-sm">
                 <div className="relative z-10">
                   <h1 className="text-2xl font-bold text-white mb-2">
-                    {getWelcomeMessage()}
+                    {userData.isNewUser
+                      ? "Welcome to VYNS! 🎉"
+                      : "Welcome back! 👋"}
                   </h1>
-                  <p className="text-base text-slate-300 font-normal mb-4">
-                    {getWelcomeSubtext()}
+                  <p className="text-base text-slate-300 mb-4">
+                    {userData.isNewUser
+                      ? "Let's get you started. Claim your first username to begin earning!"
+                      : `You have ${userData.usernames.length} username${userData.usernames.length !== 1 ? "s" : ""} and ${balance.toFixed(4)} SOL`}
                   </p>
-
-                  {userData.isNewUser && (
+                  {userData.isNewUser ? (
                     <button
                       onClick={() => setShowUsernameModal(true)}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-indigo-500 hover:opacity-90 text-white rounded-xl font-semibold text-sm transition-all cursor-pointer"
@@ -955,9 +589,7 @@ export default function VYNSDashboard() {
                       <Crown className="h-4 w-4" />
                       Claim Your First Username
                     </button>
-                  )}
-
-                  {!userData.isNewUser && (
+                  ) : (
                     <div className="flex items-center gap-3">
                       <Award className="h-5 w-5 text-teal-400" />
                       <div className="flex-1 max-w-md">
@@ -967,7 +599,7 @@ export default function VYNSDashboard() {
                             style={{ width: `${progressPercentage}%` }}
                           />
                         </div>
-                        <p className="text-xs text-slate-400 font-normal">
+                        <p className="text-xs text-slate-400">
                           Level {userData.level} • {userData.xp}/
                           {userData.nextLevelXp} XP
                         </p>
@@ -980,7 +612,6 @@ export default function VYNSDashboard() {
               {/* Overview Tab */}
               {activeTab === "overview" && (
                 <div className="space-y-6">
-                  {/* Stats Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                       {
@@ -1027,14 +658,13 @@ export default function VYNSDashboard() {
                         <div className="text-2xl font-bold text-white mb-1">
                           {stat.value}
                         </div>
-                        <div className="text-sm text-slate-400 font-normal">
+                        <div className="text-sm text-slate-400">
                           {stat.label}
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Quick Actions */}
                   <div className="rounded-xl border border-white/[0.07] bg-slate-900/50 backdrop-blur-sm p-6">
                     <h3 className="text-lg font-semibold mb-4 text-white">
                       Quick Actions
@@ -1080,7 +710,6 @@ export default function VYNSDashboard() {
                     </div>
                   </div>
 
-                  {/* Recent Activity */}
                   <div className="rounded-xl border border-white/[0.07] bg-slate-900/50 backdrop-blur-sm p-6">
                     <div className="flex items-center justify-between mb-5">
                       <h2 className="text-lg font-semibold text-white">
@@ -1124,7 +753,7 @@ export default function VYNSDashboard() {
                                 <p className="font-medium capitalize text-sm text-white">
                                   {item.type}
                                 </p>
-                                <p className="text-xs text-slate-400 font-normal">
+                                <p className="text-xs text-slate-400">
                                   {item.date}
                                 </p>
                               </div>
