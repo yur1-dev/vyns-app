@@ -96,15 +96,10 @@ export function useDashboard() {
         const data = await res.json();
         const payload = data.user ?? data;
 
-        // Fetch staking positions separately from dedicated route
         const positions = await fetchStakingPositions();
-
-        // Calculate live staking rewards total
         const stakingRewards = positions
           .filter((p: any) => p.status !== "claimed")
           .reduce((acc: number, p: any) => acc + (p.rewards ?? 0), 0);
-
-        // Calculate total staked amount from active positions only
         const stakedAmount = positions
           .filter((p: any) => p.status === "active" || p.status === "unlocked")
           .reduce((acc: number, p: any) => acc + p.amount, 0);
@@ -130,7 +125,6 @@ export function useDashboard() {
 
         if (payload.activeUsername)
           setActiveUsernameState(payload.activeUsername);
-
         if (payload.customization) {
           setCustomization({
             ...DEFAULT_CUSTOMIZATION,
@@ -156,21 +150,30 @@ export function useDashboard() {
       setLoading(true);
       try {
         if (session?.user) {
-          setProvider(
-            session.user.image?.includes("google") ? "Google" : "Email",
+          // ── Google or email/password via NextAuth ──
+          // Explicitly clear wallet so no wallet UI shows for session users
+          setWallet(null);
+
+          // Detect provider from image URL or fallback to Email
+          const isGoogle = !!(
+            session.user.image?.includes("google") ||
+            session.user.image?.includes("googleusercontent")
           );
+          setProvider(isGoogle ? "Google" : "Email");
+
           await fetchUserData(null, session);
         } else {
+          // ── Wallet auth ──
           const solana = (window as any).solana;
           if (!solana?.isPhantom) {
-            router.push("/");
+            router.push("/login");
             return;
           }
           const resp = await solana
             .connect({ onlyIfTrusted: true })
             .catch(() => null);
           if (!resp?.publicKey) {
-            router.push("/");
+            router.push("/login");
             return;
           }
           const pk = resp.publicKey.toString();
@@ -325,12 +328,15 @@ export function useDashboard() {
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     if (session) {
-      await signOut({ callbackUrl: "/" });
+      // Google / email users — sign out NextAuth session, go to /login not /
+      await signOut({ callbackUrl: "/login" });
     } else {
+      // Wallet users — disconnect Phantom, go to /login
       try {
         await (window as any).solana?.disconnect();
       } catch {}
-      router.push("/");
+      setWallet(null);
+      router.push("/login");
     }
   }, [session, router]);
 
