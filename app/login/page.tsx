@@ -1,5 +1,6 @@
 "use client";
 
+// app/login/page.tsx
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,6 +15,41 @@ import {
 } from "lucide-react";
 import { signIn } from "next-auth/react";
 
+const WALLETS = [
+  {
+    type: "phantom" as const,
+    name: "Phantom",
+    src: "/phantom-wallet.png",
+    desc: "Most popular Solana wallet",
+  },
+  {
+    type: "solflare" as const,
+    name: "Solflare",
+    src: "/solflare-wallet.png",
+    desc: "Advanced Solana wallet",
+  },
+  {
+    type: "backpack" as const,
+    name: "Backpack",
+    src: "/backpack-wallet.png",
+    desc: "Multi-chain xNFT wallet",
+  },
+];
+
+// Poll /api/auth/session until we get a valid user, with timeout
+async function waitForSession(maxWaitMs = 5000): Promise<boolean> {
+  const interval = 200;
+  const maxTries = maxWaitMs / interval;
+
+  for (let i = 0; i < maxTries; i++) {
+    const res = await fetch("/api/auth/session");
+    const data = await res.json();
+    if (data?.user?.id || data?.user?.wallet || data?.user?.email) return true;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return false;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -24,31 +60,45 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
 
+  // ── Google ────────────────────────────────────────────────
   const handleGoogle = async () => {
     setLoading(true);
     setLoadingType("google");
-    await signIn("google", { callbackUrl: "/app" });
+    await signIn("google", { callbackUrl: "/dashboard" });
   };
 
+  // ── Email / Password ──────────────────────────────────────
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setLoadingType("email");
     setError("");
+
     const result = await signIn("credentials", {
       email,
       password,
       redirect: false,
     });
+
     if (result?.error) {
       setError("Invalid email or password");
       setLoading(false);
       setLoadingType(null);
+      return;
+    }
+
+    // Wait for session cookie to be fully written before navigating
+    const ok = await waitForSession();
+    if (ok) {
+      router.push("/dashboard");
     } else {
-      router.push("/app");
+      setError("Session failed to initialize. Please try again.");
+      setLoading(false);
+      setLoadingType(null);
     }
   };
 
+  // ── Wallet ────────────────────────────────────────────────
   const connectWallet = async (type: "phantom" | "solflare" | "backpack") => {
     setLoading(true);
     setLoadingType(type);
@@ -59,52 +109,50 @@ export default function LoginPage() {
       const w = window as any;
       let provider: any = null;
 
-      if (type === "phantom") {
-        provider = w.phantom?.solana;
-        if (!provider)
-          throw new Error("Phantom wallet not found. Please install it.");
-      } else if (type === "solflare") {
-        provider = w.solflare;
-        if (!provider)
-          throw new Error("Solflare wallet not found. Please install it.");
-      } else if (type === "backpack") {
-        provider = w.backpack;
-        if (!provider)
-          throw new Error("Backpack wallet not found. Please install it.");
-      }
+      if (type === "phantom") provider = w.phantom?.solana ?? w.solana;
+      if (type === "solflare") provider = w.solflare;
+      if (type === "backpack") provider = w.backpack;
+
+      if (!provider)
+        throw new Error(
+          `${type.charAt(0).toUpperCase() + type.slice(1)} not found. Please install it.`,
+        );
 
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
-      const message = `Sign in to VYNS\nWallet: ${wallet}\nTimestamp: ${Date.now()}`;
+      const message = `Sign in to VYNS\nWallet: ${wallet}\nNonce: ${Date.now()}`;
       const encodedMessage = new TextEncoder().encode(message);
 
       let signed: any;
       try {
         signed = await provider.signMessage(encodedMessage, "utf8");
-      } catch (signErr: any) {
-        if (signErr.message?.includes("rejected") || signErr.code === 4001) {
+      } catch (err: any) {
+        if (err.code === 4001 || err.message?.includes("rejected")) {
           throw new Error(
-            "Signature cancelled. Please approve the request in your wallet.",
+            "Signature cancelled. Please approve in your wallet.",
           );
         }
-        throw signErr;
+        throw err;
       }
 
       const signature = Buffer.from(signed.signature).toString("base64");
 
-      const res = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet, signature, message }),
+      const result = await signIn("wallet", {
+        wallet,
+        signature,
+        message,
+        redirect: false,
       });
-      const data = await res.json();
-      if (!data.success)
-        throw new Error(data.error || "Failed to verify wallet");
 
-      localStorage.setItem("vyns_wallet", wallet);
-      localStorage.setItem("vyns_provider", type);
-      localStorage.setItem("vyns_token", data.token);
-      router.push(data.isNewUser ? "/register" : "/app");
+      if (result?.error)
+        throw new Error("Wallet verification failed. Please try again.");
+
+      // Wait for session cookie to be fully written before navigating
+      const ok = await waitForSession();
+      if (!ok)
+        throw new Error("Session failed to initialize. Please try again.");
+
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to connect wallet");
       setLoading(false);
@@ -113,30 +161,9 @@ export default function LoginPage() {
     }
   };
 
-  const wallets = [
-    {
-      type: "phantom" as const,
-      name: "Phantom",
-      src: "/phantom-wallet.png",
-      desc: "Connect to Phantom",
-    },
-    {
-      type: "solflare" as const,
-      name: "Solflare",
-      src: "/solflare-wallet.png",
-      desc: "Connect to Solflare",
-    },
-    {
-      type: "backpack" as const,
-      name: "Backpack",
-      src: "/backpack-wallet.png",
-      desc: "Connect to Backpack",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-[#09090b] flex">
-      {/* Left panel — branding */}
+      {/* ── Left branding ── */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-white/[0.06] relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(20,184,166,0.08),transparent_60%)]" />
         <div
@@ -187,7 +214,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Right panel — form */}
+      {/* ── Right form ── */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-6">
           <div className="lg:hidden flex justify-center mb-2">
@@ -288,30 +315,22 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 required
+                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white/70">
-                  Password
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <label className="text-sm font-medium text-white/70">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                   required
+                  className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 />
                 <button
                   type="button"
@@ -324,6 +343,14 @@ export default function LoginPage() {
                     <Eye className="h-4 w-4" />
                   )}
                 </button>
+              </div>
+              <div className="flex justify-end pt-0.5">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                >
+                  Forgot password?
+                </Link>
               </div>
             </div>
 
@@ -361,7 +388,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Wallet Modal — matches screenshot style */}
+      {/* ── Wallet Modal ── */}
       {showWalletModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -386,9 +413,8 @@ export default function LoginPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-
             <div className="space-y-3">
-              {wallets.map((w) => (
+              {WALLETS.map((w) => (
                 <button
                   key={w.type}
                   onClick={() => connectWallet(w.type)}
@@ -414,14 +440,12 @@ export default function LoginPage() {
                 </button>
               ))}
             </div>
-
             {error && (
               <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
-
             <p className="text-center text-xs text-white/20 mt-5">
               New to Solana wallets?{" "}
               <a

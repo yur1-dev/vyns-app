@@ -1,56 +1,35 @@
 "use client";
 
+// app/search/page.tsx
+
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  CheckCircle,
+  Search,
+  CheckCircle2,
   XCircle,
-  ArrowRight,
+  Crown,
+  Wallet,
   TrendingUp,
   Calendar,
-  Wallet,
-  Sparkles,
-  Search,
-  ChevronRight,
-  ExternalLink,
   Copy,
   Check,
+  ExternalLink,
+  ChevronRight,
+  Loader2,
+  ArrowUpRight,
+  Sparkles,
 } from "lucide-react";
+import {
+  tierFromLen,
+  priceFromLen,
+  TIER_CONFIG,
+  Pill,
+} from "@/components/dashboard/ui";
 
-// Add this export to prevent static generation
 export const dynamic = "force-dynamic";
-
-// ────────────────────────────────────────────────
-// Same VYNSLogo component used in dashboard & marketplace
-// ────────────────────────────────────────────────
-const VYNSLogo = ({
-  size = "md",
-  animated = false,
-}: {
-  size?: "sm" | "md" | "lg" | "xl";
-  animated?: boolean;
-}) => {
-  const sizes = { sm: 40, md: 48, lg: 80, xl: 128 };
-  const dim = sizes[size] || 48;
-
-  return (
-    <div className={`relative w-[${dim}px] h-[${dim}px]`}>
-      <Image
-        src="/vyns-logo.png"
-        alt="VYNS"
-        width={dim}
-        height={dim}
-        className={`object-contain ${animated ? "animate-pulse" : ""}`}
-        priority={size === "xl" || size === "lg"}
-      />
-      {animated && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-400 rounded-full animate-ping" />
-      )}
-    </div>
-  );
-};
 
 interface UsernameResult {
   username: string;
@@ -62,442 +41,488 @@ interface UsernameResult {
   registeredAt?: string;
 }
 
-interface SimilarUsername {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function SimilarChip({
+  username,
+  available,
+  onClick,
+}: {
   username: string;
   available: boolean;
-  price?: number;
-  level?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.10] transition-all cursor-pointer group w-full text-left"
+    >
+      <div>
+        <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">
+          @{username}
+        </p>
+        <p
+          className={`text-[11px] mt-0.5 ${available ? "text-teal-400" : "text-white/25"}`}
+        >
+          {available ? "Available" : "Taken"}
+        </p>
+      </div>
+      <ChevronRight className="h-3.5 w-3.5 text-white/15 group-hover:text-teal-400 transition-colors shrink-0" />
+    </button>
+  );
 }
+
+// ── Inner page ────────────────────────────────────────────────────────────────
 
 function SearchPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const query = searchParams.get("q")?.toLowerCase() || "";
+  const query =
+    searchParams
+      .get("q")
+      ?.toLowerCase()
+      .replace(/[^a-z0-9_]/g, "") || "";
 
   const [result, setResult] = useState<UsernameResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [similarNames, setSimilarNames] = useState<SimilarUsername[]>([]);
-  const [newSearch, setNewSearch] = useState(query);
-  const [copiedOwner, setCopiedOwner] = useState(false);
+  const [similar, setSimilar] = useState<
+    { username: string; available: boolean }[]
+  >([]);
+  const [input, setInput] = useState(query);
+  const [copiedOwner, setCopied] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+  const [claimErr, setClaimErr] = useState("");
+
+  const tier = query.length > 0 ? tierFromLen(query.length) : null;
+  const tierCfg = tier ? TIER_CONFIG[tier] : null;
 
   useEffect(() => {
-    if (query) {
-      searchUsername(query);
-      generateSimilarNames(query);
-    } else {
-      setLoading(false);
-    }
+    if (!query) return;
+    setInput(query);
+    search(query);
+    setSimilar(generateSimilar(query));
   }, [query]);
 
-  const searchUsername = async (username: string) => {
+  const search = async (q: string) => {
     setLoading(true);
     setError("");
-
+    setResult(null);
+    setClaimed(false);
+    setClaimErr("");
     try {
-      const response = await fetch(
-        `/api/usernames/search?q=${encodeURIComponent(username)}`,
+      const res = await fetch(
+        `/api/usernames/search?q=${encodeURIComponent(q)}`,
       );
-      const data = await response.json();
-
-      if (response.ok) {
-        setResult(data);
-      } else {
-        setError(data.error || "Username not found");
-      }
-    } catch (err) {
-      setError("Failed to connect. Please try again.");
+      const data = await res.json();
+      if (res.ok) setResult(data);
+      else setError(data.error || "Not found");
+    } catch {
+      setError("Connection error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const generateSimilarNames = (username: string) => {
-    const alternatives: SimilarUsername[] = [
-      { username: `${username}hub`, available: true, level: 1 },
-      { username: `${username}dao`, available: true, level: 1 },
-      { username: `${username}labs`, available: false, price: 20, level: 5 },
-      { username: `${username}ai`, available: true, level: 1 },
-      { username: `${username}nft`, available: false, price: 15, level: 3 },
-      { username: `${username}xyz`, available: true, level: 1 },
-      { username: `the${username}`, available: true, level: 1 },
-      {
-        username: `${username}official`,
-        available: false,
-        price: 25,
-        level: 8,
-      },
-      { username: `${username}alpha`, available: true, level: 1 },
-      { username: `${username}degen`, available: true, level: 1 },
-    ];
-    setSimilarNames(alternatives);
+  const generateSimilar = (u: string) => [
+    { username: `${u}hub`, available: true },
+    { username: `${u}dao`, available: true },
+    { username: `${u}labs`, available: false },
+    { username: `${u}ai`, available: true },
+    { username: `the${u}`, available: true },
+    { username: `${u}xyz`, available: true },
+    { username: `${u}alpha`, available: true },
+    { username: `${u}official`, available: false },
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = input.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (clean) router.push(`/search?q=${encodeURIComponent(clean)}`);
   };
 
-  const handleNewSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newSearch.trim()) {
-      router.push(`/search?q=${encodeURIComponent(newSearch.trim())}`);
+  const handleClaim = async () => {
+    if (!query) return;
+    setClaiming(true);
+    setClaimErr("");
+    try {
+      const res = await fetch("/api/usernames/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: query }),
+      });
+      const data = await res.json();
+      if (data.success) setClaimed(true);
+      else setClaimErr(data.error || "Failed to claim");
+    } catch {
+      setClaimErr("Connection error");
+    } finally {
+      setClaiming(false);
     }
   };
 
-  const copyOwnerAddress = () => {
+  const copyOwner = () => {
     if (result?.owner) {
       navigator.clipboard.writeText(result.owner);
-      setCopiedOwner(true);
-      setTimeout(() => setCopiedOwner(false), 2000);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
-  if (!query) {
-    return (
-      <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center px-4">
-        <div className="text-center">
-          <Search className="w-16 h-16 md:w-24 md:h-24 text-gray-600 mx-auto mb-6" />
-          <p className="text-xl md:text-2xl text-gray-400">
-            No username searched yet.
-          </p>
-          <Link
-            href="/"
-            className="mt-6 inline-block text-teal-400 hover:text-teal-300"
-          >
-            Go to Homepage
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 text-gray-100">
-      {/* Navigation */}
-      <nav className="border-b border-gray-800 bg-black/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex justify-between items-center">
-            <Link
-              href="/"
-              className="flex items-center hover:opacity-90 transition-opacity"
-            >
-              <VYNSLogo size="xl" />
-            </Link>
+    <div className="min-h-screen bg-[#060b14] text-slate-200 antialiased">
+      {/* Ambient */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -top-64 -left-64 w-[800px] h-[800px] rounded-full bg-teal-600/[0.04] blur-[200px]" />
+        <div className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full bg-indigo-600/[0.05] blur-[180px]" />
+      </div>
 
-            <div className="flex items-center gap-6 sm:gap-8">
-              <Link
-                href="/marketplace"
-                className="text-sm sm:text-base text-gray-300 hover:text-white transition"
-              >
-                Marketplace
-              </Link>
-              <Link
-                href="/app"
-                className="bg-gradient-to-r from-teal-600 to-indigo-700 text-white px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-sm sm:text-base font-semibold hover:shadow-lg transition-all"
-              >
-                Launch App
-              </Link>
-            </div>
+      {/* Nav */}
+      <header className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
+          <Link href="/">
+            <Image
+              src="/vyns-logo.png"
+              alt="VYNS"
+              width={80}
+              height={24}
+              className="object-contain opacity-90 hover:opacity-100 transition-opacity"
+            />
+          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/marketplace"
+              className="text-sm text-white/40 hover:text-white/70 transition-colors"
+            >
+              Marketplace
+            </Link>
+            <Link
+              href="/dashboard"
+              className="px-4 py-1.5 rounded-xl bg-teal-500/15 border border-teal-500/20 text-teal-400 text-sm font-medium hover:bg-teal-500/25 transition-all"
+            >
+              Dashboard
+            </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
-          {/* Left Column: Search Result */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-            {/* Search Again Box */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-gray-300">
-                Search another username
-              </h3>
-              <form onSubmit={handleNewSearch} className="relative">
-                <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
-                <input
-                  type="text"
-                  value={newSearch}
-                  onChange={(e) => setNewSearch(e.target.value)}
-                  placeholder="Enter username..."
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-lg sm:rounded-xl py-2.5 sm:py-3 pl-10 sm:pl-12 pr-20 sm:pr-24 text-sm sm:text-base text-gray-100 focus:outline-none focus:border-teal-500 transition-all"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 bg-teal-600 hover:bg-teal-700 text-white px-4 sm:px-6 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-sm sm:text-base font-medium transition-all"
-                >
-                  Search
-                </button>
-              </form>
-            </div>
+      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-8 py-8">
+        {/* Search bar */}
+        <form onSubmit={handleSearch} className="mb-8">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/25" />
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Search any username…"
+              className="w-full h-12 pl-11 pr-28 rounded-2xl border border-white/[0.07] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500/40 transition-all"
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium hover:bg-teal-500/30 transition-all cursor-pointer"
+            >
+              Search
+            </button>
+          </div>
+        </form>
 
-            {/* Search Result Header */}
-            <div className="bg-gray-900/30 border border-gray-800 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <div className="bg-gray-800 rounded-lg px-2.5 sm:px-3 py-1 text-xs sm:text-sm text-gray-400">
-                  Search result
-                </div>
-                <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
-                <div className="text-xs sm:text-sm text-gray-500">
-                  Your search
-                </div>
-              </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold break-all">
-                <span className="text-teal-400">@{query}</span>
-              </h1>
-            </div>
+        {!query && (
+          <div className="text-center py-20">
+            <Search className="h-10 w-10 mx-auto mb-4 text-white/10" />
+            <p className="text-white/30 text-sm">
+              Enter a username above to check availability
+            </p>
+          </div>
+        )}
 
-            {/* Loading State */}
-            {loading && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-8 sm:p-12 flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400 mb-4"></div>
-                <p className="text-gray-400 text-sm sm:text-base">
-                  Searching for @{query}...
+        {query && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Main column */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Query heading */}
+              <div>
+                <p className="text-xs text-white/25 uppercase tracking-widest mb-1">
+                  Searching for
                 </p>
+                <h1 className="text-3xl font-bold text-white tracking-tight">
+                  <span className="text-white/30">@</span>
+                  {query}
+                </h1>
+                {tierCfg && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Pill className={tierCfg.cls}>{tierCfg.label}</Pill>
+                    <span className="text-xs text-white/25">
+                      · {priceFromLen(query.length)} SOL base price
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* Error State */}
-            {error && !loading && (
-              <div className="bg-red-900/20 border border-red-800 rounded-xl sm:rounded-2xl p-6 sm:p-8">
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <XCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="text-lg sm:text-xl font-semibold text-red-400 mb-2">
-                      Error
-                    </h3>
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      {error}
-                    </p>
-                  </div>
+              {/* Loading */}
+              {loading && (
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-12 flex flex-col items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-teal-400" />
+                  <p className="text-sm text-white/30">
+                    Checking availability…
+                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Result - Available */}
-            {result && !loading && result.available && (
-              <div className="bg-gradient-to-br from-green-900/20 to-teal-900/20 border border-green-800/50 rounded-xl sm:rounded-2xl p-6 sm:p-8">
-                <div className="flex items-start gap-3 sm:gap-4 mb-6">
-                  <CheckCircle className="w-8 h-8 text-green-400 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h2 className="text-xl sm:text-2xl font-bold text-green-400 mb-2">
-                      Available!
-                    </h2>
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      This username is available for registration.
-                    </p>
-                  </div>
+              {/* Error */}
+              {error && !loading && (
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-5 flex items-center gap-3">
+                  <XCircle className="h-5 w-5 text-red-400 shrink-0" />
+                  <p className="text-sm text-white/60">{error}</p>
                 </div>
+              )}
 
-                <div className="grid sm:grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                      <Wallet className="w-4 h-4" />
-                      <span>Registration Price</span>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-bold text-white">
-                      {result.price || 10} VYNS
-                    </p>
-                  </div>
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                      <TrendingUp className="w-4 h-4" />
-                      <span>Starting Level</span>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-bold text-white">
-                      Level {result.level || 1}
-                    </p>
-                  </div>
-                </div>
-
-                <Link
-                  href={`/app?register=${query}`}
-                  className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
-                >
-                  Register @{query}
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-              </div>
-            )}
-
-            {/* Result - Taken */}
-            {result && !loading && !result.available && (
-              <div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 border border-red-800/50 rounded-xl sm:rounded-2xl p-6 sm:p-8">
-                <div className="flex items-start gap-3 sm:gap-4 mb-6">
-                  <XCircle className="w-8 h-8 text-red-400 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h2 className="text-xl sm:text-2xl font-bold text-red-400 mb-2">
-                      Already Registered
-                    </h2>
-                    <p className="text-gray-300 text-sm sm:text-base">
-                      This username is owned by another user.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {result.owner && (
-                    <div className="bg-gray-900/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 text-gray-400 text-sm">
-                          <Wallet className="w-4 h-4" />
-                          <span>Owner Address</span>
-                        </div>
-                        <button
-                          onClick={copyOwnerAddress}
-                          className="text-teal-400 hover:text-teal-300 transition-colors"
-                          title="Copy address"
-                        >
-                          {copiedOwner ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                      <p className="text-sm font-mono text-white break-all">
-                        {result.owner}
+              {/* Available */}
+              {result?.available && !loading && (
+                <div className="rounded-2xl border border-teal-500/20 bg-teal-500/[0.04] overflow-hidden">
+                  <div className="p-5 flex items-start gap-3 border-b border-teal-500/10">
+                    <CheckCircle2 className="h-5 w-5 text-teal-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-teal-400">
+                        Available
+                      </p>
+                      <p className="text-xs text-white/35 mt-0.5">
+                        This username is ready to be claimed.
                       </p>
                     </div>
-                  )}
+                  </div>
 
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    {result.level && (
-                      <div className="bg-gray-900/50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                          <Sparkles className="w-4 h-4" />
-                          <span>Level</span>
-                        </div>
-                        <p className="text-lg font-bold text-white">
-                          {result.level}
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                        <p className="text-xs text-white/30 mb-1">Price</p>
+                        <p className="text-lg font-bold text-white tabular-nums">
+                          {priceFromLen(query.length)} SOL
+                        </p>
+                        <p className="text-[10px] text-teal-400 mt-0.5">
+                          Free during beta
                         </p>
                       </div>
+                      <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                        <p className="text-xs text-white/30 mb-1">Tier</p>
+                        {tierCfg && (
+                          <Pill className={`${tierCfg.cls} mt-1`}>
+                            {tierCfg.label}
+                          </Pill>
+                        )}
+                      </div>
+                    </div>
+
+                    {claimed ? (
+                      <div className="flex items-center gap-2 p-3.5 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 text-teal-400 text-sm">
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        <span>
+                          @{query} successfully claimed!{" "}
+                          <Link
+                            href="/dashboard"
+                            className="underline underline-offset-2"
+                          >
+                            Go to dashboard →
+                          </Link>
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        {claimErr && (
+                          <p className="text-xs text-red-400 px-1">
+                            {claimErr} ·{" "}
+                            <Link href="/login" className="underline">
+                              Sign in first
+                            </Link>
+                          </p>
+                        )}
+                        <button
+                          onClick={handleClaim}
+                          disabled={claiming}
+                          className="w-full h-11 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-semibold hover:bg-teal-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {claiming ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Crown className="h-4 w-4" />
+                          )}
+                          {claiming ? "Claiming…" : `Claim @${query}`}
+                        </button>
+                      </>
                     )}
-                    {result.totalYield !== undefined && (
-                      <div className="bg-gray-900/50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                          <TrendingUp className="w-4 h-4" />
-                          <span>Total Yield</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Taken */}
+              {result && !result.available && !loading && (
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                  <div className="p-5 flex items-start gap-3 border-b border-white/[0.04]">
+                    <XCircle className="h-5 w-5 text-red-400/70 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-400/80">
+                        Already Registered
+                      </p>
+                      <p className="text-xs text-white/35 mt-0.5">
+                        This username is owned by another user.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-white/[0.04]">
+                    {result.owner && (
+                      <div className="flex items-center justify-between px-5 py-3.5">
+                        <div>
+                          <p className="text-xs text-white/30">Owner</p>
+                          <p className="text-xs font-mono text-white/50 mt-0.5">
+                            {result.owner.slice(0, 12)}…{result.owner.slice(-8)}
+                          </p>
                         </div>
-                        <p className="text-lg font-bold text-white">
-                          {result.totalYield} VYNS
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={copyOwner}
+                            className="p-1.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/[0.05] transition-all cursor-pointer"
+                          >
+                            {copiedOwner ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <a
+                            href={`https://solscan.io/account/${result.owner}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg text-white/20 hover:text-white/60 hover:bg-white/[0.05] transition-all"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
                       </div>
                     )}
-                    {result.registeredAt && (
-                      <div className="bg-gray-900/50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>Registered</span>
+
+                    <div className="grid grid-cols-3 divide-x divide-white/[0.04]">
+                      {result.level && (
+                        <div className="px-5 py-3.5">
+                          <p className="text-xs text-white/30">Level</p>
+                          <p className="text-lg font-bold text-white mt-0.5">
+                            {result.level}
+                          </p>
                         </div>
-                        <p className="text-sm font-bold text-white">
-                          {new Date(result.registeredAt).toLocaleDateString()}
-                        </p>
+                      )}
+                      {result.totalYield !== undefined && (
+                        <div className="px-5 py-3.5">
+                          <p className="text-xs text-white/30">Yield earned</p>
+                          <p className="text-lg font-bold text-white mt-0.5">
+                            {result.totalYield} SOL
+                          </p>
+                        </div>
+                      )}
+                      {result.registeredAt && (
+                        <div className="px-5 py-3.5">
+                          <p className="text-xs text-white/30">Registered</p>
+                          <p className="text-sm font-semibold text-white mt-0.5">
+                            {new Date(result.registeredAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {result.price && (
+                      <div className="p-5">
+                        <div className="flex items-center justify-between p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.05]">
+                          <div>
+                            <p className="text-xs text-white/30">
+                              Listed for sale
+                            </p>
+                            <p className="text-lg font-bold text-amber-400 tabular-nums mt-0.5">
+                              {result.price} SOL
+                            </p>
+                          </div>
+                          <Link
+                            href={`/marketplace/${query}`}
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/25 transition-all"
+                          >
+                            Buy now <ArrowUpRight className="h-3 w-3" />
+                          </Link>
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {result.price && (
-                    <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 border border-orange-800/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-300 text-sm">
-                          Listed for Sale
-                        </span>
-                        <span className="text-xl font-bold text-orange-400">
-                          {result.price} VYNS
-                        </span>
-                      </div>
-                      <Link
-                        href={`/marketplace/${query}`}
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all"
-                      >
-                        View on Marketplace
-                        <ExternalLink className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  )}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Right Column: Recommended Alternatives */}
-          <div className="lg:col-span-1">
-            <div className="lg:sticky lg:top-24 space-y-4 sm:space-y-6">
-              {/* Similar Names */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-semibold mb-4 text-gray-300">
-                  Similar Usernames
-                </h3>
-                <div className="space-y-2">
-                  {similarNames.slice(0, 6).map((name) => (
-                    <Link
-                      key={name.username}
-                      href={`/search?q=${name.username}`}
-                      className="block bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-lg p-3 transition-all group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
-                            @{name.username}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {name.available ? (
-                              <span className="text-green-400">Available</span>
-                            ) : (
-                              <span className="text-red-400">
-                                Taken • {name.price} VYNS
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-teal-400 transition-colors flex-shrink-0 ml-2" />
-                      </div>
-                    </Link>
+            {/* Sidebar */}
+            <div className="space-y-4">
+              {/* Similar names */}
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                <div className="px-4 pt-4 pb-3 border-b border-white/[0.04]">
+                  <p className="text-xs font-semibold text-white/40 uppercase tracking-widest">
+                    Similar usernames
+                  </p>
+                </div>
+                <div className="p-3 space-y-1.5">
+                  {similar.slice(0, 6).map((s) => (
+                    <SimilarChip
+                      key={s.username}
+                      username={s.username}
+                      available={s.available}
+                      onClick={() => router.push(`/search?q=${s.username}`)}
+                    />
                   ))}
                 </div>
               </div>
 
-              {/* Quick Stats */}
-              <div className="bg-gradient-to-br from-teal-900/20 to-indigo-900/20 border border-teal-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-semibold mb-4 text-gray-300">
-                  Platform Stats
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">
-                      Total Usernames
-                    </span>
-                    <span className="text-base font-semibold text-white">
-                      12,847
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Available Now</span>
-                    <span className="text-base font-semibold text-green-400">
-                      8,432
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">
-                      Listed for Sale
-                    </span>
-                    <span className="text-base font-semibold text-orange-400">
-                      234
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-700">
-                    <span className="text-sm text-gray-400">Floor Price</span>
-                    <span className="text-base font-semibold text-teal-400">
-                      15 VYNS
-                    </span>
-                  </div>
+              {/* Platform stats */}
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                <div className="px-4 pt-4 pb-3 border-b border-white/[0.04]">
+                  <p className="text-xs font-semibold text-white/40 uppercase tracking-widest">
+                    Platform stats
+                  </p>
+                </div>
+                <div className="divide-y divide-white/[0.04]">
+                  {[
+                    {
+                      label: "Total registered",
+                      value: "12,847",
+                      accent: "text-white/70",
+                    },
+                    {
+                      label: "Available now",
+                      value: "8,432",
+                      accent: "text-teal-400",
+                    },
+                    {
+                      label: "Listed for sale",
+                      value: "234",
+                      accent: "text-amber-400",
+                    },
+                    {
+                      label: "Floor price",
+                      value: "0.05 SOL",
+                      accent: "text-emerald-400",
+                    },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      className="flex items-center justify-between px-4 py-3"
+                    >
+                      <p className="text-xs text-white/35">{s.label}</p>
+                      <p
+                        className={`text-sm font-semibold tabular-nums ${s.accent}`}
+                      >
+                        {s.value}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Background Effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-teal-600/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-indigo-600/5 rounded-full blur-3xl" />
-      </div>
+        )}
+      </main>
     </div>
   );
 }
@@ -506,8 +531,8 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400"></div>
+        <div className="min-h-screen bg-[#060b14] flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-teal-400" />
         </div>
       }
     >

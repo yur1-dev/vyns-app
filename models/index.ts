@@ -7,7 +7,7 @@ export interface IUser extends Document {
   wallet?: string;
   email?: string;
   name?: string;
-  password?: string; // ← ADD THIS
+  password?: string;
   googleId?: string;
   username?: string;
   avatar?: string;
@@ -17,6 +17,11 @@ export interface IUser extends Document {
   stakedAmount: number;
   referralCode: string;
   referredBy?: string;
+  customization?: {
+    theme: string;
+    petId: string;
+    avatarSeed: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +31,7 @@ const UserSchema = new Schema<IUser>(
     wallet: { type: String, unique: true, sparse: true },
     email: { type: String, unique: true, sparse: true },
     name: { type: String },
-    password: { type: String }, // ← ADD THIS
+    password: { type: String },
     googleId: { type: String, unique: true, sparse: true },
     username: { type: String, unique: true, sparse: true },
     avatar: { type: String },
@@ -36,6 +41,11 @@ const UserSchema = new Schema<IUser>(
     stakedAmount: { type: Number, default: 0 },
     referralCode: { type: String, unique: true },
     referredBy: { type: String },
+    customization: {
+      theme: { type: String, default: "teal" },
+      petId: { type: String, default: "none" },
+      avatarSeed: { type: String, default: "" },
+    },
   },
   { timestamps: true },
 );
@@ -50,6 +60,8 @@ export interface IUsername extends Document {
   xp: number;
   isPremium: boolean;
   isVerified: boolean;
+  isListed: boolean;
+  staked: boolean;
   listedPrice?: number;
   totalTransactions: number;
   totalVolume: number;
@@ -72,6 +84,8 @@ const UsernameSchema = new Schema<IUsername>(
     xp: { type: Number, default: 0 },
     isPremium: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
+    isListed: { type: Boolean, default: false },
+    staked: { type: Boolean, default: false },
     listedPrice: { type: Number },
     totalTransactions: { type: Number, default: 0 },
     totalVolume: { type: Number, default: 0 },

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
-import { User } from "@/models";
+import connectDB from "@/lib/db/mongodb";
+import { User, Username } from "@/models";
 import { nanoid } from "nanoid";
+import { getTierFromLength } from "@/types/dashboard";
 
-// GET /api/user/[wallet] — fetch or auto-create user
+// GET /api/user/[wallet] — fetch or auto-create user, joins usernames
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ wallet: string }> },
@@ -25,7 +26,48 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ success: true, user });
+    // Join usernames from the Username collection
+    const usernameRecords = await Username.find({ walletAddress: wallet });
+
+    const usernames = usernameRecords.map((u) => {
+      const tier =
+        (u.stats as any)?.tier ?? getTierFromLength(u.username.length);
+      return {
+        id: u._id.toString(),
+        name: u.username,
+        username: u.username,
+        tier,
+        yield: (u.stats as any)?.yieldRate ?? u.totalYield ?? 0,
+        value: (u.stats as any)?.price ?? 0,
+        expiresAt:
+          (u.stats as any)?.expiresAt ??
+          new Date(Date.now() + 365 * 86_400_000).toISOString(),
+        claimedAt:
+          (u.stats as any)?.claimedAt ??
+          (u as any).createdAt?.toISOString() ??
+          new Date().toISOString(),
+        staked: (u.stats as any)?.staked ?? false,
+      };
+    });
+
+    const payload = {
+      ...user.toObject(),
+      usernames,
+      earnings: {
+        today: 0,
+        week: 0,
+        month: 0,
+        allTime: user.earnings ?? 0,
+      },
+      stakedAmount: user.stakedAmount ?? 0,
+      stakingPositions: [],
+      referrals: 0,
+      referralCode: user.referralCode,
+      activity: [],
+      isNewUser: usernameRecords.length === 0,
+    };
+
+    return NextResponse.json({ success: true, user: payload });
   } catch (error) {
     console.error("GET /api/user error:", error);
     return NextResponse.json(
@@ -54,11 +96,8 @@ export async function POST(
       "stakedAmount",
     ];
     const updates: Record<string, unknown> = {};
-
     for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updates[field] = body[field];
-      }
+      if (body[field] !== undefined) updates[field] = body[field];
     }
 
     const user = await User.findOneAndUpdate(

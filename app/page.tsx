@@ -310,7 +310,7 @@ export default function LandingPage() {
 
             {/* Desktop CTA */}
             <Link
-              href="/app"
+              href="/dashboard"
               className="hidden md:inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 hover:-translate-y-px transition-all shadow-lg shadow-teal-500/10"
             >
               Launch App <ArrowRight size={14} />

@@ -1,38 +1,65 @@
 "use client";
 
+// app/marketplace/page.tsx
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Clock, TrendingUp, ArrowLeft } from "lucide-react";
+import {
+  Search,
+  Clock,
+  TrendingUp,
+  ArrowLeft,
+  Filter,
+  Zap,
+  Crown,
+  Diamond,
+  Tag,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 
-// Reuse the same VYNSLogo component from your dashboard
-const VYNSLogo = ({
-  size = "md",
-  animated = false,
-}: {
-  size?: "sm" | "md" | "lg" | "xl";
-  animated?: boolean;
-}) => {
-  const sizes = { sm: 40, md: 48, lg: 80, xl: 128 };
-  const dim = sizes[size] || 48;
+// ── Tier config (mirrors dashboard) ──────────────────────────────────────────
 
-  return (
-    <div className={`relative w-[${dim}px] h-[${dim}px]`}>
-      <Image
-        src="/vyns-logo.png"
-        alt="VYNS"
-        width={dim}
-        height={dim}
-        className={`object-contain ${animated ? "animate-pulse" : ""}`}
-        priority={size === "xl" || size === "lg"}
-      />
-      {animated && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-400 rounded-full animate-ping" />
-      )}
-    </div>
-  );
-};
+const TIER_CONFIG = {
+  Diamond: {
+    cls: "text-cyan-400 bg-cyan-500/10 border-cyan-500/25",
+    label: "Diamond",
+    chars: "1–3",
+  },
+  Platinum: {
+    cls: "text-purple-300 bg-purple-500/10 border-purple-500/25",
+    label: "Platinum",
+    chars: "4–5",
+  },
+  Gold: {
+    cls: "text-amber-400 bg-amber-500/10 border-amber-500/25",
+    label: "Gold",
+    chars: "6–8",
+  },
+  Silver: {
+    cls: "text-slate-300 bg-slate-500/10 border-slate-500/25",
+    label: "Silver",
+    chars: "9–15",
+  },
+  Bronze: {
+    cls: "text-orange-400/70 bg-orange-500/8 border-orange-500/20",
+    label: "Bronze",
+    chars: "16+",
+  },
+} as const;
+
+function getTier(username: string) {
+  const n = username.replace("@", "").length;
+  if (n <= 3) return "Diamond";
+  if (n <= 5) return "Platinum";
+  if (n <= 8) return "Gold";
+  if (n <= 15) return "Silver";
+  return "Bronze";
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MarketplaceListing {
   username: string;
@@ -40,7 +67,113 @@ interface MarketplaceListing {
   owner: string;
   level: number;
   listedAt: string;
+  tier?: string;
 }
+
+const FILTERS = [
+  { id: "recent", label: "Recent", icon: <Clock className="w-3.5 h-3.5" /> },
+  {
+    id: "price-low",
+    label: "Price: Low → High",
+    icon: <Tag className="w-3.5 h-3.5" />,
+  },
+  {
+    id: "price-high",
+    label: "Price: High → Low",
+    icon: <TrendingUp className="w-3.5 h-3.5" />,
+  },
+  {
+    id: "level",
+    label: "Highest Level",
+    icon: <Zap className="w-3.5 h-3.5" />,
+  },
+] as const;
+
+// ── Logo ──────────────────────────────────────────────────────────────────────
+
+function VYNSLogo({ size = "md" }: { size?: "sm" | "md" | "lg" | "xl" }) {
+  const dim = { sm: 32, md: 40, lg: 56, xl: 64 }[size];
+  return (
+    <div style={{ width: dim, height: dim }} className="relative shrink-0">
+      <Image
+        src="/vyns-logo.png"
+        alt="VYNS"
+        width={dim}
+        height={dim}
+        className="object-contain"
+        priority
+      />
+    </div>
+  );
+}
+
+// ── Listing Card ──────────────────────────────────────────────────────────────
+
+function ListingCard({ listing }: { listing: MarketplaceListing }) {
+  const clean = listing.username.replace("@", "");
+  const tier = (listing.tier as keyof typeof TIER_CONFIG) ?? getTier(clean);
+  const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
+  const listedDate = new Date(listing.listedAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <Link
+      href={`/username/${clean}`}
+      className="group relative flex flex-col p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all duration-200"
+    >
+      {/* Tier badge */}
+      <div className="flex items-center justify-between mb-4">
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${cfg.cls}`}
+        >
+          <Crown className="w-2.5 h-2.5" /> {cfg.label}
+        </span>
+        <span className="text-[10px] text-white/20">{listedDate}</span>
+      </div>
+
+      {/* Username */}
+      <div className="mb-4">
+        <h3 className="text-2xl font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+          @{clean}
+        </h3>
+        <p className="text-xs text-white/30 mt-1">
+          {clean.length} chars · Level {listing.level}
+        </p>
+      </div>
+
+      {/* Price + owner */}
+      <div className="mt-auto space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/30">Price</span>
+          <span className="text-lg font-bold text-white tabular-nums">
+            {listing.price}{" "}
+            <span className="text-sm font-normal text-white/40">SOL</span>
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/30">Owner</span>
+          <span className="font-mono text-xs text-white/40">
+            {listing.owner.slice(0, 4)}…{listing.owner.slice(-4)}
+          </span>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="mt-4 pt-4 border-t border-white/[0.06]">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-teal-400 font-medium group-hover:text-teal-300 transition-colors">
+            View & Buy
+          </span>
+          <ChevronRight className="w-4 h-4 text-teal-400/50 group-hover:text-teal-300 group-hover:translate-x-0.5 transition-all" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function MarketplacePage() {
   const router = useRouter();
@@ -49,6 +182,7 @@ export default function MarketplacePage() {
   const [filter, setFilter] = useState<
     "recent" | "price-low" | "price-high" | "level"
   >("recent");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     fetchListings();
@@ -57,172 +191,139 @@ export default function MarketplacePage() {
   const fetchListings = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/marketplace?sort=${filter}`);
-      if (!response.ok) throw new Error("Failed to fetch");
-      const data = await response.json();
+      const res = await fetch(`/api/marketplace?sort=${filter}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
       setListings(data.listings || []);
-    } catch (error) {
-      console.error("Failed to fetch listings:", error);
+    } catch {
       setListings([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const filtered = listings.filter((l) =>
+    l.username.toLowerCase().includes(search.toLowerCase()),
+  );
+
   return (
-    <div className="min-h-screen bg-black text-gray-100">
-      {/* Header with the SAME logo style as dashboard */}
-      <header className="sticky top-0 z-50 bg-black/90 backdrop-blur-lg border-b border-gray-800/70 shadow-sm">
+    <div className="min-h-screen bg-[#060b14] text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-[#060b14]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-18">
-            {/* Logo – exactly the same way as in dashboard header (size="lg") */}
+          <div className="flex items-center justify-between h-16">
             <Link
               href="/"
-              className="flex items-center gap-3 sm:gap-4 hover:opacity-90 transition-opacity"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
             >
-              <VYNSLogo size="xl" />
-              {/* <span className="hidden sm:block text-2xl md:text-3xl font-bold bg-gradient-to-r from-teal-400 to-indigo-400 bg-clip-text text-transparent tracking-tight">
-                VYNS
-              </span> */}
+              <VYNSLogo size="md" />
             </Link>
-
-            {/* Back button */}
             <button
               onClick={() => router.back()}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800/70 hover:bg-gray-700/80 border border-gray-700 rounded-lg text-sm font-medium transition-all hover:shadow-md hover:shadow-teal-500/10"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm text-white/60 hover:text-white hover:border-white/[0.14] transition-all"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
-              <span className="sm:hidden">Back</span>
+              <span className="hidden sm:inline">Dashboard</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-teal-950/40 via-indigo-950/30 to-black border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 text-center">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 tracking-tight">
-            Username <span className="text-teal-400">Marketplace</span>
-          </h1>
-          <p className="text-base sm:text-lg lg:text-xl text-gray-300 mb-8 sm:mb-10 max-w-2xl mx-auto">
-            Discover, buy, sell, and trade premium @usernames on Solana
-          </p>
+      {/* Hero */}
+      <div className="border-b border-white/[0.05]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
+          <div className="max-w-2xl">
+            <p className="text-xs text-teal-400 font-semibold tracking-widest uppercase mb-3">
+              Marketplace
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-3">
+              Premium username
+              <br />
+              marketplace
+            </h1>
+            <p className="text-base text-white/40 mb-8">
+              Discover, buy, and trade rare @usernames on Solana. Short names
+              earn more yield.
+            </p>
 
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto relative px-2">
-            <Search className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search usernames..."
-              className="w-full bg-gray-900/60 border border-gray-700 rounded-full py-3.5 sm:py-4 px-5 sm:px-7 pl-12 sm:pl-14 text-sm sm:text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition-all shadow-inner"
-            />
+            {/* Search */}
+            <div className="relative max-w-lg">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search usernames…"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 px-4 pl-11 text-sm text-white placeholder-white/20 focus:outline-none focus:border-teal-500/40 focus:ring-2 focus:ring-teal-500/10 transition-all"
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters & Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Filter Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 sm:gap-6 mb-8">
-          <div className="text-sm sm:text-base text-gray-400 font-medium">
-            {listings.length} {listings.length === 1 ? "username" : "usernames"}{" "}
-            listed
-          </div>
-
-          <div className="flex flex-wrap gap-2.5 sm:gap-3">
-            <button
-              onClick={() => setFilter("recent")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                filter === "recent"
-                  ? "bg-teal-600 text-white shadow-md"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700"
-              }`}
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+        {/* Tier info strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-8">
+          {Object.entries(TIER_CONFIG).map(([tier, cfg]) => (
+            <div
+              key={tier}
+              className={`px-3 py-2.5 rounded-xl border text-center ${cfg.cls}`}
             >
-              <Clock className="w-4 h-4 inline mr-1.5" />
-              Recent
-            </button>
+              <p className="text-[10px] font-semibold opacity-80">
+                {cfg.label}
+              </p>
+              <p className="text-[10px] opacity-40">{cfg.chars} chars</p>
+            </div>
+          ))}
+        </div>
 
-            <button
-              onClick={() => setFilter("price-low")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                filter === "price-low"
-                  ? "bg-teal-600 text-white shadow-md"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700"
-              }`}
-            >
-              Price: Low to High
-            </button>
-
-            <button
-              onClick={() => setFilter("level")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                filter === "level"
-                  ? "bg-teal-600 text-white shadow-md"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700"
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 inline mr-1.5" />
-              Highest Level
-            </button>
+        {/* Filters + count */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <p className="text-sm text-white/30">
+            {filtered.length} {filtered.length === 1 ? "listing" : "listings"}{" "}
+            {search ? `matching "${search}"` : ""}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${
+                  filter === f.id
+                    ? "bg-teal-500/15 border-teal-500/30 text-teal-300"
+                    : "bg-white/[0.03] border-white/[0.07] text-white/40 hover:text-white/70 hover:border-white/[0.12]"
+                }`}
+              >
+                {f.icon} {f.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Listings Grid */}
+        {/* Grid */}
         {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="w-14 h-14 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 text-teal-400/50 animate-spin" />
           </div>
-        ) : listings.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-8">
-            {listings.map((listing) => (
-              <Link
-                key={listing.username}
-                href={`/username/${listing.username.replace("@", "")}`}
-                className="group bg-gray-900/40 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-teal-600/60 hover:shadow-xl hover:shadow-teal-900/20 transition-all duration-300"
-              >
-                <div className="flex justify-between items-start gap-4 mb-5">
-                  <div className="min-w-0">
-                    <h3 className="text-xl sm:text-2xl font-bold text-teal-400 group-hover:text-teal-300 truncate">
-                      {listing.username}
-                    </h3>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Level {listing.level}
-                    </p>
-                  </div>
-                  <div className="bg-teal-950/50 px-3 py-1 rounded-full text-sm text-teal-300 border border-teal-800/50 whitespace-nowrap">
-                    For Sale
-                  </div>
-                </div>
-
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Price</span>
-                    <span className="font-bold text-white text-lg">
-                      {listing.price} SOL
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Owner</span>
-                    <span className="font-mono text-gray-300">
-                      {listing.owner.slice(0, 4)}...{listing.owner.slice(-4)}
-                    </span>
-                  </div>
-                </div>
-
-                <button className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-500 hover:to-teal-600 text-white py-3 rounded-xl font-semibold text-base transition-all group-hover:shadow-lg group-hover:shadow-teal-500/20">
-                  View & Buy
-                </button>
-              </Link>
+        ) : filtered.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.map((listing) => (
+              <ListingCard key={listing.username} listing={listing} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-20">
-            <p className="text-xl text-gray-400">
-              No listings found at the moment.
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
+              <Search className="w-6 h-6 text-white/15" />
+            </div>
+            <p className="text-sm text-white/40 font-medium">
+              No listings found
             </p>
-            <p className="text-gray-500 mt-2">
-              Check back soon or try changing filters.
+            <p className="text-xs text-white/20 mt-1">
+              {search
+                ? "Try a different search term"
+                : "Check back soon or try changing filters"}
             </p>
           </div>
         )}

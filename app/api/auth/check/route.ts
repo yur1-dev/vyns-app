@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 
 // GET /api/auth/check?wallet=xxx — check if wallet is registered

@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 import bcrypt from "bcryptjs";
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 import {
   hashPassword,
@@ -9,7 +9,7 @@ import {
   createToken,
   setAuthCookie,
   removeAuthCookie,
-} from "@/lib/auth";
+} from "@/lib/utils/auth";
 
 export async function signupWithEmail(email: string, password: string) {
   try {

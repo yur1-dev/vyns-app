@@ -1,5 +1,6 @@
 "use client";
 
+// app/signup/page.tsx
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,6 +15,27 @@ import {
 } from "lucide-react";
 import { signIn } from "next-auth/react";
 
+const WALLETS = [
+  {
+    type: "phantom" as const,
+    name: "Phantom",
+    src: "/phantom-wallet.png",
+    desc: "Most popular Solana wallet",
+  },
+  {
+    type: "solflare" as const,
+    name: "Solflare",
+    src: "/solflare-wallet.png",
+    desc: "Advanced Solana wallet",
+  },
+  {
+    type: "backpack" as const,
+    name: "Backpack",
+    src: "/backpack-wallet.png",
+    desc: "Multi-chain xNFT wallet",
+  },
+];
+
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -25,17 +47,20 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
 
+  // ── Google ────────────────────────────────────────────────
   const handleGoogle = async () => {
     setLoading(true);
     setLoadingType("google");
-    await signIn("google", { callbackUrl: "/app" });
+    await signIn("google", { callbackUrl: "/dashboard" });
   };
 
+  // ── Email registration ────────────────────────────────────
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setLoadingType("email");
     setError("");
+
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -43,13 +68,20 @@ export default function SignupPage() {
         body: JSON.stringify({ name, email, password }),
       });
       const data = await res.json();
+
       if (!data.success) {
         setError(data.error || "Failed to create account");
         setLoading(false);
         setLoadingType(null);
         return;
       }
-      await signIn("credentials", { email, password, callbackUrl: "/app" });
+
+      // Auto sign-in then dashboard
+      await signIn("credentials", {
+        email,
+        password,
+        callbackUrl: "/dashboard",
+      });
     } catch (err: any) {
       setError(err.message || "Something went wrong");
       setLoading(false);
@@ -57,6 +89,7 @@ export default function SignupPage() {
     }
   };
 
+  // ── Wallet — same as login. Connect → verify → dashboard ─
   const connectWallet = async (type: "phantom" | "solflare" | "backpack") => {
     setLoading(true);
     setLoadingType(type);
@@ -67,51 +100,45 @@ export default function SignupPage() {
       const w = window as any;
       let provider: any = null;
 
-      if (type === "phantom") {
-        provider = w.phantom?.solana;
-        if (!provider)
-          throw new Error("Phantom wallet not found. Please install it.");
-      } else if (type === "solflare") {
-        provider = w.solflare;
-        if (!provider)
-          throw new Error("Solflare wallet not found. Please install it.");
-      } else if (type === "backpack") {
-        provider = w.backpack;
-        if (!provider)
-          throw new Error("Backpack wallet not found. Please install it.");
-      }
+      if (type === "phantom") provider = w.phantom?.solana ?? w.solana;
+      if (type === "solflare") provider = w.solflare;
+      if (type === "backpack") provider = w.backpack;
+
+      if (!provider)
+        throw new Error(
+          `${type.charAt(0).toUpperCase() + type.slice(1)} not found. Please install it.`,
+        );
 
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
-      const message = `Sign up to VYNS\nWallet: ${wallet}\nTimestamp: ${Date.now()}`;
+      const message = `Sign in to VYNS\nWallet: ${wallet}\nNonce: ${Date.now()}`;
       const encodedMessage = new TextEncoder().encode(message);
 
       let signed: any;
       try {
         signed = await provider.signMessage(encodedMessage, "utf8");
-      } catch (signErr: any) {
-        if (signErr.message?.includes("rejected") || signErr.code === 4001) {
+      } catch (err: any) {
+        if (err.code === 4001 || err.message?.includes("rejected")) {
           throw new Error(
-            "Signature cancelled. Please approve the request in your wallet.",
+            "Signature cancelled. Please approve in your wallet.",
           );
         }
-        throw signErr;
+        throw err;
       }
 
       const signature = Buffer.from(signed.signature).toString("base64");
-      const res = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet, signature, message }),
-      });
-      const data = await res.json();
-      if (!data.success)
-        throw new Error(data.error || "Failed to verify wallet");
 
-      localStorage.setItem("vyns_wallet", wallet);
-      localStorage.setItem("vyns_provider", type);
-      localStorage.setItem("vyns_token", data.token);
-      router.push(data.isNewUser ? "/register" : "/app");
+      const result = await signIn("wallet", {
+        wallet,
+        signature,
+        message,
+        redirect: false,
+      });
+
+      if (result?.error)
+        throw new Error("Wallet verification failed. Please try again.");
+
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to connect wallet");
       setLoading(false);
@@ -120,30 +147,9 @@ export default function SignupPage() {
     }
   };
 
-  const wallets = [
-    {
-      type: "phantom" as const,
-      name: "Phantom",
-      src: "/phantom-wallet.png",
-      desc: "Connect to Phantom",
-    },
-    {
-      type: "solflare" as const,
-      name: "Solflare",
-      src: "/solflare-wallet.png",
-      desc: "Connect to Solflare",
-    },
-    {
-      type: "backpack" as const,
-      name: "Backpack",
-      src: "/backpack-wallet.png",
-      desc: "Connect to Backpack",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-[#09090b] flex">
-      {/* Left panel — branding */}
+      {/* ── Left branding ── */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-white/[0.06] relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(20,184,166,0.08),transparent_60%)]" />
         <div
@@ -194,7 +200,7 @@ export default function SignupPage() {
         </p>
       </div>
 
-      {/* Right panel — form */}
+      {/* ── Right form ── */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-6">
           <div className="lg:hidden flex justify-center mb-2">
@@ -218,7 +224,6 @@ export default function SignupPage() {
             </p>
           </div>
 
-          {/* Wallet + Google buttons */}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => {
@@ -288,7 +293,6 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Email form */}
           <form onSubmit={handleEmailSignup} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">
@@ -299,8 +303,8 @@ export default function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
-                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 required
+                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
             <div className="space-y-1.5">
@@ -310,8 +314,8 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 required
+                className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
             <div className="space-y-1.5">
@@ -324,9 +328,9 @@ export default function SignupPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                   required
                   minLength={8}
+                  className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 />
                 <button
                   type="button"
@@ -394,7 +398,7 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* Wallet Modal — identical to login */}
+      {/* ── Wallet Modal ── */}
       {showWalletModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -419,9 +423,8 @@ export default function SignupPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-
             <div className="space-y-3">
-              {wallets.map((w) => (
+              {WALLETS.map((w) => (
                 <button
                   key={w.type}
                   onClick={() => connectWallet(w.type)}
@@ -447,14 +450,12 @@ export default function SignupPage() {
                 </button>
               ))}
             </div>
-
             {error && (
               <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
-
             <p className="text-center text-xs text-white/20 mt-5">
               New to Solana wallets?{" "}
               <a

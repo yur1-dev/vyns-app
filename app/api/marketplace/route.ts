@@ -1,5 +1,6 @@
+// app/api/marketplace/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import { Username } from "@/models";
 
 export async function GET(request: NextRequest) {
@@ -8,26 +9,29 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "recent";
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
+    const tier = searchParams.get("tier");
 
     await connectDB();
+
+    const filter: any = { isListed: true, listedPrice: { $gt: 0 } };
+    if (tier && tier !== "All") {
+      filter["stats.tier"] = tier;
+    }
 
     let sortCriteria: any = {};
     switch (sort) {
       case "price-low":
-        sortCriteria = { listed_price: 1 };
+        sortCriteria = { listedPrice: 1 };
         break;
       case "price-high":
-        sortCriteria = { listed_price: -1 };
+        sortCriteria = { listedPrice: -1 };
         break;
       case "level":
         sortCriteria = { level: -1 };
         break;
-      case "recent":
       default:
-        sortCriteria = { created_at: -1 };
+        sortCriteria = { updatedAt: -1 };
     }
-
-    const filter = { listed_price: { $ne: null, $gt: 0 } };
 
     const [listings, totalCount] = await Promise.all([
       Username.find(filter)
@@ -41,12 +45,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       listings: listings.map((item: any) => ({
         username: item.username,
-        price: item.listed_price,
-        owner: item.wallet_address,
+        price: item.listedPrice,
+        owner: item.stats?.ownerId ?? item.walletAddress, // ← ownerId matches currentUserId from /api/user/me
         level: item.level,
         xp: item.xp,
-        isPremium: item.is_premium,
-        listedAt: item.created_at,
+        isPremium: item.isPremium,
+        tier: item.stats?.tier ?? null,
+        listedAt: item.updatedAt,
       })),
       pagination: {
         page,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import { sign } from "tweetnacl";
 import { PublicKey } from "@solana/web3.js";
-import connectDB from "@/lib/mongodb";
+import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 import { nanoid } from "nanoid";
 
