@@ -1,5 +1,7 @@
 // app/api/user/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import connectDB from "@/lib/db/mongodb";
 import { User, Username } from "@/models";
 import { verifyAuth } from "@/lib/utils/auth";
@@ -8,21 +10,34 @@ import { getTierFromLength } from "@/types/dashboard";
 
 export async function GET(req: NextRequest) {
   try {
+    await connectDB();
+
+    // ── Strategy 1: custom JWT cookie (wallet users) ──────────
     const auth = await verifyAuth(req);
-    if (!auth) {
+
+    // ── Strategy 2: NextAuth session (email/Google users) ─────
+    const session = !auth ? await getServerSession(authOptions) : null;
+
+    // Neither auth method worked
+    if (!auth && !session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
+    // Resolve userId and email from whichever auth worked
+    const userId = auth?.userId ?? (session?.user as any)?.id ?? null;
+    const email = auth?.email ?? session?.user?.email ?? null;
 
-    let user = await User.findById(auth.userId).catch(() => null);
-    if (!user && auth.email) {
-      user = await User.findOne({ email: auth.email });
+    // Find user
+    let user = userId ? await User.findById(userId).catch(() => null) : null;
+    if (!user && email) {
+      user = await User.findOne({ email });
     }
 
+    // Auto-create if missing (shouldn't happen but safety net)
     if (!user) {
       user = await User.create({
-        email: auth.email,
+        email,
+        name: session?.user?.name ?? undefined,
         xp: 0,
         level: 1,
         earnings: 0,
@@ -35,7 +50,8 @@ export async function GET(req: NextRequest) {
       $or: [
         { walletAddress: user._id.toString() },
         { "stats.ownerId": user._id.toString() },
-        ...(auth.email ? [{ walletAddress: auth.email }] : []),
+        ...(email ? [{ walletAddress: email }] : []),
+        ...(auth?.wallet ? [{ walletAddress: auth.wallet }] : []),
       ],
     });
 
@@ -58,7 +74,6 @@ export async function GET(req: NextRequest) {
           (u as any).createdAt?.toISOString() ??
           new Date().toISOString(),
         staked: (u.stats as any)?.staked ?? u.staked ?? false,
-        // ✅ these were missing — now included
         isListed: u.isListed ?? false,
         listedPrice: u.listedPrice ?? null,
       };
@@ -67,12 +82,7 @@ export async function GET(req: NextRequest) {
     const payload = {
       ...user.toObject(),
       usernames,
-      earnings: {
-        today: 0,
-        week: 0,
-        month: 0,
-        allTime: user.earnings ?? 0,
-      },
+      earnings: { today: 0, week: 0, month: 0, allTime: user.earnings ?? 0 },
       stakedAmount: user.stakedAmount ?? 0,
       stakingPositions: [],
       referrals: 0,
