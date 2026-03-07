@@ -241,13 +241,18 @@ export default function DashboardHeader({
   const renderAvatar = (size = 28) => {
     if (session?.user?.image) {
       return (
-        <Image
-          src={session.user.image}
-          alt={displayName}
-          width={size}
-          height={size}
-          className="rounded-full object-cover"
-        />
+        <div
+          className="rounded-full overflow-hidden shrink-0"
+          style={{ width: size, height: size }}
+        >
+          <Image
+            src={session.user.image}
+            alt="avatar"
+            width={size}
+            height={size}
+            className="rounded-full object-cover"
+          />
+        </div>
       );
     }
     return (
