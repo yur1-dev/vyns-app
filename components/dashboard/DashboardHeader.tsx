@@ -102,7 +102,6 @@ function PixelAvatar({
         }
       }
     }
-    // eyes
     ctx.fillStyle = "#fff";
     ctx.fillRect(2, 2, 1, 1);
     ctx.fillRect(5, 2, 1, 1);
@@ -204,7 +203,6 @@ export default function DashboardHeader({
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
 
-  // ── FIX: Only fetch SOL balance for wallet users, never for session users ──
   const isWalletUser = !session && !!wallet;
 
   const refreshBalance = useCallback(async () => {
@@ -215,7 +213,6 @@ export default function DashboardHeader({
   }, [isWalletUser, wallet]);
 
   useEffect(() => {
-    // ── FIX: Guard — skip balance fetch entirely for Google/email users ──
     if (!isWalletUser) {
       setBalance(0);
       return;
@@ -241,7 +238,6 @@ export default function DashboardHeader({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Render avatar — Google profile pic, pixel art for wallet/email
   const renderAvatar = (size = 28) => {
     if (session?.user?.image) {
       return (
@@ -269,6 +265,10 @@ export default function DashboardHeader({
     petId: "none",
     avatarSeed: displayName,
   };
+
+  // Truncate display name for header button — max 16 chars then ellipsis
+  const truncatedName =
+    displayName.length > 16 ? displayName.slice(0, 14) + "…" : displayName;
 
   return (
     <>
@@ -311,7 +311,7 @@ export default function DashboardHeader({
 
           {/* Right */}
           <div className="flex items-center gap-1.5">
-            {/* Balance — wallet users ONLY, never for Google/email */}
+            {/* Balance — wallet users ONLY */}
             {isWalletUser && (
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
                 <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
@@ -436,8 +436,9 @@ export default function DashboardHeader({
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
               >
                 <div className="shrink-0">{renderAvatar(28)}</div>
-                <span className="hidden md:block text-sm text-white/60 max-w-[100px] truncate">
-                  {displayName}
+                {/* FIX: wider max-w and single-line truncation */}
+                <span className="hidden md:block text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap">
+                  {truncatedName}
                 </span>
                 <ChevronDown
                   className={`h-3.5 w-3.5 text-white/20 hidden sm:block shrink-0 transition-transform duration-150 ${dropOpen ? "rotate-180" : ""}`}
@@ -487,7 +488,6 @@ export default function DashboardHeader({
                           </p>
                         )}
                         <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
-                          {/* FIX: show email for session users, wallet addr for wallet users only */}
                           {session?.user?.email
                             ? session.user.email
                             : isWalletUser && wallet
