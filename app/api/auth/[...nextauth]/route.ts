@@ -40,7 +40,8 @@ export const authOptions: NextAuthOptions = {
           id: user._id.toString(),
           email: user.email,
           name: user.name,
-          wallet: user.wallet ?? null,
+          // FIX: explicitly null — don't inherit any wallet for email users
+          wallet: null,
         };
       },
     }),
@@ -65,7 +66,6 @@ export const authOptions: NextAuthOptions = {
 
         const { wallet, signature, message } = credentials;
 
-        // ── Verify Solana signature ──────────────────────────
         const publicKey = new PublicKey(wallet);
         const messageBytes = new TextEncoder().encode(message);
         const signatureBytes = Uint8Array.from(
@@ -80,7 +80,6 @@ export const authOptions: NextAuthOptions = {
         );
         if (!isValid) throw new Error("Invalid wallet signature");
 
-        // ── Find or create user ──────────────────────────────
         await connectDB();
         let user = await User.findOne({ wallet });
 
@@ -100,7 +99,7 @@ export const authOptions: NextAuthOptions = {
           wallet: user.wallet,
           name: user.username ?? null,
           email: user.email ?? null,
-          isNewUser: !user.username, // flag for post-login redirect
+          isNewUser: !user.username,
         };
       },
     }),
@@ -129,10 +128,14 @@ export const authOptions: NextAuthOptions = {
     },
 
     // ── jwt: persist wallet + userId into the token ─────────
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.userId = user.id;
-        token.wallet = (user as any).wallet ?? null;
+        // FIX: Google users never get a wallet in the token
+        token.wallet =
+          account?.provider === "google"
+            ? null
+            : ((user as any).wallet ?? null);
         token.isNewUser = (user as any).isNewUser ?? false;
       }
       return token;
@@ -142,7 +145,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token) {
         session.user.id = token.userId as string;
-        session.user.wallet = token.wallet as string | null;
+        // FIX: use token.wallet (never overwrite with DB wallet for Google users)
+        session.user.wallet = (token.wallet as string | null) ?? null;
         session.user.isNewUser = token.isNewUser as boolean;
       }
 
@@ -154,7 +158,11 @@ export const authOptions: NextAuthOptions = {
           session.user.username = (user as any).username ?? null;
           session.user.level = (user as any).level ?? 1;
           session.user.xp = (user as any).xp ?? 0;
-          session.user.wallet = (user as any).wallet ?? session.user.wallet;
+          // FIX: only hydrate wallet from DB if session already has one (wallet users)
+          // Google/email users stay wallet=null — never pull wallet from DB
+          if (session.user.wallet) {
+            session.user.wallet = (user as any).wallet ?? session.user.wallet;
+          }
         }
       }
 
@@ -169,6 +177,25 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: "jwt",
+    // FIX: longer maxAge helps mobile not lose session on tab switches
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+
+  // FIX: mobile redirect loop — trust the host header from Vercel/proxy
+  useSecureCookies: process.env.NODE_ENV === "production",
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax", // FIX: "lax" instead of "strict" — required for OAuth redirects on mobile
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
 };
 

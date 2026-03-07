@@ -204,16 +204,24 @@ export default function DashboardHeader({
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
 
+  // ── FIX: Only fetch SOL balance for wallet users, never for session users ──
+  const isWalletUser = !session && !!wallet;
+
   const refreshBalance = useCallback(async () => {
-    if (!wallet) return;
+    if (!isWalletUser || !wallet) return;
     setBalLoading(true);
     setBalance(await fetchSolBalance(wallet));
     setBalLoading(false);
-  }, [wallet]);
+  }, [isWalletUser, wallet]);
 
   useEffect(() => {
+    // ── FIX: Guard — skip balance fetch entirely for Google/email users ──
+    if (!isWalletUser) {
+      setBalance(0);
+      return;
+    }
     refreshBalance();
-  }, [refreshBalance]);
+  }, [isWalletUser, refreshBalance]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -233,7 +241,7 @@ export default function DashboardHeader({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Render avatar — always pixel art, falls back gracefully
+  // Render avatar — Google profile pic, pixel art for wallet/email
   const renderAvatar = (size = 28) => {
     if (session?.user?.image) {
       return (
@@ -246,7 +254,6 @@ export default function DashboardHeader({
         />
       );
     }
-    // Pixel avatar for wallet or email users
     return (
       <div
         style={{ boxShadow: `0 0 8px ${themeColor}50` }}
@@ -304,8 +311,8 @@ export default function DashboardHeader({
 
           {/* Right */}
           <div className="flex items-center gap-1.5">
-            {/* Balance — wallet only */}
-            {!session && wallet && (
+            {/* Balance — wallet users ONLY, never for Google/email */}
+            {isWalletUser && (
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
                 <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
                 {balLoading ? (
@@ -442,7 +449,6 @@ export default function DashboardHeader({
                   {/* Identity */}
                   <div className="p-3 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
-                      {/* Big pixel avatar */}
                       <div
                         className="rounded-xl overflow-hidden shrink-0"
                         style={{ boxShadow: `0 0 12px ${themeColor}40` }}
@@ -465,7 +471,6 @@ export default function DashboardHeader({
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        {/* Username with pet if set */}
                         {activeUsername &&
                         customization?.petId &&
                         customization.petId !== "none" ? (
@@ -482,16 +487,18 @@ export default function DashboardHeader({
                           </p>
                         )}
                         <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
-                          {session?.user?.email ||
-                            (wallet
+                          {/* FIX: show email for session users, wallet addr for wallet users only */}
+                          {session?.user?.email
+                            ? session.user.email
+                            : isWalletUser && wallet
                               ? `${wallet.slice(0, 8)}…${wallet.slice(-4)}`
-                              : "")}
+                              : ""}
                         </p>
                       </div>
                     </div>
 
-                    {/* SOL balance for wallet users */}
-                    {!session && wallet && (
+                    {/* SOL balance — wallet users ONLY */}
+                    {isWalletUser && (
                       <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05]">
                         <div className="flex items-center gap-1.5">
                           <Wallet className="h-3.5 w-3.5 text-teal-400" />
@@ -544,7 +551,6 @@ export default function DashboardHeader({
                       <span className="flex-1 text-left">Dashboard</span>
                     </button>
 
-                    {/* Customize profile */}
                     <button
                       onClick={() => {
                         setDropOpen(false);
