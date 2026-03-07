@@ -145,16 +145,19 @@ export function useDashboard() {
 
   // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // FIX: Wait for NextAuth to fully resolve before doing anything.
+    // "loading" means the session check is still in flight — on mobile this
+    // can take longer due to network latency. Never redirect during this phase.
     if (status === "loading") return;
+
     const init = async () => {
       setLoading(true);
       try {
         if (session?.user) {
           // ── Google or email/password via NextAuth ──
-          // Explicitly clear wallet so no wallet UI shows for session users
           setWallet(null);
+          setBalance(0);
 
-          // Detect provider from image URL or fallback to Email
           const isGoogle = !!(
             session.user.image?.includes("google") ||
             session.user.image?.includes("googleusercontent")
@@ -162,33 +165,66 @@ export function useDashboard() {
           setProvider(isGoogle ? "Google" : "Email");
 
           await fetchUserData(null, session);
-        } else {
-          // ── Wallet auth ──
-          const solana = (window as any).solana;
-          if (!solana?.isPhantom) {
-            router.push("/login");
-            return;
-          }
-          const resp = await solana
-            .connect({ onlyIfTrusted: true })
-            .catch(() => null);
-          if (!resp?.publicKey) {
-            router.push("/login");
-            return;
-          }
-          const pk = resp.publicKey.toString();
-          setWallet(pk);
-          setProvider("Phantom");
-          setCustomization((prev) => ({
-            ...prev,
-            avatarSeed: prev.avatarSeed || pk,
-          }));
-          await Promise.all([fetchUserData(pk, null), fetchBalance(pk)]);
+          return; // FIX: early return — never fall through to wallet check
         }
+
+        // ── No NextAuth session — check for custom JWT (wallet auth) ──
+        // FIX: Check if we have an auth-token cookie before trying Phantom.
+        // This handles the case where someone is on a device without Phantom
+        // but logged in via wallet on another tab/session.
+        const hasCustomJwt = document.cookie.includes("auth-token");
+
+        if (hasCustomJwt) {
+          // Try to get wallet from Phantom if available
+          const solana = (window as any).solana;
+          if (solana?.isPhantom) {
+            const resp = await solana
+              .connect({ onlyIfTrusted: true })
+              .catch(() => null);
+            if (resp?.publicKey) {
+              const pk = resp.publicKey.toString();
+              setWallet(pk);
+              setProvider("Phantom");
+              setCustomization((prev) => ({
+                ...prev,
+                avatarSeed: prev.avatarSeed || pk,
+              }));
+              await Promise.all([fetchUserData(pk, null), fetchBalance(pk)]);
+              return;
+            }
+          }
+          // Has custom JWT but Phantom not available/connected —
+          // try fetching user data anyway (JWT in cookie will auth the request)
+          await fetchUserData(null, { user: {} });
+          return;
+        }
+
+        // ── No session AND no custom JWT — check Phantom as last resort ──
+        const solana = (window as any).solana;
+        if (!solana?.isPhantom) {
+          router.push("/login");
+          return;
+        }
+        const resp = await solana
+          .connect({ onlyIfTrusted: true })
+          .catch(() => null);
+        if (!resp?.publicKey) {
+          router.push("/login");
+          return;
+        }
+        const pk = resp.publicKey.toString();
+        setWallet(pk);
+        setProvider("Phantom");
+        setCustomization((prev) => ({
+          ...prev,
+          avatarSeed: prev.avatarSeed || pk,
+        }));
+        await Promise.all([fetchUserData(pk, null), fetchBalance(pk)]);
       } finally {
         setLoading(false);
       }
     };
+
     init();
   }, [status, session]);
 
@@ -328,10 +364,8 @@ export function useDashboard() {
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     if (session) {
-      // Google / email users — sign out NextAuth session, go to /login not /
       await signOut({ callbackUrl: "/login" });
     } else {
-      // Wallet users — disconnect Phantom, go to /login
       try {
         await (window as any).solana?.disconnect();
       } catch {}
