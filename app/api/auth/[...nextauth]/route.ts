@@ -181,22 +181,9 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  // FIX: mobile redirect loop — trust the host header from Vercel/proxy
-  useSecureCookies: process.env.NODE_ENV === "production",
-  cookies: {
-    sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax", // FIX: "lax" instead of "strict" — required for OAuth redirects on mobile
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
+  // Let NextAuth handle cookie naming automatically.
+  // DO NOT override cookies config — it fights with NextAuth's built-in
+  // __Secure- prefix logic on Vercel and causes the middleware to miss the token.
 };
 
 const handler = NextAuth(authOptions);
