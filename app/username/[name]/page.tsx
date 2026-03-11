@@ -323,7 +323,7 @@ export default function UsernamePage() {
   const isOwner = !!(
     listing &&
     // Email / Google users: identified by MongoDB _id
-    ((currentUserId && listing.ownerId && currentUserId === listing.ownerId) ||
+    ((currentUserId && listing.owner && currentUserId === listing.owner) ||
       // Wallet users: identified by wallet address
       (currentWallet &&
         listing.ownerWallet &&
