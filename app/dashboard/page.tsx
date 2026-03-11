@@ -12,6 +12,7 @@ import StakingTab from "@/components/dashboard/tabs/StakingTab";
 import EarningsTab from "@/components/dashboard/tabs/EarningsTab";
 import ReferralsTab from "@/components/dashboard/tabs/ReferralsTab";
 import MarketplaceTab from "@/components/dashboard/tabs/MarketplaceTab";
+import ProfileTab from "@/components/dashboard/tabs/ProfileTab";
 import UsernameModal from "@/components/dashboard/modals/UsernameModal";
 
 export default function DashboardPage() {
@@ -47,7 +48,8 @@ export default function DashboardPage() {
         onOpenSettings={() => router.push("/settings")}
         onSaveCustomization={dash.saveCustomization}
         onLogout={dash.logout}
-        onWalletLinked={(pk) => dash.setWallet(pk)}
+        onWalletLinked={(pk) => dash.setWallet(pk || null)}
+        onOpenProfile={() => dash.setActiveTab("profile")}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -138,10 +140,9 @@ export default function DashboardPage() {
                   if (data.success) {
                     await dash.refreshUserData();
                     return { success: true };
-                  } else {
-                    dash.optimisticStakeUsername(username, false);
-                    return { success: false, error: data.error };
                   }
+                  dash.optimisticStakeUsername(username, false);
+                  return { success: false, error: data.error };
                 }}
                 onUnstakeUsername={async (_id, username, signature) => {
                   dash.optimisticStakeUsername(username, false);
@@ -160,10 +161,9 @@ export default function DashboardPage() {
                   if (data.success) {
                     await dash.refreshUserData();
                     return { success: true };
-                  } else {
-                    dash.optimisticStakeUsername(username, true);
-                    return { success: false, error: data.error };
                   }
+                  dash.optimisticStakeUsername(username, true);
+                  return { success: false, error: data.error };
                 }}
               />
             )}
@@ -171,12 +171,24 @@ export default function DashboardPage() {
             {dash.activeTab === "earnings" && (
               <EarningsTab userData={dash.userData} />
             )}
-
             {dash.activeTab === "referrals" && (
               <ReferralsTab userData={dash.userData} wallet={dash.wallet} />
             )}
-
             {dash.activeTab === "marketplace" && <MarketplaceTab />}
+
+            {dash.activeTab === "profile" && (
+              <ProfileTab
+                session={dash.session}
+                userData={dash.userData}
+                wallet={dash.wallet}
+                provider={dash.provider}
+                displayName={dash.displayName}
+                activeUsername={dash.activeUsername}
+                customization={dash.customization}
+                onSaveCustomization={dash.saveCustomization}
+                onTabChange={dash.setActiveTab}
+              />
+            )}
           </div>
         </main>
       </div>

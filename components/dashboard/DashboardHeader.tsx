@@ -152,6 +152,7 @@ interface Props {
   onSaveCustomization?: (c: ProfileCustomization) => Promise<void>;
   onLogout: () => void;
   onWalletLinked?: (walletAddress: string) => void;
+  onOpenProfile?: () => void;
 }
 
 const NOTIF_ICONS = {

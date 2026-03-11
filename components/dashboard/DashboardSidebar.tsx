@@ -1,7 +1,7 @@
 "use client";
+
 // components/dashboard/DashboardSidebar.tsx
 
-import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Crown,
@@ -9,7 +9,6 @@ import {
   Zap,
   Users,
   ShoppingBag,
-  User,
 } from "lucide-react";
 import type { TabId } from "@/types/dashboard";
 
@@ -39,10 +38,9 @@ export default function DashboardSidebar({
   onTabChange,
   onClose,
 }: Props) {
-  const router = useRouter();
-
   return (
     <>
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 top-14 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
@@ -50,20 +48,24 @@ export default function DashboardSidebar({
         />
       )}
 
+      {/*
+        KEY FIX: sidebar must be `sticky top-14` and `self-start` on desktop
+        so it pins to the top of the viewport and does NOT scroll with content.
+        On mobile it stays `fixed`.
+      */}
       <aside
         className={`
-        fixed top-14 left-0 z-50 w-52
-        h-[calc(100vh-3.5rem)]
-        border-r border-white/[0.05] bg-[#060b14]
-        overflow-hidden flex flex-col
-        transition-transform duration-300 ease-in-out
-        lg:sticky lg:top-14 lg:z-auto lg:translate-x-0
-        lg:h-[calc(100vh-3.5rem)] lg:shrink-0 lg:self-start
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}
+          fixed top-14 left-0 z-50 w-52
+          h-[calc(100vh-3.5rem)]
+          border-r border-white/[0.05] bg-[#060b14]
+          overflow-hidden
+          transition-transform duration-300 ease-in-out
+          lg:sticky lg:top-14 lg:z-auto lg:translate-x-0
+          lg:h-[calc(100vh-3.5rem)] lg:shrink-0 lg:self-start
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
       >
-        {/* Main nav */}
-        <nav className="flex flex-col gap-0.5 p-3 pt-4 flex-1">
+        <nav className="flex flex-col gap-0.5 p-3 pt-4">
           {NAV.map((item) => {
             const active = activeTab === item.id;
             const badge =
@@ -96,7 +98,9 @@ export default function DashboardSidebar({
                 )}
                 <div className="flex items-center gap-2.5">
                   <item.icon
-                    className={`h-4 w-4 shrink-0 transition-colors ${active ? "text-teal-400" : "group-hover:text-white/50"}`}
+                    className={`h-4 w-4 shrink-0 transition-colors ${
+                      active ? "text-teal-400" : "group-hover:text-white/50"
+                    }`}
                   />
                   <span>{item.label}</span>
                 </div>
@@ -109,20 +113,6 @@ export default function DashboardSidebar({
             );
           })}
         </nav>
-
-        {/* Profile link — pinned at bottom */}
-        <div className="p-3 border-t border-white/[0.04]">
-          <button
-            onClick={() => {
-              router.push("/profile");
-              onClose();
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-white/30 hover:text-white/70 hover:bg-white/[0.04] transition-all cursor-pointer group"
-          >
-            <User className="h-4 w-4 shrink-0 group-hover:text-white/50 transition-colors" />
-            <span>Profile</span>
-          </button>
-        </div>
       </aside>
     </>
   );
