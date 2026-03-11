@@ -10,7 +10,6 @@ import {
   TrendingUp,
   Tag,
   Zap,
-  Crown,
   ChevronRight,
   Loader2,
   Check,
@@ -57,7 +56,8 @@ function getTier(username: string) {
 interface MarketplaceListing {
   username: string;
   price: number;
-  owner: string;
+  owner: string; // stats.ownerId (MongoDB _id string)
+  ownerWallet: string; // walletAddress field
   level: number;
   listedAt: string;
   tier?: string;
@@ -85,9 +85,11 @@ const FILTERS = [
 function ListingCard({
   listing,
   currentUserId,
+  currentWallet,
 }: {
   listing: MarketplaceListing;
   currentUserId: string | null;
+  currentWallet: string | null;
 }) {
   const clean = listing.username.replace(/^@/, "");
   const tier = (listing.tier as keyof typeof TIER_CONFIG) ?? getTier(clean);
@@ -97,13 +99,23 @@ function ListingCard({
     day: "numeric",
   });
 
-  // Owner check — listing.owner stores userId for email users
+  // FIX: Use exact equality only — no fuzzy slice matching.
+  // Check both MongoDB _id AND wallet address to cover both auth types.
   const isOwner = !!(
-    currentUserId &&
-    listing.owner &&
-    (listing.owner === currentUserId ||
-      listing.owner.slice(0, 8) === currentUserId.slice(0, 8))
+    (currentUserId && listing.owner && currentUserId === listing.owner) ||
+    (currentWallet &&
+      listing.ownerWallet &&
+      currentWallet === listing.ownerWallet)
   );
+
+  // Display label for owner column
+  const ownerDisplay = isOwner
+    ? "You"
+    : listing.ownerWallet
+      ? `${listing.ownerWallet.slice(0, 4)}…${listing.ownerWallet.slice(-4)}`
+      : listing.owner
+        ? `${listing.owner.slice(0, 4)}…${listing.owner.slice(-4)}`
+        : "Unknown";
 
   return (
     <Link
@@ -138,12 +150,10 @@ function ListingCard({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-white/30">Owner</span>
-          <span className="font-mono text-xs text-white/40">
-            {isOwner ? (
-              <span className="text-teal-400 font-medium not-mono">You</span>
-            ) : (
-              `${listing.owner.slice(0, 4)}…${listing.owner.slice(-4)}`
-            )}
+          <span
+            className={`font-mono text-xs ${isOwner ? "text-teal-400 font-medium not-mono" : "text-white/40"}`}
+          >
+            {ownerDisplay}
           </span>
         </div>
       </div>
@@ -173,16 +183,21 @@ export default function MarketplaceTab() {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentWallet, setCurrentWallet] = useState<string | null>(null);
   const [filter, setFilter] = useState<
     "recent" | "price-low" | "price-high" | "level"
   >("recent");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    // Fetch current user ID for ownership checks
+    // FIX: Capture both _id AND wallet so ownership check works for
+    // both email/Google users (matched by _id) and wallet users (matched by wallet)
     fetch("/api/user/me", { credentials: "include" })
       .then((r) => r.json())
-      .then((data) => setCurrentUserId(data.user?._id ?? null))
+      .then((data) => {
+        setCurrentUserId(data.user?._id ?? null);
+        setCurrentWallet(data.user?.wallet ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -270,6 +285,7 @@ export default function MarketplaceTab() {
               key={listing.username}
               listing={listing}
               currentUserId={currentUserId}
+              currentWallet={currentWallet}
             />
           ))}
         </div>

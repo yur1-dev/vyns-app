@@ -46,7 +46,11 @@ export async function GET(request: NextRequest) {
       listings: listings.map((item: any) => ({
         username: item.username,
         price: item.listedPrice,
-        owner: item.stats?.ownerId ?? item.walletAddress, // ← ownerId matches currentUserId from /api/user/me
+        // FIX: Return both owner (MongoDB _id) AND ownerWallet separately
+        // so the frontend can match against both email users (_id) and
+        // wallet users (wallet address) correctly.
+        owner: item.stats?.ownerId ?? null,
+        ownerWallet: item.walletAddress ?? null,
         level: item.level,
         xp: item.xp,
         isPremium: item.isPremium,
