@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth"; // adjust path if yours differs
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET as string);
 
@@ -75,16 +77,36 @@ export async function getUser(): Promise<AuthPayload | null> {
 }
 
 // ─── Request Auth Verification ────────────────────────────
+// Handles three session types in priority order:
+//   1. Custom JWT cookie (auth-token)  — wallet + email/password users
+//   2. Authorization header Bearer     — API clients
+//   3. NextAuth session token          — Google OAuth users
 export async function verifyAuth(
   req: NextRequest,
 ): Promise<AuthPayload | null> {
   try {
+    // 1 & 2 — custom JWT (wallet / email users)
     const token =
       req.cookies.get("auth-token")?.value ||
       req.headers.get("authorization")?.replace("Bearer ", "");
 
-    if (!token) return null;
-    return await verifyToken(token);
+    if (token) {
+      const payload = await verifyToken(token);
+      if (payload) return payload;
+    }
+
+    // 3 — NextAuth session (Google OAuth users)
+    const session = await getServerSession(authOptions);
+    if (session?.user) {
+      const user = session.user as any;
+      return {
+        userId: user.id ?? user._id ?? user.email ?? "",
+        email: user.email ?? undefined,
+        wallet: user.wallet ?? undefined,
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }
