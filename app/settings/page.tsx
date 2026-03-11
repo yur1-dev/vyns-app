@@ -506,8 +506,6 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SettingsPageRoute() {
-  // FIX: Use useDashboard instead of useSession directly so we get real
-  // balance, activeUsername, customization, and all other live data.
   const dash = useDashboard();
   const [activeTab, setActiveTab] = useState<Tab>("account");
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -522,7 +520,6 @@ export default function SettingsPageRoute() {
         <div className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full bg-indigo-600/[0.06] blur-[180px]" />
       </div>
 
-      {/* FIX: Pass all required props from useDashboard — no more missing props */}
       <DashboardHeader
         session={dash.session}
         wallet={dash.wallet}
@@ -536,8 +533,7 @@ export default function SettingsPageRoute() {
         onMarkNotifsRead={() =>
           setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
         }
-        onOpenSettings={() => {}} // already on settings
-        onSaveCustomization={dash.saveCustomization}
+        onOpenSettings={() => {}}
         onLogout={dash.logout}
       />
 
@@ -587,7 +583,6 @@ export default function SettingsPageRoute() {
           />
         )}
         {activeTab === "wallet" && (
-          // FIX: Pass real balance from useDashboard instead of hardcoded 0
           <WalletTab wallet={dash.wallet} balance={dash.balance} />
         )}
         {activeTab === "preferences" && <PreferencesTab />}

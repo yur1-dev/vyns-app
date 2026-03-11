@@ -289,7 +289,6 @@ export default function ProfilePage() {
           onToggleSidebar={() => {}}
           onMarkNotifsRead={() => {}}
           onOpenSettings={() => router.push("/settings")}
-          onSaveCustomization={dash.saveCustomization}
           onLogout={dash.logout}
           onWalletLinked={(pk) => dash.setWallet(pk || null)}
         />

@@ -32,9 +32,6 @@ import {
 } from "lucide-react";
 
 import { type ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
-import UsernameWithPet, {
-  type PetId,
-} from "@/components/dashboard/UsernameWithPet";
 
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
@@ -194,7 +191,6 @@ export default function DashboardHeader({
   const unread = notifList.filter((n) => !n.read).length;
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
-  const petId = (customization?.petId ?? "none") as PetId;
   const hasLinkedWallet = !!session && !!wallet;
   const isGoogleOrEmail = !!session;
   const displayUsername = activeUsername || displayName;
@@ -311,7 +307,7 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
       <div className="px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-        {/* Left — logo */}
+        {/* Left */}
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleSidebar}
@@ -357,6 +353,7 @@ export default function DashboardHeader({
             </div>
           )}
 
+          {/* Connect wallet CTA */}
           {isGoogleOrEmail && !wallet && (
             <button
               onClick={handleConnectWallet}
@@ -386,6 +383,7 @@ export default function DashboardHeader({
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-teal-400" />
               )}
             </button>
+
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
@@ -468,40 +466,24 @@ export default function DashboardHeader({
             )}
           </div>
 
-          {/* ── User dropdown trigger ── */}
+          {/* User dropdown */}
           <div className="relative" ref={dropRef}>
             <button
               onClick={() => setDropOpen((v) => !v)}
               className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
             >
-              {/* Avatar */}
               <div className="shrink-0">{renderAvatar(28)}</div>
-
-              {/* Pet + name — only on md+ screens */}
-              <div className="hidden md:block overflow-hidden">
-                {petId !== "none" ? (
-                  <UsernameWithPet
-                    username={truncatedName}
-                    petId={petId}
-                    themeColor={themeColor}
-                    className="w-[140px]"
-                    textClassName="text-sm text-white/60"
-                  />
-                ) : (
-                  <span className="text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap block">
-                    {truncatedName}
-                  </span>
-                )}
-              </div>
-
+              <span className="hidden md:block text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap">
+                {truncatedName}
+              </span>
               <ChevronDown
                 className={`h-3.5 w-3.5 text-white/20 hidden sm:block shrink-0 transition-transform duration-150 ${dropOpen ? "rotate-180" : ""}`}
               />
             </button>
 
-            {/* Dropdown panel */}
             {dropOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
+                {/* Profile info */}
                 <div className="p-3 border-b border-white/[0.05]">
                   <div className="flex items-center gap-3">
                     <div
@@ -542,6 +524,7 @@ export default function DashboardHeader({
                     </div>
                   </div>
 
+                  {/* Wallet */}
                   {wallet ? (
                     <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
                       <div className="flex items-center justify-between px-2.5 py-2">
@@ -619,6 +602,7 @@ export default function DashboardHeader({
                   </div>
                 </div>
 
+                {/* Menu */}
                 <div className="p-2 space-y-0.5">
                   <button
                     onClick={() => {

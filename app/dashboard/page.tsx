@@ -63,7 +63,6 @@ function DashboardInner() {
           setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
         }
         onOpenSettings={() => router.push("/settings")}
-        onSaveCustomization={dash.saveCustomization}
         onLogout={dash.logout}
         onWalletLinked={(pk) => dash.setWallet(pk)}
         onOpenProfile={() => changeTab("profile")}
