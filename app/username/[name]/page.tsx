@@ -277,7 +277,9 @@ export default function UsernamePage() {
 
   const [listing, setListing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // FIX: Track BOTH _id (email/Google users) and wallet (wallet users) separately
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentWallet, setCurrentWallet] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -288,7 +290,6 @@ export default function UsernamePage() {
 
   useEffect(() => {
     if (!username) return;
-    // Fetch listing and current user in parallel
     Promise.all([
       fetch(
         `/api/marketplace/listing?username=${encodeURIComponent(username)}`,
@@ -300,17 +301,33 @@ export default function UsernamePage() {
       .then(([listingData, userData]) => {
         if (listingData.listing) setListing(listingData.listing);
         else setNotFound(true);
-        if (userData?.user?._id) setCurrentUserId(userData.user._id);
+
+        if (userData?.user) {
+          // FIX: store both identifiers — don't rely on just one
+          setCurrentUserId(userData.user._id ?? null);
+          // wallet field on user — populated for wallet-authenticated users
+          setCurrentWallet(userData.user.wallet ?? null);
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [username]);
 
-  // Ownership check — compare all possible owner identifiers
+  // FIX: Was:  listing.owner === currentUserId || listing.owner === listing.ownerWallet
+  //           ↑ second condition compared listing's OWN fields to each other — always true
+  //           for wallet users, making everyone appear as the owner.
+  //
+  // Now: exact equality only, checked against the current user's actual identifiers.
+  // listing.ownerId  = MongoDB _id string (set by list route via stats.ownerId)
+  // listing.ownerWallet = raw wallet address (set by list route via walletAddress)
   const isOwner = !!(
-    currentUserId &&
     listing &&
-    (listing.owner === currentUserId || listing.owner === listing.ownerWallet) // wallet users
+    // Email / Google users: identified by MongoDB _id
+    ((currentUserId && listing.ownerId && currentUserId === listing.ownerId) ||
+      // Wallet users: identified by wallet address
+      (currentWallet &&
+        listing.ownerWallet &&
+        currentWallet === listing.ownerWallet))
   );
 
   const handleCopy = () => {
@@ -344,7 +361,6 @@ export default function UsernamePage() {
 
   return (
     <div className="min-h-screen bg-[#060b14] text-white">
-      {/* Subtle ambient glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full blur-[120px] opacity-[0.07]"
@@ -383,7 +399,6 @@ export default function UsernamePage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Hero card */}
             <div
               className={`rounded-2xl border ${cfg.border} bg-white/[0.02] overflow-hidden`}
             >
@@ -394,7 +409,6 @@ export default function UsernamePage() {
                 }}
               />
               <div className="p-5 sm:p-7">
-                {/* Header */}
                 <div className="flex items-start justify-between gap-4 mb-5">
                   <div className="flex items-center gap-4">
                     <Avatar seed={username} size={56} />
@@ -444,7 +458,6 @@ export default function UsernamePage() {
                   </div>
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-4 gap-2 mb-5">
                   {[
                     {
@@ -489,22 +502,21 @@ export default function UsernamePage() {
                   ))}
                 </div>
 
-                {/* Owner */}
-                {listing?.owner && (
+                {/* Show wallet address of actual owner */}
+                {listing?.ownerWallet && (
                   <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-5">
                     <div className="flex items-center gap-2 text-white/30 text-xs">
                       <Shield className="h-3.5 w-3.5" />
                       {isOwner ? "Listed by you" : "Current owner"}
                     </div>
                     <span className="font-mono text-xs text-white/50">
-                      {listing.owner.length > 16
-                        ? `${listing.owner.slice(0, 6)}…${listing.owner.slice(-6)}`
-                        : listing.owner}
+                      {listing.ownerWallet.length > 16
+                        ? `${listing.ownerWallet.slice(0, 6)}…${listing.ownerWallet.slice(-6)}`
+                        : listing.ownerWallet}
                     </span>
                   </div>
                 )}
 
-                {/* CTA — blocked if owner */}
                 {isOwner ? (
                   <div className="w-full py-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-white/30 text-sm font-medium flex items-center justify-center gap-2">
                     <Check className="h-4 w-4 text-teal-400" />
@@ -522,7 +534,6 @@ export default function UsernamePage() {
               </div>
             </div>
 
-            {/* Info cards */}
             <div className="grid grid-cols-3 gap-3">
               {[
                 {
