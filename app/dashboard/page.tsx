@@ -1,6 +1,6 @@
 "use client";
 // app/dashboard/page.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
@@ -15,7 +15,7 @@ import MarketplaceTab from "@/components/dashboard/tabs/MarketplaceTab";
 import UsernameModal from "@/components/dashboard/modals/UsernameModal";
 import ProfileTab from "@/components/dashboard/tabs/ProfileTab";
 
-export default function DashboardPage() {
+function DashboardInner() {
   const dash = useDashboard();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -229,5 +229,13 @@ export default function DashboardPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardInner />
+    </Suspense>
   );
 }
