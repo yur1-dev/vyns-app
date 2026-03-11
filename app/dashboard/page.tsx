@@ -1,7 +1,7 @@
 "use client";
 // app/dashboard/page.tsx
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -18,9 +18,24 @@ import ProfileTab from "@/components/dashboard/tabs/ProfileTab";
 export default function DashboardPage() {
   const dash = useDashboard();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  // Sync active tab from URL ?tab= — also resets to overview when no tab param
+  useEffect(() => {
+    const tabFromUrl = (searchParams.get("tab") ?? "overview") as any;
+    if (tabFromUrl !== dash.activeTab) {
+      dash.setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  // Helper: change tab AND update URL
+  const changeTab = (tab: string) => {
+    dash.setActiveTab(tab as any);
+    router.replace(`/dashboard?tab=${tab}`, { scroll: false });
+  };
 
   if (dash.loading) {
     return (
@@ -51,7 +66,7 @@ export default function DashboardPage() {
         onSaveCustomization={dash.saveCustomization}
         onLogout={dash.logout}
         onWalletLinked={(pk) => dash.setWallet(pk)}
-        onOpenProfile={() => dash.setActiveTab("profile")}
+        onOpenProfile={() => changeTab("profile")}
       />
 
       {isProfile ? (
@@ -66,7 +81,7 @@ export default function DashboardPage() {
             activeUsername={dash.activeUsername}
             customization={dash.customization}
             onSaveCustomization={dash.saveCustomization}
-            onTabChange={(tab) => dash.setActiveTab(tab as any)}
+            onTabChange={(tab) => changeTab(tab)}
           />
         </div>
       ) : (
@@ -81,7 +96,7 @@ export default function DashboardPage() {
               if (tab === "settings") {
                 router.push("/settings");
               } else {
-                dash.setActiveTab(tab);
+                changeTab(tab);
               }
             }}
             onClose={() => setSidebarOpen(false)}
@@ -93,7 +108,7 @@ export default function DashboardPage() {
                 <OverviewTab
                   userData={dash.userData}
                   session={dash.session}
-                  onTabChange={dash.setActiveTab}
+                  onTabChange={changeTab}
                   onClaim={dash.claimUsername}
                   onClaimSuccess={dash.refreshUserData}
                 />
@@ -104,7 +119,7 @@ export default function DashboardPage() {
                   usernames={dash.userData.usernames}
                   activeUsername={dash.activeUsername}
                   onClaim={() => setShowUsernameModal(true)}
-                  onTabChange={dash.setActiveTab}
+                  onTabChange={changeTab}
                   onSetActiveUsername={dash.setActiveUsername}
                   onListUsername={dash.listUsername}
                   onDelistUsername={dash.delistUsername}
