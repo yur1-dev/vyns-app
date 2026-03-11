@@ -456,16 +456,20 @@ export default function DashboardHeader({
                   <div className="p-3 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
                       <div
-                        className="rounded-xl overflow-hidden shrink-0"
-                        style={{ boxShadow: `0 0 12px ${themeColor}40` }}
+                        className="rounded-full overflow-hidden shrink-0"
+                        style={{
+                          width: 44,
+                          height: 44,
+                          boxShadow: `0 0 12px ${themeColor}40`,
+                        }}
                       >
                         {session?.user?.image ? (
                           <Image
                             src={session.user.image}
-                            alt={displayName}
+                            alt="avatar"
                             width={44}
                             height={44}
-                            className="rounded-xl object-cover"
+                            className="rounded-full object-cover"
                           />
                         ) : (
                           <PixelAvatar

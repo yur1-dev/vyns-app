@@ -310,7 +310,7 @@ export default function LandingPage() {
 
             {/* Desktop CTA */}
             <Link
-              href="/dashboard"
+              href="/login"
               className="hidden md:inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 hover:-translate-y-px transition-all shadow-lg shadow-teal-500/10"
             >
               Launch App <ArrowRight size={14} />
@@ -339,7 +339,7 @@ export default function LandingPage() {
                 </a>
               ))}
               <Link
-                href="/app"
+                href="/dashboard"
                 onClick={() => setMobileOpen(false)}
                 className="mt-1 bg-gradient-to-r from-teal-500 to-indigo-500 text-white text-sm font-semibold py-3 rounded-xl text-center"
               >
@@ -912,7 +912,7 @@ export default function LandingPage() {
           Join thousands already earning passive yield from their @username
         </p>
         <Link
-          href="/app"
+          href="/login"
           className="relative inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-indigo-500 text-white text-base font-semibold px-10 py-4 rounded-xl hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-xl shadow-teal-500/20"
         >
           Launch App <ArrowRight size={17} />
