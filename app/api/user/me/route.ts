@@ -1,7 +1,7 @@
 // app/api/user/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/authOptions";
 import connectDB from "@/lib/db/mongodb";
 import { User, Username } from "@/models";
 import { verifyAuth } from "@/lib/utils/auth";
@@ -12,28 +12,23 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // ── Strategy 1: custom JWT cookie (wallet users) ──────────
-    const auth = await verifyAuth(req);
+    // Check NextAuth session FIRST — if it exists, it takes priority.
+    // This prevents a stale wallet auth-token cookie from overriding a Google login.
+    const session = await getServerSession(authOptions);
+    const auth = !session?.user ? await verifyAuth(req) : null;
 
-    // ── Strategy 2: NextAuth session (email/Google users) ─────
-    const session = !auth ? await getServerSession(authOptions) : null;
-
-    // Neither auth method worked
     if (!auth && !session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Resolve userId and email from whichever auth worked
-    const userId = auth?.userId ?? (session?.user as any)?.id ?? null;
-    const email = auth?.email ?? session?.user?.email ?? null;
+    const userId = (session?.user as any)?.id ?? auth?.userId ?? null;
+    const email = session?.user?.email ?? auth?.email ?? null;
+    const wallet = (session?.user as any)?.wallet ?? auth?.wallet ?? null;
 
-    // Find user
     let user = userId ? await User.findById(userId).catch(() => null) : null;
-    if (!user && email) {
-      user = await User.findOne({ email });
-    }
+    if (!user && email) user = await User.findOne({ email });
+    if (!user && wallet) user = await User.findOne({ wallet });
 
-    // Auto-create if missing (shouldn't happen but safety net)
     if (!user) {
       user = await User.create({
         email,
@@ -51,7 +46,7 @@ export async function GET(req: NextRequest) {
         { walletAddress: user._id.toString() },
         { "stats.ownerId": user._id.toString() },
         ...(email ? [{ walletAddress: email }] : []),
-        ...(auth?.wallet ? [{ walletAddress: auth.wallet }] : []),
+        ...(wallet ? [{ walletAddress: wallet }] : []),
       ],
     });
 
@@ -79,19 +74,32 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const userObj = user.toObject();
     const payload = {
-      ...user.toObject(),
+      _id: userObj._id?.toString() ?? null,
+      wallet: wallet ?? userObj.wallet ?? null,
+      email: userObj.email ?? null,
+      name: userObj.name ?? null,
+      xp: userObj.xp ?? 0,
+      level: userObj.level ?? 1,
+      stakedAmount: userObj.stakedAmount ?? 0,
+      referralCode: userObj.referralCode ?? null,
       usernames,
-      earnings: { today: 0, week: 0, month: 0, allTime: user.earnings ?? 0 },
-      stakedAmount: user.stakedAmount ?? 0,
+      earnings: { today: 0, week: 0, month: 0, allTime: userObj.earnings ?? 0 },
       stakingPositions: [],
       referrals: 0,
-      referralCode: user.referralCode,
       activity: [],
       isNewUser: usernameRecords.length === 0,
     };
 
-    return NextResponse.json({ success: true, user: payload });
+    const res = NextResponse.json({ success: true, user: payload });
+
+    // If NextAuth session is active but stale wallet cookie exists, clear it
+    if (session?.user && req.cookies.get("auth-token")) {
+      res.cookies.set("auth-token", "", { maxAge: 0, path: "/" });
+    }
+
+    return res;
   } catch (error) {
     console.error("GET /api/user/me error:", error);
     return NextResponse.json(

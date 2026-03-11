@@ -46,10 +46,6 @@ export function useDashboard() {
     DEFAULT_CUSTOMIZATION,
   );
 
-  // ── Guard: only run init once per mount ───────────────────────────────────
-  // Without this, switching browser tabs causes the session object to get a
-  // new reference on re-render, which re-triggers the useEffect, which
-  // re-runs init() and may incorrectly push to /login.
   const initDone = useRef(false);
 
   // ── Balance ────────────────────────────────────────────────────────────────
@@ -89,15 +85,13 @@ export function useDashboard() {
     }
   }, []);
 
-  // ── User data ──────────────────────────────────────────────────────────────
+  // ── User data — always use /api/user/me ───────────────────────────────────
+  // FIX: removed the /api/user/${walletAddress} branch — always use /api/user/me
+  // so the server-side auth priority logic (session first, then wallet JWT) applies.
   const fetchUserData = useCallback(
-    async (walletAddress: string | null, sessionData: any) => {
+    async (_walletAddress: string | null, _sessionData: any) => {
       try {
-        let res: Response;
-        if (walletAddress) res = await fetch(`/api/user/${walletAddress}`);
-        else if (sessionData?.user)
-          res = await fetch("/api/user/me", { credentials: "include" });
-        else return;
+        const res = await fetch("/api/user/me", { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         const payload = data.user ?? data;
@@ -149,15 +143,9 @@ export function useDashboard() {
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
 
-  // ── Init — runs ONCE when session resolves, never again ───────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Still waiting for NextAuth to resolve — don't do anything yet
     if (status === "loading") return;
-
-    // FIX: Only run init once per component mount using a ref.
-    // Previously the dep array included `session` which gets a new object
-    // reference on every render (even with refetchOnWindowFocus=false),
-    // causing init() to fire every time you switched back to this tab.
     if (initDone.current) return;
     initDone.current = true;
 
@@ -165,7 +153,8 @@ export function useDashboard() {
       setLoading(true);
       try {
         if (session?.user) {
-          setWallet(null);
+          // NextAuth session (Google or email login)
+          setWallet((session.user as any).wallet ?? null);
           setBalance(0);
           const isGoogle = !!(
             session.user.image?.includes("google") ||
@@ -226,14 +215,10 @@ export function useDashboard() {
     };
 
     init();
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
-  // ↑ Only depend on `status`, NOT `session`.
-  // session is a new object reference on every render which was the root
-  // cause of the full-page reload on tab focus.
 
-  // ── Optimistic username stake toggle ───────────────────────────────────────
+  // ── Optimistic stake toggle ────────────────────────────────────────────────
   const optimisticStakeUsername = useCallback(
     (username: string, staked: boolean) => {
       setUserData((prev) => ({
@@ -315,7 +300,7 @@ export function useDashboard() {
     [wallet],
   );
 
-  // ── List username for sale ─────────────────────────────────────────────────
+  // ── List username ──────────────────────────────────────────────────────────
   const listUsername = useCallback(
     async (
       username: string,
@@ -380,14 +365,21 @@ export function useDashboard() {
     [wallet],
   );
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ── Logout — clears BOTH auth systems ─────────────────────────────────────
   const logout = useCallback(async () => {
+    // Always clear the wallet JWT cookie first
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+
+    // Disconnect wallet if connected
+    try {
+      await (window as any).solana?.disconnect();
+    } catch {}
+
     if (session) {
       await signOut({ callbackUrl: "/login" });
     } else {
-      try {
-        await (window as any).solana?.disconnect();
-      } catch {}
       setWallet(null);
       router.push("/login");
     }
