@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 
 import ProfileCustomizeModal, {
-  UsernameWithPet,
   type ProfileCustomization,
 } from "@/components/dashboard/modals/ProfileCustomizeModal";
 
@@ -88,18 +87,17 @@ function PixelAvatar({
     const hue2 = (hue + 40 + rand(80)) % 360;
     ctx.fillStyle = `hsl(${hue},60%,8%)`;
     ctx.fillRect(0, 0, GRID, GRID);
-    for (let y = 0; y < GRID; y++) {
+    for (let y = 0; y < GRID; y++)
       for (let x = 0; x < Math.ceil(GRID / 2); x++) {
         if (rand(3) !== 0) {
-          const useTheme = rand(4) === 0;
-          ctx.fillStyle = useTheme
-            ? themeColor
-            : `hsl(${x % 2 === 0 ? hue : hue2},65%,${40 + rand(35)}%)`;
+          ctx.fillStyle =
+            rand(4) === 0
+              ? themeColor
+              : `hsl(${x % 2 === 0 ? hue : hue2},65%,${40 + rand(35)}%)`;
           ctx.fillRect(x, y, 1, 1);
           ctx.fillRect(GRID - 1 - x, y, 1, 1);
         }
       }
-    }
     ctx.fillStyle = "#fff";
     ctx.fillRect(2, 2, 1, 1);
     ctx.fillRect(5, 2, 1, 1);
@@ -537,21 +535,10 @@ export default function DashboardHeader({
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        {activeUsername &&
-                        customization?.petId &&
-                        customization.petId !== "none" ? (
-                          <div className="pt-3 pb-1">
-                            <UsernameWithPet
-                              name={activeUsername}
-                              petId={customization.petId}
-                              themeColor={themeColor}
-                            />
-                          </div>
-                        ) : (
-                          <p className="text-sm font-medium text-white/80 truncate">
-                            {displayName}
-                          </p>
-                        )}
+                        {/* Plain name — no pet animation in dropdown */}
+                        <p className="text-sm font-medium text-white/80 truncate">
+                          {activeUsername || displayName}
+                        </p>
                         <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
                           {session?.user?.email
                             ? session.user.email

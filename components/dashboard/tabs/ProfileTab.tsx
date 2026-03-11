@@ -242,7 +242,7 @@ export default function ProfileTab({
       {/* ── HERO ── */}
       <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
         <div
-          className="relative h-24 sm:h-32 overflow-hidden"
+          className="relative h-28 sm:h-36 overflow-hidden"
           style={{
             background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
           }}
@@ -273,7 +273,7 @@ export default function ProfileTab({
         </div>
 
         <div className="bg-[#060b14] px-5 pb-5">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-9 sm:-mt-11">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-9">
             <div className="relative shrink-0 z-10">
               <div
                 className="rounded-2xl border-[3px] border-[#060b14] overflow-hidden"
@@ -302,7 +302,7 @@ export default function ProfileTab({
               <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#060b14]" />
             </div>
 
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1">
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1 pt-10 sm:pt-0">
               <div className="space-y-0.5">
                 <h2 className="text-xl font-bold text-white tracking-tight leading-none">
                   {displayName}
