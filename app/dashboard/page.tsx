@@ -44,9 +44,10 @@ export default function DashboardPage() {
         onMarkNotifsRead={() =>
           setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
         }
-        onOpenSettings={() => router.push("/settings")} // ← navigates to /settings page
+        onOpenSettings={() => router.push("/settings")}
         onSaveCustomization={dash.saveCustomization}
         onLogout={dash.logout}
+        onWalletLinked={(pk) => dash.setWallet(pk)}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -56,7 +57,6 @@ export default function DashboardPage() {
           usernameCount={dash.userData.usernames?.length ?? 0}
           referralCount={dash.userData.referrals ?? 0}
           onTabChange={(tab) => {
-            // ← intercept settings tab click and navigate instead of rendering inline
             if (tab === "settings") {
               router.push("/settings");
             } else {

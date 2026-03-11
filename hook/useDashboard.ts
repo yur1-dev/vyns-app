@@ -48,7 +48,6 @@ export function useDashboard() {
 
   const initDone = useRef(false);
 
-  // ── Balance ────────────────────────────────────────────────────────────────
   const fetchBalance = useCallback(async (pk: string) => {
     try {
       const rpc =
@@ -71,7 +70,6 @@ export function useDashboard() {
     }
   }, []);
 
-  // ── Staking positions ──────────────────────────────────────────────────────
   const fetchStakingPositions = useCallback(async () => {
     try {
       const res = await fetch("/api/staking/positions", {
@@ -85,9 +83,6 @@ export function useDashboard() {
     }
   }, []);
 
-  // ── User data — always use /api/user/me ───────────────────────────────────
-  // FIX: removed the /api/user/${walletAddress} branch — always use /api/user/me
-  // so the server-side auth priority logic (session first, then wallet JWT) applies.
   const fetchUserData = useCallback(
     async (_walletAddress: string | null, _sessionData: any) => {
       try {
@@ -125,12 +120,11 @@ export function useDashboard() {
 
         if (payload.activeUsername)
           setActiveUsernameState(payload.activeUsername);
-        if (payload.customization) {
+        if (payload.customization)
           setCustomization({
             ...DEFAULT_CUSTOMIZATION,
             ...payload.customization,
           });
-        }
       } catch (err) {
         console.error("[useDashboard] fetchUserData error:", err);
       }
@@ -143,7 +137,6 @@ export function useDashboard() {
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
 
-  // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === "loading") return;
     if (initDone.current) return;
@@ -153,7 +146,6 @@ export function useDashboard() {
       setLoading(true);
       try {
         if (session?.user) {
-          // NextAuth session (Google or email login)
           setWallet((session.user as any).wallet ?? null);
           setBalance(0);
           const isGoogle = !!(
@@ -218,7 +210,6 @@ export function useDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // ── Optimistic stake toggle ────────────────────────────────────────────────
   const optimisticStakeUsername = useCallback(
     (username: string, staked: boolean) => {
       setUserData((prev) => ({
@@ -232,7 +223,6 @@ export function useDashboard() {
     [],
   );
 
-  // ── Claim username ─────────────────────────────────────────────────────────
   const claimUsername = useCallback(
     async (username: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -275,7 +265,6 @@ export function useDashboard() {
     [wallet, refreshUserData],
   );
 
-  // ── Set active username ────────────────────────────────────────────────────
   const setActiveUsername = useCallback(
     async (username: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -300,7 +289,6 @@ export function useDashboard() {
     [wallet],
   );
 
-  // ── List username ──────────────────────────────────────────────────────────
   const listUsername = useCallback(
     async (
       username: string,
@@ -325,7 +313,6 @@ export function useDashboard() {
     [wallet, refreshUserData],
   );
 
-  // ── Delist username ────────────────────────────────────────────────────────
   const delistUsername = useCallback(
     async (username: string): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -347,7 +334,6 @@ export function useDashboard() {
     [wallet, refreshUserData],
   );
 
-  // ── Save customization ─────────────────────────────────────────────────────
   const saveCustomization = useCallback(
     async (c: ProfileCustomization): Promise<void> => {
       setCustomization(c);
@@ -365,18 +351,13 @@ export function useDashboard() {
     [wallet],
   );
 
-  // ── Logout — clears BOTH auth systems ─────────────────────────────────────
   const logout = useCallback(async () => {
-    // Always clear the wallet JWT cookie first
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {}
-
-    // Disconnect wallet if connected
     try {
       await (window as any).solana?.disconnect();
     } catch {}
-
     if (session) {
       await signOut({ callbackUrl: "/login" });
     } else {
@@ -385,7 +366,6 @@ export function useDashboard() {
     }
   }, [session, router]);
 
-  // ── Display name ───────────────────────────────────────────────────────────
   const displayName = activeUsername
     ? activeUsername
     : session?.user?.name
@@ -401,6 +381,7 @@ export function useDashboard() {
     loading,
     balance,
     wallet,
+    setWallet, // ← exposed so header can update wallet state after linking
     provider,
     session,
     displayName,
