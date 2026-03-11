@@ -7,7 +7,8 @@ export type TabId =
   | "staking"
   | "referrals"
   | "settings"
-  | "marketplace";
+  | "marketplace"
+  | "profile";
 
 export type UsernameTier =
   | "Diamond"
