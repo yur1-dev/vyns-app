@@ -46,3 +46,24 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "Not authenticated" },
+        { status: 401 },
+      );
+    }
+    await connectDB();
+    const userId = (session.user as any).id;
+    await User.findByIdAndUpdate(userId, { $unset: { wallet: "" } });
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { status: 500 },
+    );
+  }
+}

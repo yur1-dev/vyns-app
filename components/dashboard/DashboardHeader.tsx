@@ -1,5 +1,4 @@
 "use client";
-
 // components/dashboard/DashboardHeader.tsx
 
 import Image from "next/image";
@@ -29,6 +28,7 @@ import {
   LayoutDashboard,
   Sparkles,
   Link as LinkIcon,
+  WifiOff,
 } from "lucide-react";
 
 import ProfileCustomizeModal, {
@@ -186,20 +186,18 @@ export default function DashboardHeader({
   const [balance, setBalance] = useState(0);
   const [balLoading, setBalLoading] = useState(false);
   const [linkingWallet, setLinkingWallet] = useState(false);
+  const [unlinkingWallet, setUnlinkingWallet] = useState(false);
   const [linkError, setLinkError] = useState("");
-
-  // Wallet adapter — used for Google/email users connecting a wallet
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
   const notifList = Array.isArray(notifications) ? notifications : [];
   const unread = notifList.filter((n) => !n.read).length;
-
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
-
   const hasLinkedWallet = !!session && !!wallet;
+  const isGoogleOrEmail = !!session;
 
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
@@ -234,8 +232,8 @@ export default function DashboardHeader({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Direct wallet connect using window.solana — same approach as login page
-  const handleConnectWalletForSession = async () => {
+  // Connect wallet (for Google/email users)
+  const handleConnectWallet = async () => {
     setLinkError("");
     setDropOpen(false);
     setLinkingWallet(true);
@@ -247,7 +245,6 @@ export default function DashboardHeader({
       }
       const resp = await solana.connect();
       const pk = resp.publicKey.toString();
-
       const res = await fetch("/api/user/link-wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -264,6 +261,27 @@ export default function DashboardHeader({
       if (err.code !== 4001) setLinkError(err.message ?? "Connection failed");
     } finally {
       setLinkingWallet(false);
+    }
+  };
+
+  // Unlink wallet only — keeps Google/email session alive
+  const handleUnlinkWallet = async () => {
+    setUnlinkingWallet(true);
+    try {
+      // Disconnect from Phantom
+      try {
+        await (window as any).solana?.disconnect();
+      } catch {}
+      // Remove wallet from user account
+      await fetch("/api/user/link-wallet", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      onWalletLinked?.(""); // clears wallet in parent state
+    } catch (err) {
+      console.error("[unlink-wallet]", err);
+    } finally {
+      setUnlinkingWallet(false);
     }
   };
 
@@ -343,7 +361,7 @@ export default function DashboardHeader({
 
           {/* Right */}
           <div className="flex items-center gap-1.5">
-            {/* SOL balance — any user with a wallet */}
+            {/* SOL balance pill */}
             {wallet && (
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
                 <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
@@ -364,10 +382,10 @@ export default function DashboardHeader({
               </div>
             )}
 
-            {/* Connect Wallet — session users without a linked wallet */}
-            {session && !wallet && (
+            {/* Connect Wallet button — only for session users without wallet */}
+            {isGoogleOrEmail && !wallet && (
               <button
-                onClick={handleConnectWalletForSession}
+                onClick={handleConnectWallet}
                 disabled={linkingWallet}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
               >
@@ -494,6 +512,7 @@ export default function DashboardHeader({
 
               {dropOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
+                  {/* Profile section */}
                   <div className="p-3 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
                       <div
@@ -546,44 +565,60 @@ export default function DashboardHeader({
                       </div>
                     </div>
 
-                    {/* Wallet balance row */}
-                    {wallet && (
-                      <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                        <div className="flex items-center gap-1.5">
-                          <Wallet className="h-3.5 w-3.5 text-teal-400" />
-                          <span className="text-sm font-semibold text-white tabular-nums">
-                            {balance.toFixed(4)}
-                          </span>
-                          <span className="text-xs text-white/25">SOL</span>
+                    {/* Wallet section */}
+                    {wallet ? (
+                      <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
+                        {/* Balance row */}
+                        <div className="flex items-center justify-between px-2.5 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Wallet className="h-3.5 w-3.5 text-teal-400" />
+                            <span className="text-sm font-semibold text-white tabular-nums">
+                              {balance.toFixed(4)}
+                            </span>
+                            <span className="text-xs text-white/25">SOL</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={copy}
+                              className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all cursor-pointer"
+                            >
+                              {copied ? (
+                                <Check className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                            <a
+                              href={`https://solscan.io/account/${wallet}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        {/* Unlink wallet row — only for session users who linked a wallet */}
+                        {isGoogleOrEmail && (
                           <button
-                            onClick={copy}
-                            className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all cursor-pointer"
+                            onClick={handleUnlinkWallet}
+                            disabled={unlinkingWallet}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 border-t border-white/[0.05] text-[11px] text-white/25 hover:text-orange-400 hover:bg-orange-500/[0.06] transition-all cursor-pointer disabled:opacity-40"
                           >
-                            {copied ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
+                            {unlinkingWallet ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              <Copy className="h-3 w-3" />
+                              <WifiOff className="h-3 w-3" />
                             )}
+                            Disconnect wallet
                           </button>
-                          <a
-                            href={`https://solscan.io/account/${wallet}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
+                        )}
                       </div>
-                    )}
-
-                    {/* Connect wallet inside dropdown for session users */}
-                    {session && !wallet && (
+                    ) : isGoogleOrEmail ? (
+                      // No wallet yet — show connect button inside dropdown too
                       <div className="mt-2.5">
                         <button
-                          onClick={handleConnectWalletForSession}
+                          onClick={handleConnectWallet}
                           disabled={linkingWallet}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
                         >
@@ -600,7 +635,7 @@ export default function DashboardHeader({
                           </p>
                         )}
                       </div>
-                    )}
+                    ) : null}
 
                     <div className="mt-2 flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -611,6 +646,7 @@ export default function DashboardHeader({
                     </div>
                   </div>
 
+                  {/* Menu items */}
                   <div className="p-2 space-y-0.5">
                     <button
                       onClick={() => {
@@ -653,11 +689,19 @@ export default function DashboardHeader({
                       <span className="flex-1 text-left">Settings</span>
                       <ChevronRight className="h-3.5 w-3.5 text-white/15" />
                     </button>
+
+                    <div className="h-px bg-white/[0.04] my-1" />
+
+                    {/* Sign out — always logs out the session */}
                     <button
-                      onClick={onLogout}
+                      onClick={() => {
+                        setDropOpen(false);
+                        onLogout();
+                      }}
                       className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] rounded-xl transition-colors cursor-pointer"
                     >
-                      <LogOut className="h-3.5 w-3.5" /> Disconnect
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span className="flex-1 text-left">Sign out</span>
                     </button>
                   </div>
                 </div>
