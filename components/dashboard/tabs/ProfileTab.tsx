@@ -29,7 +29,6 @@ import {
 import type { UserData, UsernameItem, ActivityItem } from "@/types/dashboard";
 import type { ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
 
-// ─── Pixel avatar ─────────────────────────────────────────────────────────────
 function PixelAvatar({
   seed,
   size = 96,
@@ -239,10 +238,9 @@ export default function ProfileTab({
   };
 
   return (
-    <div className="space-y-5">
-      {/* ── HERO ──────────────────────────────────────────────────────────────── */}
+    <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+      {/* ── HERO ── */}
       <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-        {/* Banner */}
         <div
           className="relative h-24 sm:h-32 overflow-hidden"
           style={{
@@ -261,7 +259,6 @@ export default function ProfileTab({
             className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
             style={{ background: `${themeColor}0e` }}
           />
-          {/* Tier badge */}
           <div
             className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide"
             style={{
@@ -275,13 +272,11 @@ export default function ProfileTab({
           </div>
         </div>
 
-        {/* Avatar + info */}
         <div className="bg-[#060b14] px-5 pb-5">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-9 sm:-mt-11">
-            {/* Avatar */}
             <div className="relative shrink-0 z-10">
               <div
-                className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl border-[3px] border-[#060b14] overflow-hidden"
+                className="rounded-2xl border-[3px] border-[#060b14] overflow-hidden"
                 style={{
                   width: 72,
                   height: 72,
@@ -307,7 +302,6 @@ export default function ProfileTab({
               <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#060b14]" />
             </div>
 
-            {/* Name */}
             <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1">
               <div className="space-y-0.5">
                 <h2 className="text-xl font-bold text-white tracking-tight leading-none">
@@ -328,7 +322,6 @@ export default function ProfileTab({
             </div>
           </div>
 
-          {/* Bio */}
           <div className="mt-3">
             {editingBio ? (
               <div className="flex gap-2 max-w-md">
@@ -370,7 +363,6 @@ export default function ProfileTab({
             )}
           </div>
 
-          {/* XP bar */}
           <div className="mt-4 max-w-sm">
             <div className="flex items-center justify-between mb-1">
               <span
@@ -398,7 +390,7 @@ export default function ProfileTab({
         </div>
       </div>
 
-      {/* ── STATS ─────────────────────────────────────────────────────────────── */}
+      {/* ── STATS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
@@ -457,9 +449,9 @@ export default function ProfileTab({
         ))}
       </div>
 
-      {/* ── MAIN GRID ─────────────────────────────────────────────────────────── */}
+      {/* ── MAIN GRID ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left */}
+        {/* Left col */}
         <div className="space-y-4">
           {/* Wallet */}
           <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
@@ -595,7 +587,7 @@ export default function ProfileTab({
           </div>
         </div>
 
-        {/* Right */}
+        {/* Right col */}
         <div className="lg:col-span-2 space-y-4">
           {/* Usernames */}
           <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
@@ -664,7 +656,7 @@ export default function ProfileTab({
             )}
           </div>
 
-          {/* Staking summary */}
+          {/* Staking */}
           <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -693,7 +685,7 @@ export default function ProfileTab({
                   value: `${stakingRewards.toFixed(4)}`,
                   accent: "#fbbf24",
                 },
-              ].map(({ label, value, accent }) => (
+              ].map(({ label, value }) => (
                 <div
                   key={label}
                   className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3 text-center"

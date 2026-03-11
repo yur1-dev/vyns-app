@@ -57,19 +57,17 @@ export default function DashboardPage() {
       {isProfile ? (
         /* ── Profile: full width, no sidebar ───────────────────────── */
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto w-full px-4 sm:px-8 lg:px-12 py-6">
-            <ProfileTab
-              session={dash.session}
-              userData={dash.userData}
-              wallet={dash.wallet}
-              provider={dash.provider}
-              displayName={dash.displayName}
-              activeUsername={dash.activeUsername}
-              customization={dash.customization}
-              onSaveCustomization={dash.saveCustomization}
-              onTabChange={(tab) => dash.setActiveTab(tab as any)}
-            />
-          </div>
+          <ProfileTab
+            session={dash.session}
+            userData={dash.userData}
+            wallet={dash.wallet}
+            provider={dash.provider}
+            displayName={dash.displayName}
+            activeUsername={dash.activeUsername}
+            customization={dash.customization}
+            onSaveCustomization={dash.saveCustomization}
+            onTabChange={(tab) => dash.setActiveTab(tab as any)}
+          />
         </div>
       ) : (
         /* ── All other tabs: sidebar + main ────────────────────────── */
