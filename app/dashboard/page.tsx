@@ -1,6 +1,7 @@
 "use client";
 // app/dashboard/page.tsx
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -15,6 +16,7 @@ import UsernameModal from "@/components/dashboard/modals/UsernameModal";
 
 export default function DashboardPage() {
   const dash = useDashboard();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -42,7 +44,7 @@ export default function DashboardPage() {
         onMarkNotifsRead={() =>
           setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
         }
-        onOpenSettings={() => dash.setActiveTab("settings")}
+        onOpenSettings={() => router.push("/settings")} // ← navigates to /settings page
         onSaveCustomization={dash.saveCustomization}
         onLogout={dash.logout}
       />
@@ -53,7 +55,14 @@ export default function DashboardPage() {
           sidebarOpen={sidebarOpen}
           usernameCount={dash.userData.usernames?.length ?? 0}
           referralCount={dash.userData.referrals ?? 0}
-          onTabChange={dash.setActiveTab}
+          onTabChange={(tab) => {
+            // ← intercept settings tab click and navigate instead of rendering inline
+            if (tab === "settings") {
+              router.push("/settings");
+            } else {
+              dash.setActiveTab(tab);
+            }
+          }}
           onClose={() => setSidebarOpen(false)}
         />
 
@@ -113,10 +122,7 @@ export default function DashboardPage() {
                     : { success: false, error: data.error };
                 }}
                 onStakeUsername={async (_id, username, signature) => {
-                  // Optimistically update UI immediately so the user sees
-                  // the name move to "Earning now" without waiting for re-fetch
                   dash.optimisticStakeUsername(username, true);
-
                   const res = await fetch("/api/username/stake", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -129,22 +135,16 @@ export default function DashboardPage() {
                     }),
                   });
                   const data = await res.json();
-
                   if (data.success) {
-                    // Sync with server to get authoritative state
                     await dash.refreshUserData();
                     return { success: true };
                   } else {
-                    // Revert optimistic update on failure
                     dash.optimisticStakeUsername(username, false);
                     return { success: false, error: data.error };
                   }
                 }}
                 onUnstakeUsername={async (_id, username, signature) => {
-                  // Optimistically update UI immediately so the user sees
-                  // the name move to "Available to stake" without waiting
                   dash.optimisticStakeUsername(username, false);
-
                   const res = await fetch("/api/username/stake", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -157,13 +157,10 @@ export default function DashboardPage() {
                     }),
                   });
                   const data = await res.json();
-
                   if (data.success) {
-                    // Sync with server to get authoritative state
                     await dash.refreshUserData();
                     return { success: true };
                   } else {
-                    // Revert optimistic update on failure
                     dash.optimisticStakeUsername(username, true);
                     return { success: false, error: data.error };
                   }
@@ -180,15 +177,6 @@ export default function DashboardPage() {
             )}
 
             {dash.activeTab === "marketplace" && <MarketplaceTab />}
-
-            {dash.activeTab === "settings" && (
-              <div className="space-y-6">
-                <p className="text-sm font-semibold text-white/60">Settings</p>
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-8 text-sm text-white/25 text-center">
-                  Settings coming soon.
-                </div>
-              </div>
-            )}
           </div>
         </main>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 // hook/useDashboard.ts
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type { TabId, UserData } from "@/types/dashboard";
@@ -45,6 +45,12 @@ export function useDashboard() {
   const [customization, setCustomization] = useState<ProfileCustomization>(
     DEFAULT_CUSTOMIZATION,
   );
+
+  // ── Guard: only run init once per mount ───────────────────────────────────
+  // Without this, switching browser tabs causes the session object to get a
+  // new reference on re-render, which re-triggers the useEffect, which
+  // re-runs init() and may incorrectly push to /login.
+  const initDone = useRef(false);
 
   // ── Balance ────────────────────────────────────────────────────────────────
   const fetchBalance = useCallback(async (pk: string) => {
@@ -143,9 +149,17 @@ export function useDashboard() {
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init — runs ONCE when session resolves, never again ───────────────────
   useEffect(() => {
+    // Still waiting for NextAuth to resolve — don't do anything yet
     if (status === "loading") return;
+
+    // FIX: Only run init once per component mount using a ref.
+    // Previously the dep array included `session` which gets a new object
+    // reference on every render (even with refetchOnWindowFocus=false),
+    // causing init() to fire every time you switched back to this tab.
+    if (initDone.current) return;
+    initDone.current = true;
 
     const init = async () => {
       setLoading(true);
@@ -153,13 +167,11 @@ export function useDashboard() {
         if (session?.user) {
           setWallet(null);
           setBalance(0);
-
           const isGoogle = !!(
             session.user.image?.includes("google") ||
             session.user.image?.includes("googleusercontent")
           );
           setProvider(isGoogle ? "Google" : "Email");
-
           await fetchUserData(null, session);
           return;
         }
@@ -214,12 +226,14 @@ export function useDashboard() {
     };
 
     init();
-  }, [status, session]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+  // ↑ Only depend on `status`, NOT `session`.
+  // session is a new object reference on every render which was the root
+  // cause of the full-page reload on tab focus.
 
   // ── Optimistic username stake toggle ───────────────────────────────────────
-  // Updates the UI instantly when staking/unstaking, without waiting for a
-  // re-fetch. If the API call fails, the caller should revert by calling this
-  // again with the opposite staked value.
   const optimisticStakeUsername = useCallback(
     (username: string, staked: boolean) => {
       setUserData((prev) => ({
@@ -406,7 +420,7 @@ export function useDashboard() {
     delistUsername,
     saveCustomization,
     refreshUserData,
-    optimisticStakeUsername, // ← NEW
+    optimisticStakeUsername,
     logout,
   };
 }

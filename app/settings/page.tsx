@@ -3,8 +3,6 @@
 // app/settings/page.tsx
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
 import {
   Shield,
   User,
@@ -22,6 +20,7 @@ import {
 } from "lucide-react";
 
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { useDashboard } from "@/hook/useDashboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -507,25 +506,13 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SettingsPageRoute() {
-  const { data: session } = useSession();
-  const router = useRouter();
+  // FIX: Use useDashboard instead of useSession directly so we get real
+  // balance, activeUsername, customization, and all other live data.
+  const dash = useDashboard();
   const [activeTab, setActiveTab] = useState<Tab>("account");
+  const [notifications, setNotifications] = useState<any[]>([]);
 
-  const wallet = (session?.user as any)?.wallet ?? null;
-  const provider = wallet
-    ? "Wallet"
-    : session?.user?.email
-      ? "Google / Email"
-      : "—";
-  const displayName =
-    session?.user?.name ||
-    (wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "User");
-
-  const visibleTabs = TABS.filter((t) => !(t.id === "wallet" && !wallet));
-
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: "/login" });
-  };
+  const visibleTabs = TABS.filter((t) => !(t.id === "wallet" && !dash.wallet));
 
   return (
     <div className="min-h-screen bg-[#060b14] text-slate-200 antialiased">
@@ -535,18 +522,23 @@ export default function SettingsPageRoute() {
         <div className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full bg-indigo-600/[0.06] blur-[180px]" />
       </div>
 
-      {/* Same header as dashboard */}
+      {/* FIX: Pass all required props from useDashboard — no more missing props */}
       <DashboardHeader
-        session={session}
-        wallet={wallet}
-        provider={provider}
-        displayName={displayName}
-        notifications={[]}
+        session={dash.session}
+        wallet={dash.wallet}
+        provider={dash.provider}
+        displayName={dash.displayName}
+        activeUsername={dash.activeUsername}
+        customization={dash.customization}
+        notifications={notifications}
         sidebarOpen={false}
         onToggleSidebar={() => {}}
-        onMarkNotifsRead={() => {}}
+        onMarkNotifsRead={() =>
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+        }
         onOpenSettings={() => {}} // already on settings
-        onLogout={handleLogout}
+        onSaveCustomization={dash.saveCustomization}
+        onLogout={dash.logout}
       />
 
       {/* Content */}
@@ -585,23 +577,26 @@ export default function SettingsPageRoute() {
           })}
         </div>
 
-        {/* Content */}
+        {/* Tab content */}
         {activeTab === "account" && (
           <AccountTab
-            session={session}
-            wallet={wallet}
-            provider={provider}
-            displayName={displayName}
+            session={dash.session}
+            wallet={dash.wallet}
+            provider={dash.provider}
+            displayName={dash.displayName}
           />
         )}
-        {activeTab === "wallet" && <WalletTab wallet={wallet} balance={0} />}
+        {activeTab === "wallet" && (
+          // FIX: Pass real balance from useDashboard instead of hardcoded 0
+          <WalletTab wallet={dash.wallet} balance={dash.balance} />
+        )}
         {activeTab === "preferences" && <PreferencesTab />}
         {activeTab === "security" && (
           <SecurityTab
-            session={session}
-            wallet={wallet}
-            provider={provider}
-            onLogout={handleLogout}
+            session={dash.session}
+            wallet={dash.wallet}
+            provider={dash.provider}
+            onLogout={dash.logout}
           />
         )}
       </main>
