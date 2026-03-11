@@ -26,7 +26,6 @@ import {
   ChevronRight,
   Bell as BellIcon,
   LayoutDashboard,
-  Sparkles,
   Link as LinkIcon,
   WifiOff,
   User,
@@ -535,7 +534,6 @@ export default function DashboardHeader({
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        {/* Plain name — no pet animation in dropdown */}
                         <p className="text-sm font-medium text-white/80 truncate">
                           {activeUsername || displayName}
                         </p>
@@ -649,27 +647,6 @@ export default function DashboardHeader({
                     >
                       <User className="h-3.5 w-3.5" />
                       <span className="flex-1 text-left">Profile</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setDropOpen(false);
-                        setShowCustomize(true);
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm rounded-xl transition-colors cursor-pointer"
-                      style={{ color: `${themeColor}99` }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = `${themeColor}10`)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span className="flex-1 text-left">
-                        Customize profile
-                      </span>
-                      <ChevronRight className="h-3.5 w-3.5 opacity-30" />
                     </button>
 
                     <button
