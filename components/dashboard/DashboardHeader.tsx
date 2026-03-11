@@ -621,7 +621,7 @@ export default function DashboardHeader({
                           ) : (
                             <LinkIcon className="h-3.5 w-3.5" />
                           )}
-                          Connect Phantom / Solflare
+                          Connect Wallet
                         </button>
                         {linkError && (
                           <p className="text-[11px] text-red-400/70 mt-1.5 text-center">
