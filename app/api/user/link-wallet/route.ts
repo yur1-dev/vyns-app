@@ -27,16 +27,12 @@ export async function POST(req: NextRequest) {
 
     const userId = (session.user as any).id;
 
-    // Make sure no other account already owns this wallet
+    // If another account owns this wallet, unlink it from there first
+    // (happens when user previously signed in via wallet-auth, creating a
+    //  separate user record — safe to unlink since they now own both accounts)
     const existing = await User.findOne({ wallet, _id: { $ne: userId } });
     if (existing) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "This wallet is already linked to another account",
-        },
-        { status: 409 },
-      );
+      await User.findByIdAndUpdate(existing._id, { $unset: { wallet: "" } });
     }
 
     await User.findByIdAndUpdate(userId, { $set: { wallet } });
