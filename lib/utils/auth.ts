@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // adjust path if yours differs
+import { authOptions } from "@/lib/auth/authOptions"; // adjust path if yours differs
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET as string);
 
