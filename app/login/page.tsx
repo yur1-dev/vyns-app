@@ -40,7 +40,6 @@ const WALLETS = [
 async function waitForSession(maxWaitMs = 5000): Promise<boolean> {
   const interval = 200;
   const maxTries = maxWaitMs / interval;
-
   for (let i = 0; i < maxTries; i++) {
     const res = await fetch("/api/auth/session");
     const data = await res.json();
@@ -87,7 +86,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Wait for session cookie to be fully written before navigating
     const ok = await waitForSession();
     if (ok) {
       router.push("/dashboard");
@@ -120,7 +118,14 @@ export default function LoginPage() {
 
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
-      const message = `Sign in to VYNS\nWallet: ${wallet}\nNonce: ${Date.now()}`;
+
+      // FIX: Use a single-line message with no newlines so the exact same
+      // string is encoded on both client (signing) and server (verification).
+      // Newlines in template literals get mangled when passed as NextAuth
+      // credentials form fields, causing signature mismatch → 401.
+      const nonce = Date.now();
+      const message = `Sign in to VYNS | Wallet: ${wallet} | Nonce: ${nonce}`;
+
       const encodedMessage = new TextEncoder().encode(message);
 
       let signed: any;
@@ -135,7 +140,10 @@ export default function LoginPage() {
         throw err;
       }
 
-      const signature = Buffer.from(signed.signature).toString("base64");
+      // FIX: Handle both Phantom { signature: Uint8Array } and
+      // Solflare/Backpack which may return the raw bytes directly.
+      const sigBytes: Uint8Array = signed.signature ?? signed;
+      const signature = Buffer.from(sigBytes).toString("base64");
 
       const result = await signIn("wallet", {
         wallet,
@@ -144,10 +152,11 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error)
+      if (result?.error) {
+        console.error("[wallet login] signIn error:", result.error);
         throw new Error("Wallet verification failed. Please try again.");
+      }
 
-      // Wait for session cookie to be fully written before navigating
       const ok = await waitForSession();
       if (!ok)
         throw new Error("Session failed to initialize. Please try again.");
@@ -314,7 +323,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder="Email"
                 required
                 className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
@@ -394,8 +403,10 @@ export default function LoginPage() {
           <div
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={() => {
-              setShowWalletModal(false);
-              setError("");
+              if (!loading) {
+                setShowWalletModal(false);
+                setError("");
+              }
             }}
           />
           <div className="relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0d0d0f] shadow-2xl p-6">
@@ -405,10 +416,13 @@ export default function LoginPage() {
               </h2>
               <button
                 onClick={() => {
-                  setShowWalletModal(false);
-                  setError("");
+                  if (!loading) {
+                    setShowWalletModal(false);
+                    setError("");
+                  }
                 }}
-                className="text-white/30 hover:text-white transition-colors cursor-pointer p-1 rounded-md hover:bg-white/[0.06]"
+                className="text-white/30 hover:text-white transition-colors cursor-pointer p-1 rounded-md hover:bg-white/[0.06] disabled:opacity-30"
+                disabled={loading}
               >
                 <X className="h-5 w-5" />
               </button>

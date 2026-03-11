@@ -113,6 +113,10 @@ export default function DashboardPage() {
                     : { success: false, error: data.error };
                 }}
                 onStakeUsername={async (_id, username, signature) => {
+                  // Optimistically update UI immediately so the user sees
+                  // the name move to "Earning now" without waiting for re-fetch
+                  dash.optimisticStakeUsername(username, true);
+
                   const res = await fetch("/api/username/stake", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -125,12 +129,22 @@ export default function DashboardPage() {
                     }),
                   });
                   const data = await res.json();
-                  if (data.success) await dash.refreshUserData();
-                  return data.success
-                    ? { success: true }
-                    : { success: false, error: data.error };
+
+                  if (data.success) {
+                    // Sync with server to get authoritative state
+                    await dash.refreshUserData();
+                    return { success: true };
+                  } else {
+                    // Revert optimistic update on failure
+                    dash.optimisticStakeUsername(username, false);
+                    return { success: false, error: data.error };
+                  }
                 }}
                 onUnstakeUsername={async (_id, username, signature) => {
+                  // Optimistically update UI immediately so the user sees
+                  // the name move to "Available to stake" without waiting
+                  dash.optimisticStakeUsername(username, false);
+
                   const res = await fetch("/api/username/stake", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -143,10 +157,16 @@ export default function DashboardPage() {
                     }),
                   });
                   const data = await res.json();
-                  if (data.success) await dash.refreshUserData();
-                  return data.success
-                    ? { success: true }
-                    : { success: false, error: data.error };
+
+                  if (data.success) {
+                    // Sync with server to get authoritative state
+                    await dash.refreshUserData();
+                    return { success: true };
+                  } else {
+                    // Revert optimistic update on failure
+                    dash.optimisticStakeUsername(username, true);
+                    return { success: false, error: data.error };
+                  }
                 }}
               />
             )}
