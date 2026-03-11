@@ -110,7 +110,10 @@ export async function POST(req: NextRequest) {
     const price = getPrice(tier);
     const yieldRate = getYield(tier);
 
-    // 6. Save to Username collection (this is where usernames live in your schema)
+    const claimedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
+
+    // 6. Save to Username collection
     await Username.create({
       username: username.toLowerCase(),
       walletAddress: resolvedWallet ?? resolvedUserId ?? user._id.toString(),
@@ -124,17 +127,32 @@ export async function POST(req: NextRequest) {
         tier,
         price,
         yieldRate,
-        claimedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+        claimedAt,
+        expiresAt,
         staked: false,
         ownerId: user._id.toString(),
       },
     });
 
-    // 7. Update the User record (xp bump, mark not new)
+    // 7. FIX: ALSO push into User.usernames[] so the dashboard can read it.
+    // Previously this was missing — usernames were saved to the Username
+    // collection but User.usernames[] (what the dashboard reads) was never
+    // updated, so claimed names never appeared in the dashboard.
     await User.findByIdAndUpdate(user._id, {
       $inc: { xp: 50 },
       $set: { isNewUser: false },
+      $push: {
+        usernames: {
+          id: username.toLowerCase(),
+          name: username.toLowerCase(),
+          tier,
+          yield: yieldRate,
+          value: price,
+          claimedAt,
+          expiresAt,
+          staked: false,
+        },
+      },
     });
 
     return NextResponse.json({ success: true, username, tier, price });
