@@ -29,6 +29,7 @@ import {
   Sparkles,
   Link as LinkIcon,
   WifiOff,
+  User,
 } from "lucide-react";
 
 import ProfileCustomizeModal, {
@@ -178,6 +179,7 @@ export default function DashboardHeader({
   onSaveCustomization,
   onLogout,
   onWalletLinked,
+  onOpenProfile,
 }: Props) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -233,7 +235,6 @@ export default function DashboardHeader({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Connect wallet (for Google/email users)
   const handleConnectWallet = async () => {
     setLinkError("");
     setDropOpen(false);
@@ -265,20 +266,17 @@ export default function DashboardHeader({
     }
   };
 
-  // Unlink wallet only — keeps Google/email session alive
   const handleUnlinkWallet = async () => {
     setUnlinkingWallet(true);
     try {
-      // Disconnect from Phantom
       try {
         await (window as any).solana?.disconnect();
       } catch {}
-      // Remove wallet from user account
       await fetch("/api/user/link-wallet", {
         method: "DELETE",
         credentials: "include",
       });
-      onWalletLinked?.(""); // clears wallet in parent state
+      onWalletLinked?.("");
     } catch (err) {
       console.error("[unlink-wallet]", err);
     } finally {
@@ -362,7 +360,6 @@ export default function DashboardHeader({
 
           {/* Right */}
           <div className="flex items-center gap-1.5">
-            {/* SOL balance pill */}
             {wallet && (
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
                 <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
@@ -383,7 +380,6 @@ export default function DashboardHeader({
               </div>
             )}
 
-            {/* Connect Wallet button — only for session users without wallet */}
             {isGoogleOrEmail && !wallet && (
               <button
                 onClick={handleConnectWallet}
@@ -569,7 +565,6 @@ export default function DashboardHeader({
                     {/* Wallet section */}
                     {wallet ? (
                       <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
-                        {/* Balance row */}
                         <div className="flex items-center justify-between px-2.5 py-2">
                           <div className="flex items-center gap-1.5">
                             <Wallet className="h-3.5 w-3.5 text-teal-400" />
@@ -599,7 +594,6 @@ export default function DashboardHeader({
                             </a>
                           </div>
                         </div>
-                        {/* Unlink wallet row — only for session users who linked a wallet */}
                         {isGoogleOrEmail && (
                           <button
                             onClick={handleUnlinkWallet}
@@ -616,7 +610,6 @@ export default function DashboardHeader({
                         )}
                       </div>
                     ) : isGoogleOrEmail ? (
-                      // No wallet yet — show connect button inside dropdown too
                       <div className="mt-2.5">
                         <button
                           onClick={handleConnectWallet}
@@ -659,6 +652,18 @@ export default function DashboardHeader({
                       <LayoutDashboard className="h-3.5 w-3.5" />
                       <span className="flex-1 text-left">Dashboard</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setDropOpen(false);
+                        onOpenProfile?.();
+                      }}
+                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      <span className="flex-1 text-left">Profile</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setDropOpen(false);
@@ -679,6 +684,7 @@ export default function DashboardHeader({
                       </span>
                       <ChevronRight className="h-3.5 w-3.5 opacity-30" />
                     </button>
+
                     <button
                       onClick={() => {
                         setDropOpen(false);
@@ -693,7 +699,6 @@ export default function DashboardHeader({
 
                     <div className="h-px bg-white/[0.04] my-1" />
 
-                    {/* Sign out — always logs out the session */}
                     <button
                       onClick={() => {
                         setDropOpen(false);
