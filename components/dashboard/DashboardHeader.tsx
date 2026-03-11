@@ -31,9 +31,10 @@ import {
   User,
 } from "lucide-react";
 
-import ProfileCustomizeModal, {
-  type ProfileCustomization,
-} from "@/components/dashboard/modals/ProfileCustomizeModal";
+import { type ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
+import UsernameWithPet, {
+  type PetId,
+} from "@/components/dashboard/UsernameWithPet";
 
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
@@ -147,7 +148,6 @@ interface Props {
   onToggleSidebar: () => void;
   onMarkNotifsRead: () => void;
   onOpenSettings: () => void;
-  onSaveCustomization?: (c: ProfileCustomization) => Promise<void>;
   onLogout: () => void;
   onWalletLinked?: (walletAddress: string) => void;
   onOpenProfile?: () => void;
@@ -173,7 +173,6 @@ export default function DashboardHeader({
   onToggleSidebar,
   onMarkNotifsRead,
   onOpenSettings,
-  onSaveCustomization,
   onLogout,
   onWalletLinked,
   onOpenProfile,
@@ -182,7 +181,6 @@ export default function DashboardHeader({
   const [copied, setCopied] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
-  const [showCustomize, setShowCustomize] = useState(false);
   const [balance, setBalance] = useState(0);
   const [balLoading, setBalLoading] = useState(false);
   const [linkingWallet, setLinkingWallet] = useState(false);
@@ -196,8 +194,14 @@ export default function DashboardHeader({
   const unread = notifList.filter((n) => !n.read).length;
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
+  const petId = (customization?.petId ?? "none") as PetId;
   const hasLinkedWallet = !!session && !!wallet;
   const isGoogleOrEmail = !!session;
+  const displayUsername = activeUsername || displayName;
+  const truncatedName =
+    displayUsername.length > 16
+      ? displayUsername.slice(0, 14) + "…"
+      : displayUsername;
 
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
@@ -251,11 +255,8 @@ export default function DashboardHeader({
         body: JSON.stringify({ wallet: pk }),
       });
       const data = await res.json();
-      if (data.success) {
-        onWalletLinked?.(pk);
-      } else {
-        setLinkError(data.error ?? "Failed to link wallet");
-      }
+      if (data.success) onWalletLinked?.(pk);
+      else setLinkError(data.error ?? "Failed to link wallet");
     } catch (err: any) {
       if (err.code !== 4001) setLinkError(err.message ?? "Connection failed");
     } finally {
@@ -282,7 +283,7 @@ export default function DashboardHeader({
   };
 
   const renderAvatar = (size = 28) => {
-    if (session?.user?.image) {
+    if (session?.user?.image)
       return (
         <div
           className="rounded-full overflow-hidden shrink-0"
@@ -297,7 +298,6 @@ export default function DashboardHeader({
           />
         </div>
       );
-    }
     return (
       <div
         style={{ boxShadow: `0 0 8px ${themeColor}50` }}
@@ -308,378 +308,366 @@ export default function DashboardHeader({
     );
   };
 
-  const defaultCustomization: ProfileCustomization = {
-    theme: "teal",
-    petId: "none",
-    avatarSeed: displayName,
-  };
-  const truncatedName =
-    displayName.length > 16 ? displayName.slice(0, 14) + "…" : displayName;
-
   return (
-    <>
-      {showCustomize && (
-        <ProfileCustomizeModal
-          currentName={activeUsername || displayName}
-          initialCustomization={customization ?? defaultCustomization}
-          onSave={async (c) => {
-            await onSaveCustomization?.(c);
-            setShowCustomize(false);
-          }}
-          onClose={() => setShowCustomize(false)}
-        />
-      )}
+    <header className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
+      <div className="px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+        {/* Left — logo */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleSidebar}
+            className="lg:hidden p-1.5 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+          >
+            {sidebarOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
+          <Link href="/">
+            <Image
+              src="/vyns-logo.png"
+              alt="VYNS"
+              width={90}
+              height={26}
+              className="object-contain opacity-90 hover:opacity-100 transition-opacity"
+            />
+          </Link>
+        </div>
 
-      <header className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
-        <div className="px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-          {/* Left */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onToggleSidebar}
-              className="lg:hidden p-1.5 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
-            >
-              {sidebarOpen ? (
-                <X className="h-5 w-5" />
+        {/* Right */}
+        <div className="flex items-center gap-1.5">
+          {/* SOL balance */}
+          {wallet && (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
+              <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+              {balLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-white/20" />
               ) : (
-                <Menu className="h-5 w-5" />
+                <span className="text-white/60 tabular-nums">
+                  {balance.toFixed(4)}
+                </span>
+              )}
+              <span className="text-white/20 text-xs">SOL</span>
+              <button
+                onClick={refreshBalance}
+                className="text-white/20 hover:text-teal-400 transition-colors cursor-pointer ml-0.5"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
+          {isGoogleOrEmail && !wallet && (
+            <button
+              onClick={handleConnectWallet}
+              disabled={linkingWallet}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {linkingWallet ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LinkIcon className="h-3.5 w-3.5" />
+              )}
+              Connect Wallet
+            </button>
+          )}
+
+          {/* Bell */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => {
+                setNotifOpen((v) => !v);
+                if (!notifOpen && unread > 0) onMarkNotifsRead();
+              }}
+              className="relative p-2 text-white/30 hover:text-white/60 transition-colors cursor-pointer rounded-lg hover:bg-white/[0.04]"
+            >
+              <Bell className="h-4 w-4" />
+              {unread > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-teal-400" />
               )}
             </button>
-            <Link href="/">
-              <Image
-                src="/vyns-logo.png"
-                alt="VYNS"
-                width={90}
-                height={26}
-                className="object-contain opacity-90 hover:opacity-100 transition-opacity"
-              />
-            </Link>
-          </div>
-
-          {/* Right */}
-          <div className="flex items-center gap-1.5">
-            {wallet && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
-                <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
-                {balLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/20" />
-                ) : (
-                  <span className="text-white/60 tabular-nums">
-                    {balance.toFixed(4)}
-                  </span>
-                )}
-                <span className="text-white/20 text-xs">SOL</span>
-                <button
-                  onClick={refreshBalance}
-                  className="text-white/20 hover:text-teal-400 transition-colors cursor-pointer ml-0.5"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-
-            {isGoogleOrEmail && !wallet && (
-              <button
-                onClick={handleConnectWallet}
-                disabled={linkingWallet}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {linkingWallet ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <LinkIcon className="h-3.5 w-3.5" />
-                )}
-                Connect Wallet
-              </button>
-            )}
-
-            {/* Bell */}
-            <div className="relative" ref={notifRef}>
-              <button
-                onClick={() => {
-                  setNotifOpen((v) => !v);
-                  if (!notifOpen && unread > 0) onMarkNotifsRead();
-                }}
-                className="relative p-2 text-white/30 hover:text-white/60 transition-colors cursor-pointer rounded-lg hover:bg-white/[0.04]"
-              >
-                <Bell className="h-4 w-4" />
-                {unread > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-teal-400" />
-                )}
-              </button>
-
-              {notifOpen && (
-                <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
-                    <p className="text-sm font-semibold text-white">
-                      Notifications
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {unread > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/15 text-teal-400">
-                          {unread} new
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setNotifOpen(false)}
-                        className="p-1 text-white/20 hover:text-white/50 cursor-pointer"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifList.length === 0 ? (
-                      <div className="py-10 text-center">
-                        <BellIcon className="h-5 w-5 mx-auto mb-2 text-white/10" />
-                        <p className="text-xs text-white/20">
-                          No notifications yet
-                        </p>
-                      </div>
-                    ) : (
-                      notifList.map((n) => {
-                        const { icon: Icon, cls } = NOTIF_ICONS[n.type];
-                        return (
-                          <div
-                            key={n.id}
-                            className={`flex gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors ${!n.read ? "bg-white/[0.015]" : ""}`}
-                          >
-                            <div
-                              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cls}`}
-                            >
-                              <Icon className="h-3.5 w-3.5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <p
-                                  className={`text-xs font-medium leading-tight ${n.read ? "text-white/50" : "text-white/80"}`}
-                                >
-                                  {n.title}
-                                </p>
-                                <span className="text-[10px] text-white/20 shrink-0 flex items-center gap-0.5">
-                                  <Clock className="h-2.5 w-2.5" />
-                                  {n.time}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-white/30 mt-0.5 leading-relaxed">
-                                {n.body}
-                              </p>
-                            </div>
-                            {!n.read && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 mt-1" />
-                            )}
-                          </div>
-                        );
-                      })
+            {notifOpen && (
+              <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
+                  <p className="text-sm font-semibold text-white">
+                    Notifications
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {unread > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/15 text-teal-400">
+                        {unread} new
+                      </span>
                     )}
+                    <button
+                      onClick={() => setNotifOpen(false)}
+                      className="p-1 text-white/20 hover:text-white/50 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  {notifList.length > 0 && (
-                    <div className="px-4 py-2.5 border-t border-white/[0.05]">
-                      <button
-                        onClick={() => {
-                          onMarkNotifsRead();
-                          setNotifOpen(false);
-                        }}
-                        className="text-xs text-white/25 hover:text-teal-400 transition-colors cursor-pointer"
-                      >
-                        Mark all as read
-                      </button>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifList.length === 0 ? (
+                    <div className="py-10 text-center">
+                      <BellIcon className="h-5 w-5 mx-auto mb-2 text-white/10" />
+                      <p className="text-xs text-white/20">
+                        No notifications yet
+                      </p>
                     </div>
+                  ) : (
+                    notifList.map((n) => {
+                      const { icon: Icon, cls } = NOTIF_ICONS[n.type];
+                      return (
+                        <div
+                          key={n.id}
+                          className={`flex gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors ${!n.read ? "bg-white/[0.015]" : ""}`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cls}`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p
+                                className={`text-xs font-medium leading-tight ${n.read ? "text-white/50" : "text-white/80"}`}
+                              >
+                                {n.title}
+                              </p>
+                              <span className="text-[10px] text-white/20 shrink-0 flex items-center gap-0.5">
+                                <Clock className="h-2.5 w-2.5" />
+                                {n.time}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-white/30 mt-0.5 leading-relaxed">
+                              {n.body}
+                            </p>
+                          </div>
+                          {!n.read && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 mt-1" />
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
-              )}
-            </div>
+                {notifList.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-white/[0.05]">
+                    <button
+                      onClick={() => {
+                        onMarkNotifsRead();
+                        setNotifOpen(false);
+                      }}
+                      className="text-xs text-white/25 hover:text-teal-400 transition-colors cursor-pointer"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-            {/* User dropdown */}
-            <div className="relative" ref={dropRef}>
-              <button
-                onClick={() => setDropOpen((v) => !v)}
-                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
-              >
-                <div className="shrink-0">{renderAvatar(28)}</div>
-                <span className="hidden md:block text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap">
-                  {truncatedName}
-                </span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 text-white/20 hidden sm:block shrink-0 transition-transform duration-150 ${dropOpen ? "rotate-180" : ""}`}
-                />
-              </button>
+          {/* ── User dropdown trigger ── */}
+          <div className="relative" ref={dropRef}>
+            <button
+              onClick={() => setDropOpen((v) => !v)}
+              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
+            >
+              {/* Avatar */}
+              <div className="shrink-0">{renderAvatar(28)}</div>
 
-              {dropOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
-                  {/* Profile section */}
-                  <div className="p-3 border-b border-white/[0.05]">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="rounded-full overflow-hidden shrink-0"
-                        style={{
-                          width: 44,
-                          height: 44,
-                          boxShadow: `0 0 12px ${themeColor}40`,
-                        }}
-                      >
-                        {session?.user?.image ? (
-                          <Image
-                            src={session.user.image}
-                            alt="avatar"
-                            width={44}
-                            height={44}
-                            className="rounded-full object-cover"
-                          />
-                        ) : (
-                          <PixelAvatar
-                            seed={avatarSeed}
-                            size={44}
-                            themeColor={themeColor}
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-white/80 truncate">
-                          {activeUsername || displayName}
-                        </p>
-                        <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
-                          {session?.user?.email
-                            ? session.user.email
-                            : wallet
-                              ? `${wallet.slice(0, 8)}…${wallet.slice(-4)}`
-                              : ""}
-                        </p>
-                      </div>
+              {/* Pet + name — only on md+ screens */}
+              <div className="hidden md:block overflow-hidden">
+                {petId !== "none" ? (
+                  <UsernameWithPet
+                    username={truncatedName}
+                    petId={petId}
+                    themeColor={themeColor}
+                    className="w-[140px]"
+                    textClassName="text-sm text-white/60"
+                  />
+                ) : (
+                  <span className="text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap block">
+                    {truncatedName}
+                  </span>
+                )}
+              </div>
+
+              <ChevronDown
+                className={`h-3.5 w-3.5 text-white/20 hidden sm:block shrink-0 transition-transform duration-150 ${dropOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {/* Dropdown panel */}
+            {dropOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="p-3 border-b border-white/[0.05]">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="rounded-full overflow-hidden shrink-0"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        boxShadow: `0 0 12px ${themeColor}40`,
+                      }}
+                    >
+                      {session?.user?.image ? (
+                        <Image
+                          src={session.user.image}
+                          alt="avatar"
+                          width={44}
+                          height={44}
+                          className="rounded-full object-cover"
+                        />
+                      ) : (
+                        <PixelAvatar
+                          seed={avatarSeed}
+                          size={44}
+                          themeColor={themeColor}
+                        />
+                      )}
                     </div>
-
-                    {/* Wallet section */}
-                    {wallet ? (
-                      <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
-                        <div className="flex items-center justify-between px-2.5 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <Wallet className="h-3.5 w-3.5 text-teal-400" />
-                            <span className="text-sm font-semibold text-white tabular-nums">
-                              {balance.toFixed(4)}
-                            </span>
-                            <span className="text-xs text-white/25">SOL</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={copy}
-                              className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all cursor-pointer"
-                            >
-                              {copied ? (
-                                <Check className="h-3 w-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </button>
-                            <a
-                              href={`https://solscan.io/account/${wallet}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        </div>
-                        {isGoogleOrEmail && (
-                          <button
-                            onClick={handleUnlinkWallet}
-                            disabled={unlinkingWallet}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 border-t border-white/[0.05] text-[11px] text-white/25 hover:text-orange-400 hover:bg-orange-500/[0.06] transition-all cursor-pointer disabled:opacity-40"
-                          >
-                            {unlinkingWallet ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <WifiOff className="h-3 w-3" />
-                            )}
-                            Disconnect wallet
-                          </button>
-                        )}
-                      </div>
-                    ) : isGoogleOrEmail ? (
-                      <div className="mt-2.5">
-                        <button
-                          onClick={handleConnectWallet}
-                          disabled={linkingWallet}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          {linkingWallet ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <LinkIcon className="h-3.5 w-3.5" />
-                          )}
-                          Connect Wallet
-                        </button>
-                        {linkError && (
-                          <p className="text-[11px] text-red-400/70 mt-1.5 text-center">
-                            {linkError}
-                          </p>
-                        )}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-2 flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span className="text-[11px] text-white/20">
-                        Connected via {provider}
-                        {hasLinkedWallet ? " + Wallet" : ""}
-                      </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-white/80 truncate">
+                        {displayUsername}
+                      </p>
+                      <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
+                        {session?.user?.email
+                          ? session.user.email
+                          : wallet
+                            ? `${wallet.slice(0, 8)}…${wallet.slice(-4)}`
+                            : ""}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Menu items */}
-                  <div className="p-2 space-y-0.5">
-                    <button
-                      onClick={() => {
-                        setDropOpen(false);
-                        router.push("/dashboard");
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
-                    >
-                      <LayoutDashboard className="h-3.5 w-3.5" />
-                      <span className="flex-1 text-left">Dashboard</span>
-                    </button>
+                  {wallet ? (
+                    <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
+                      <div className="flex items-center justify-between px-2.5 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <Wallet className="h-3.5 w-3.5 text-teal-400" />
+                          <span className="text-sm font-semibold text-white tabular-nums">
+                            {balance.toFixed(4)}
+                          </span>
+                          <span className="text-xs text-white/25">SOL</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={copy}
+                            className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all cursor-pointer"
+                          >
+                            {copied ? (
+                              <Check className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                          <a
+                            href={`https://solscan.io/account/${wallet}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+                      {isGoogleOrEmail && (
+                        <button
+                          onClick={handleUnlinkWallet}
+                          disabled={unlinkingWallet}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 border-t border-white/[0.05] text-[11px] text-white/25 hover:text-orange-400 hover:bg-orange-500/[0.06] transition-all cursor-pointer disabled:opacity-40"
+                        >
+                          {unlinkingWallet ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <WifiOff className="h-3 w-3" />
+                          )}
+                          Disconnect wallet
+                        </button>
+                      )}
+                    </div>
+                  ) : isGoogleOrEmail ? (
+                    <div className="mt-2.5">
+                      <button
+                        onClick={handleConnectWallet}
+                        disabled={linkingWallet}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {linkingWallet ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <LinkIcon className="h-3.5 w-3.5" />
+                        )}
+                        Connect Wallet
+                      </button>
+                      {linkError && (
+                        <p className="text-[11px] text-red-400/70 mt-1.5 text-center">
+                          {linkError}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
 
-                    <button
-                      onClick={() => {
-                        setDropOpen(false);
-                        onOpenProfile?.();
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
-                    >
-                      <User className="h-3.5 w-3.5" />
-                      <span className="flex-1 text-left">Profile</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setDropOpen(false);
-                        onOpenSettings();
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
-                    >
-                      <Settings className="h-3.5 w-3.5" />
-                      <span className="flex-1 text-left">Settings</span>
-                      <ChevronRight className="h-3.5 w-3.5 text-white/15" />
-                    </button>
-
-                    <div className="h-px bg-white/[0.04] my-1" />
-
-                    <button
-                      onClick={() => {
-                        setDropOpen(false);
-                        onLogout();
-                      }}
-                      className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] rounded-xl transition-colors cursor-pointer"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                      <span className="flex-1 text-left">Sign out</span>
-                    </button>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-[11px] text-white/20">
+                      Connected via {provider}
+                      {hasLinkedWallet ? " + Wallet" : ""}
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <div className="p-2 space-y-0.5">
+                  <button
+                    onClick={() => {
+                      setDropOpen(false);
+                      router.push("/dashboard");
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    <span className="flex-1 text-left">Dashboard</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDropOpen(false);
+                      onOpenProfile?.();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    <span className="flex-1 text-left">Profile</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDropOpen(false);
+                      onOpenSettings();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    <span className="flex-1 text-left">Settings</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-white/15" />
+                  </button>
+                  <div className="h-px bg-white/[0.04] my-1" />
+                  <button
+                    onClick={() => {
+                      setDropOpen(false);
+                      onLogout();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] rounded-xl transition-colors cursor-pointer"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span className="flex-1 text-left">Sign out</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </header>
-    </>
+      </div>
+    </header>
   );
 }
