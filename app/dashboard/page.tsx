@@ -2,7 +2,7 @@
 // app/dashboard/page.tsx
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
@@ -57,26 +57,19 @@ export default function DashboardPage() {
       {isProfile ? (
         /* ── Profile: full width, no sidebar ───────────────────────── */
         <div className="flex-1 overflow-y-auto">
-          <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
-            <button
-              onClick={() => dash.setActiveTab("overview")}
-              className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </button>
+          <div className="max-w-4xl mx-auto w-full px-4 sm:px-8 lg:px-12 py-6">
+            <ProfileTab
+              session={dash.session}
+              userData={dash.userData}
+              wallet={dash.wallet}
+              provider={dash.provider}
+              displayName={dash.displayName}
+              activeUsername={dash.activeUsername}
+              customization={dash.customization}
+              onSaveCustomization={dash.saveCustomization}
+              onTabChange={(tab) => dash.setActiveTab(tab as any)}
+            />
           </div>
-          <ProfileTab
-            session={dash.session}
-            userData={dash.userData}
-            wallet={dash.wallet}
-            provider={dash.provider}
-            displayName={dash.displayName}
-            activeUsername={dash.activeUsername}
-            customization={dash.customization}
-            onSaveCustomization={dash.saveCustomization}
-            onTabChange={(tab) => dash.setActiveTab(tab as any)}
-          />
         </div>
       ) : (
         /* ── All other tabs: sidebar + main ────────────────────────── */
