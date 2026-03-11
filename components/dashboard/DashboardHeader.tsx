@@ -30,8 +30,7 @@ import {
   Sparkles,
   Link as LinkIcon,
 } from "lucide-react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+
 import ProfileCustomizeModal, {
   UsernameWithPet,
   type ProfileCustomization,
@@ -190,13 +189,6 @@ export default function DashboardHeader({
   const [linkError, setLinkError] = useState("");
 
   // Wallet adapter — used for Google/email users connecting a wallet
-  const {
-    publicKey,
-    connected,
-    connecting,
-    disconnect: adapterDisconnect,
-  } = useWallet();
-  const { setVisible: setWalletModalVisible } = useWalletModal();
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -224,43 +216,6 @@ export default function DashboardHeader({
     refreshBalance();
   }, [wallet, refreshBalance]);
 
-  // When adapter connects for a session user — save wallet to their account
-  useEffect(() => {
-    if (!session || !publicKey || !connected || linkingWallet) return;
-    const pk = publicKey.toString();
-    // Only link if it's different from already-linked wallet
-    if (wallet === pk) return;
-
-    const saveWallet = async () => {
-      setLinkingWallet(true);
-      setLinkError("");
-      try {
-        const res = await fetch("/api/user/link-wallet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ wallet: pk }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          onWalletLinked?.(pk);
-        } else {
-          setLinkError(data.error ?? "Failed to link wallet");
-          // Disconnect adapter if linking failed
-          adapterDisconnect().catch(() => {});
-        }
-      } catch {
-        setLinkError("Network error linking wallet");
-        adapterDisconnect().catch(() => {});
-      } finally {
-        setLinkingWallet(false);
-      }
-    };
-
-    saveWallet();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey, connected, session]);
-
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node))
@@ -279,10 +234,37 @@ export default function DashboardHeader({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleConnectWalletForSession = () => {
+  // Direct wallet connect using window.solana — same approach as login page
+  const handleConnectWalletForSession = async () => {
     setLinkError("");
     setDropOpen(false);
-    setWalletModalVisible(true); // opens the wallet adapter modal (Phantom, Solflare, etc.)
+    setLinkingWallet(true);
+    try {
+      const solana = (window as any).phantom?.solana ?? (window as any).solana;
+      if (!solana) {
+        setLinkError("Phantom not found. Please install it.");
+        return;
+      }
+      const resp = await solana.connect();
+      const pk = resp.publicKey.toString();
+
+      const res = await fetch("/api/user/link-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ wallet: pk }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onWalletLinked?.(pk);
+      } else {
+        setLinkError(data.error ?? "Failed to link wallet");
+      }
+    } catch (err: any) {
+      if (err.code !== 4001) setLinkError(err.message ?? "Connection failed");
+    } finally {
+      setLinkingWallet(false);
+    }
   };
 
   const renderAvatar = (size = 28) => {
@@ -386,10 +368,10 @@ export default function DashboardHeader({
             {session && !wallet && (
               <button
                 onClick={handleConnectWalletForSession}
-                disabled={connecting || linkingWallet}
+                disabled={linkingWallet}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
               >
-                {connecting || linkingWallet ? (
+                {linkingWallet ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <LinkIcon className="h-3.5 w-3.5" />
@@ -602,10 +584,10 @@ export default function DashboardHeader({
                       <div className="mt-2.5">
                         <button
                           onClick={handleConnectWalletForSession}
-                          disabled={connecting || linkingWallet}
+                          disabled={linkingWallet}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
                         >
-                          {connecting || linkingWallet ? (
+                          {linkingWallet ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
                             <LinkIcon className="h-3.5 w-3.5" />
