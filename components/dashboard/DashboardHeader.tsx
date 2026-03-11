@@ -28,13 +28,12 @@ import {
   Bell as BellIcon,
   LayoutDashboard,
   Sparkles,
+  Link as LinkIcon,
 } from "lucide-react";
 import ProfileCustomizeModal, {
   UsernameWithPet,
   type ProfileCustomization,
 } from "@/components/dashboard/modals/ProfileCustomizeModal";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
@@ -57,8 +56,6 @@ async function fetchSolBalance(pk: string): Promise<number> {
     return 0;
   }
 }
-
-// ── Pixel Avatar ──────────────────────────────────────────────────────────────
 
 function PixelAvatar({
   seed,
@@ -120,8 +117,6 @@ function PixelAvatar({
   );
 }
 
-// ── Theme colors map ──────────────────────────────────────────────────────────
-
 const THEME_COLORS: Record<string, string> = {
   teal: "#2dd4bf",
   violet: "#a78bfa",
@@ -132,8 +127,6 @@ const THEME_COLORS: Record<string, string> = {
   pink: "#f472b6",
   white: "#e2e8f0",
 };
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Notification {
   id: string;
@@ -159,6 +152,8 @@ interface Props {
   onOpenSettings: () => void;
   onSaveCustomization?: (c: ProfileCustomization) => Promise<void>;
   onLogout: () => void;
+  // Called after a Google/email user successfully links their wallet
+  onWalletLinked?: (walletAddress: string) => void;
 }
 
 const NOTIF_ICONS = {
@@ -168,8 +163,6 @@ const NOTIF_ICONS = {
   reward: { icon: Zap, cls: "text-emerald-400 bg-emerald-500/10" },
   system: { icon: AlertCircle, cls: "text-white/30 bg-white/[0.05]" },
 };
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardHeader({
   session,
@@ -185,6 +178,7 @@ export default function DashboardHeader({
   onOpenSettings,
   onSaveCustomization,
   onLogout,
+  onWalletLinked,
 }: Props) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -193,6 +187,8 @@ export default function DashboardHeader({
   const [showCustomize, setShowCustomize] = useState(false);
   const [balance, setBalance] = useState(0);
   const [balLoading, setBalLoading] = useState(false);
+  const [linkingWallet, setLinkingWallet] = useState(false);
+  const [linkError, setLinkError] = useState("");
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -203,22 +199,25 @@ export default function DashboardHeader({
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
 
+  // Wallet-auth user = no NextAuth session but has wallet
   const isWalletUser = !session && !!wallet;
+  // Session user who has also linked a wallet (for transactions)
+  const hasLinkedWallet = !!session && !!wallet;
 
   const refreshBalance = useCallback(async () => {
-    if (!isWalletUser || !wallet) return;
+    if (!wallet) return;
     setBalLoading(true);
     setBalance(await fetchSolBalance(wallet));
     setBalLoading(false);
-  }, [isWalletUser, wallet]);
+  }, [wallet]);
 
   useEffect(() => {
-    if (!isWalletUser) {
+    if (!wallet) {
       setBalance(0);
       return;
     }
     refreshBalance();
-  }, [isWalletUser, refreshBalance]);
+  }, [wallet, refreshBalance]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -237,6 +236,39 @@ export default function DashboardHeader({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Connect Phantom wallet for Google/email users (for transactions only)
+  const handleLinkWallet = useCallback(async () => {
+    setLinkError("");
+    setLinkingWallet(true);
+    try {
+      const solana = (window as any).solana;
+      if (!solana?.isPhantom) {
+        setLinkError("Phantom wallet not found. Install it first.");
+        return;
+      }
+      const resp = await solana.connect();
+      const pk = resp.publicKey.toString();
+
+      // Save wallet to their User document
+      const res = await fetch("/api/user/link-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ wallet: pk }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setLinkError(data.error ?? "Failed to link wallet");
+        return;
+      }
+      onWalletLinked?.(pk);
+    } catch (err: any) {
+      setLinkError(err.message ?? "Connection failed");
+    } finally {
+      setLinkingWallet(false);
+    }
+  }, [onWalletLinked]);
 
   const renderAvatar = (size = 28) => {
     if (session?.user?.image) {
@@ -271,7 +303,6 @@ export default function DashboardHeader({
     avatarSeed: displayName,
   };
 
-  // Truncate display name for header button — max 16 chars then ellipsis
   const truncatedName =
     displayName.length > 16 ? displayName.slice(0, 14) + "…" : displayName;
 
@@ -316,8 +347,8 @@ export default function DashboardHeader({
 
           {/* Right */}
           <div className="flex items-center gap-1.5">
-            {/* Balance — wallet users ONLY */}
-            {isWalletUser && (
+            {/* SOL balance — shown for wallet users AND session users with linked wallet */}
+            {wallet && (
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] text-sm">
                 <Wallet className="h-3.5 w-3.5 text-teal-400 shrink-0" />
                 {balLoading ? (
@@ -335,6 +366,22 @@ export default function DashboardHeader({
                   <RefreshCw className="h-3 w-3" />
                 </button>
               </div>
+            )}
+
+            {/* Connect Wallet button — only for session users without a linked wallet */}
+            {session && !wallet && (
+              <button
+                onClick={handleLinkWallet}
+                disabled={linkingWallet}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {linkingWallet ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LinkIcon className="h-3.5 w-3.5" />
+                )}
+                Connect Wallet
+              </button>
             )}
 
             {/* Bell */}
@@ -441,7 +488,6 @@ export default function DashboardHeader({
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
               >
                 <div className="shrink-0">{renderAvatar(28)}</div>
-                {/* FIX: wider max-w and single-line truncation */}
                 <span className="hidden md:block text-sm text-white/60 max-w-[160px] truncate whitespace-nowrap">
                   {truncatedName}
                 </span>
@@ -452,7 +498,6 @@ export default function DashboardHeader({
 
               {dropOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
-                  {/* Identity */}
                   <div className="p-3 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
                       <div
@@ -499,15 +544,15 @@ export default function DashboardHeader({
                         <p className="text-[11px] text-white/25 font-mono truncate mt-0.5">
                           {session?.user?.email
                             ? session.user.email
-                            : isWalletUser && wallet
+                            : wallet
                               ? `${wallet.slice(0, 8)}…${wallet.slice(-4)}`
                               : ""}
                         </p>
                       </div>
                     </div>
 
-                    {/* SOL balance — wallet users ONLY */}
-                    {isWalletUser && (
+                    {/* Wallet section — shown for all users who have a wallet */}
+                    {wallet && (
                       <div className="mt-2.5 flex items-center justify-between px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05]">
                         <div className="flex items-center gap-1.5">
                           <Wallet className="h-3.5 w-3.5 text-teal-400" />
@@ -539,15 +584,41 @@ export default function DashboardHeader({
                       </div>
                     )}
 
+                    {/* Connect wallet prompt inside dropdown for session users without wallet */}
+                    {session && !wallet && (
+                      <div className="mt-2.5">
+                        <button
+                          onClick={() => {
+                            setDropOpen(false);
+                            handleLinkWallet();
+                          }}
+                          disabled={linkingWallet}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium hover:bg-teal-500/20 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {linkingWallet ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <LinkIcon className="h-3.5 w-3.5" />
+                          )}
+                          Connect Phantom Wallet
+                        </button>
+                        {linkError && (
+                          <p className="text-[11px] text-red-400/70 mt-1.5 text-center">
+                            {linkError}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-2 flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       <span className="text-[11px] text-white/20">
                         Connected via {provider}
+                        {hasLinkedWallet && " + Wallet"}
                       </span>
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="p-2 space-y-0.5">
                     <button
                       onClick={() => {
