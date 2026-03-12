@@ -507,7 +507,8 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SettingsPageRoute() {
-  const { data: session } = useSession();
+  // ✅ Destructure `update` from useSession so we can refresh session after wallet link
+  const { data: session, update } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("account");
 
@@ -525,6 +526,13 @@ export default function SettingsPageRoute() {
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/login" });
+  };
+
+  // ✅ After wallet is linked/unlinked, refresh the NextAuth session then
+  //    call router.refresh() so server components re-render with new data.
+  const handleWalletLinked = async (_walletAddress: string) => {
+    await update();
+    router.refresh();
   };
 
   return (
@@ -545,8 +553,12 @@ export default function SettingsPageRoute() {
         sidebarOpen={false}
         onToggleSidebar={() => {}}
         onMarkNotifsRead={() => {}}
-        onOpenSettings={() => {}} // already on settings
+        onOpenSettings={() => {}} // already on settings page
         onLogout={handleLogout}
+        // ✅ Navigates to dashboard and opens the profile modal via query param
+        onOpenProfile={() => router.push("/dashboard?profile=open")}
+        // ✅ Refreshes session + server data after wallet connect/disconnect
+        onWalletLinked={handleWalletLinked}
       />
 
       {/* Content */}
@@ -585,7 +597,7 @@ export default function SettingsPageRoute() {
           })}
         </div>
 
-        {/* Content */}
+        {/* Tab content */}
         {activeTab === "account" && (
           <AccountTab
             session={session}

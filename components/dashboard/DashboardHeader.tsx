@@ -319,7 +319,7 @@ export default function DashboardHeader({
               <Menu className="h-5 w-5" />
             )}
           </button>
-          <Link href="/">
+          <Link href="/dashboard">
             <Image
               src="/vyns-logo.png"
               alt="VYNS"
