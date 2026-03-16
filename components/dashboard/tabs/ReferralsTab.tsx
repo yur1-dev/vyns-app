@@ -81,7 +81,7 @@ export default function ReferralsTab({
   } | null>(null);
 
   const code = userData.referralCode || wallet?.slice(0, 8) || "VYNS0000";
-  const link = `https://vyns.io/ref/${code}`;
+  const link = `https://vyns-app.vercel.app/ref/${code}`;
 
   const referrals = userData.referrals ?? 0;
   const unclaimedSol = userData.unclaimedReferralSol ?? 0;
