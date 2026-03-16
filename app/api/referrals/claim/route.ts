@@ -4,7 +4,7 @@ import { verifyAuth } from "@/lib/utils/auth";
 import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models/index";
 
-// ─── Referral reward rates per tier (must match frontend REFERRAL_TIERS) ──────
+// ─── Referral reward rates per tier ──────────────────────────────────────────
 const TIER_RATES = [
   { minReferrals: 75, solPerReferral: 0.025, vynsPerReferral: 75 },
   { minReferrals: 30, solPerReferral: 0.015, vynsPerReferral: 40 },
@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the user
     const filter = auth.wallet ? { wallet: auth.wallet } : { _id: auth.userId };
     const user = await User.findOne(filter);
 
@@ -43,7 +42,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // How many referrals have NOT been rewarded yet
     const totalReferrals: number = user.referrals ?? 0;
     const rewardedReferrals: number = user.rewardedReferrals ?? 0;
     const unclaimedCount = totalReferrals - rewardedReferrals;
@@ -55,7 +53,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Guard: prevent double-claim with a DB-level lock flag
     if (user.referralClaimPending === true) {
       return NextResponse.json(
         { success: false, error: "Claim already in progress" },
@@ -63,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Set in-progress flag atomically before doing any payout
+    // Lock to prevent double-claim
     await User.updateOne(filter, { $set: { referralClaimPending: true } });
 
     try {
@@ -73,19 +70,15 @@ export async function POST(req: NextRequest) {
       );
       const vynsReward = unclaimedCount * rates.vynsPerReferral;
 
-      // TODO: If SOL rewards are real on-chain payouts, send the transaction here
-      // using lib/solana.ts before updating the DB. Only update DB after tx confirms.
-      // const txSig = await sendSolReward(user.wallet, solReward);
-
-      // Mark all current referrals as rewarded and add VYNS balance
+      // FIX: earnings is a plain Number in the schema, not an object.
+      // Use $inc: { earnings: solReward } directly instead of earnings.allTime
       await User.updateOne(filter, {
         $set: { referralClaimPending: false },
         $inc: {
           rewardedReferrals: unclaimedCount,
           claimedVyns: vynsReward,
           referralEarnings: solReward,
-          // earnings is an object — update the allTime sub-field
-          "earnings.allTime": solReward,
+          earnings: solReward,
         },
       });
 
@@ -96,7 +89,7 @@ export async function POST(req: NextRequest) {
         claimedCount: unclaimedCount,
       });
     } catch (payoutErr: any) {
-      // Payout failed — release the lock so the user can retry
+      // Release lock if payout fails so user can retry
       await User.updateOne(filter, { $set: { referralClaimPending: false } });
       throw payoutErr;
     }
@@ -108,7 +101,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET: return current unclaimed reward preview ─────────────────────────────
+// ─── GET: return unclaimed reward preview ─────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
