@@ -16,10 +16,11 @@ import {
   Unlock,
   Sparkles,
   Crown,
-  Shield,
   ShieldCheck,
   X,
   Coins,
+  Gift,
+  Clock,
 } from "lucide-react";
 import {
   Card,
@@ -37,6 +38,8 @@ import type {
 } from "@/types/dashboard";
 import { LOCK_OPTIONS } from "@/types/dashboard";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const USERNAME_YIELD: Record<string, number> = {
   Diamond: 5,
   Platinum: 3,
@@ -52,6 +55,8 @@ const TIER_CHARS: Record<string, string> = {
   Silver: "9–15 chars",
   Bronze: "16+ chars",
 };
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
   userData: UserData;
@@ -76,6 +81,8 @@ interface Props {
   ) => Promise<{ success: boolean; error?: string }>;
 }
 
+// ─── Lock period card ─────────────────────────────────────────────────────────
+
 function LockCard({
   opt,
   selected,
@@ -88,7 +95,11 @@ function LockCard({
   return (
     <button
       onClick={onSelect}
-      className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer ${selected ? "border-teal-500/50 bg-teal-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"}`}
+      className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+        selected
+          ? "border-teal-500/50 bg-teal-500/[0.08]"
+          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"
+      }`}
     >
       {opt.badge && (
         <span className="absolute -top-2 right-2 text-[9px] font-bold text-teal-400 bg-[#060b14] px-1.5 border border-teal-500/30 rounded-full tracking-wider">
@@ -110,13 +121,21 @@ function LockCard({
   );
 }
 
+// ─── Position card ────────────────────────────────────────────────────────────
+// Guard: claim button only appears when status === "unlocked".
+// Shows a countdown + unlock date when still locked.
+
 function PositionCard({
   pos,
   onClaim,
+  claiming,
 }: {
   pos: StakingPosition;
   onClaim: (id: string) => void;
+  claiming: boolean;
 }) {
+  const [done, setDone] = useState(false);
+
   const start = new Date(pos.startDate).getTime();
   const end = start + pos.lockPeriod * 86_400_000;
   const now = Date.now();
@@ -130,9 +149,30 @@ function PositionCard({
     day: "numeric",
     year: "numeric",
   });
+
+  // Derive unlock state purely from status field — never trust client-side date alone
   const isUnlocked = pos.status === "unlocked";
+  // If already claimed we hide this card entirely (caller should filter)
+  const isClaimed = pos.status === "claimed";
+
+  if (isClaimed) return null;
+
+  async function handleClaim() {
+    if (!isUnlocked || claiming || done) return;
+    onClaim(pos.id);
+    // optimistic done state; parent will re-render with updated status
+    setDone(true);
+    setTimeout(() => setDone(false), 3000);
+  }
+
   return (
-    <div className="p-4 rounded-2xl bg-white/[0.025] border border-white/[0.06] space-y-3.5 hover:border-white/[0.10] transition-all">
+    <div
+      className={`p-4 rounded-2xl border space-y-3.5 transition-all ${
+        isUnlocked
+          ? "bg-emerald-500/[0.04] border-emerald-500/20 hover:border-emerald-500/30"
+          : "bg-white/[0.025] border-white/[0.06] hover:border-white/[0.10]"
+      }`}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-base font-semibold text-white tabular-nums">
@@ -161,18 +201,24 @@ function PositionCard({
           )}
         </Pill>
       </div>
+
+      {/* Progress bar */}
       <div>
         <div className="flex justify-between text-[10px] text-white/20 mb-1.5">
-          <span>Progress</span>
+          <span>Lock progress</span>
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${isUnlocked ? "bg-emerald-500" : "bg-teal-500"}`}
+            className={`h-full rounded-full transition-all ${
+              isUnlocked ? "bg-emerald-500" : "bg-teal-500"
+            }`}
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
+
+      {/* Rewards row */}
       <div className="flex items-center justify-between pt-0.5">
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3 w-3 text-emerald-400/60" />
@@ -183,20 +229,41 @@ function PositionCard({
             </span>
           </span>
         </div>
+
+        {/* Claim button — only shown when unlocked */}
         {isUnlocked ? (
           <button
-            onClick={() => onClaim(pos.id)}
-            className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer transition-colors font-medium"
+            onClick={handleClaim}
+            disabled={claiming || done}
+            className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              done
+                ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400"
+                : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+            }`}
           >
-            Claim
+            {done ? (
+              <>
+                <Check className="h-3 w-3" /> Claimed!
+              </>
+            ) : claiming ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Claiming…
+              </>
+            ) : (
+              <>
+                <Gift className="h-3 w-3" /> Claim
+              </>
+            )}
           </button>
         ) : (
+          /* Locked — show unlock date, no claim button */
           <div className="flex items-center gap-1 text-xs text-white/20">
-            <Calendar className="h-3 w-3" />
-            <span>{unlockDate}</span>
+            <Clock className="h-3 w-3" />
+            <span>Unlocks {unlockDate}</span>
           </div>
         )}
       </div>
+
       {pos.txSignature && (
         <a
           href={`https://solscan.io/tx/${pos.txSignature}`}
@@ -210,6 +277,8 @@ function PositionCard({
     </div>
   );
 }
+
+// ─── Collateral modal ─────────────────────────────────────────────────────────
 
 function CollateralModal({
   username,
@@ -265,7 +334,9 @@ function CollateralModal({
       />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
         <div
-          className={`px-6 pt-6 pb-5 ${isStaking ? "bg-violet-500/[0.06]" : "bg-red-500/[0.04]"}`}
+          className={`px-6 pt-6 pb-5 ${
+            isStaking ? "bg-violet-500/[0.06]" : "bg-red-500/[0.04]"
+          }`}
         >
           {!busy && (
             <button
@@ -276,7 +347,9 @@ function CollateralModal({
             </button>
           )}
           <div
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-3 ${isStaking ? "bg-violet-500/20" : "bg-red-500/10"}`}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-3 ${
+              isStaking ? "bg-violet-500/20" : "bg-red-500/10"
+            }`}
           >
             {isStaking ? (
               <Coins className="h-5 w-5 text-violet-400" />
@@ -293,10 +366,15 @@ function CollateralModal({
               : "Unstaking stops earnings and makes this username available to sell."}
           </p>
         </div>
+
         <div className="p-5 space-y-4">
           {isStaking && (
             <div
-              className={`rounded-xl border p-4 space-y-3 ${yieldPct > 0 ? "bg-violet-500/[0.04] border-violet-500/15" : "bg-white/[0.02] border-white/[0.05]"}`}
+              className={`rounded-xl border p-4 space-y-3 ${
+                yieldPct > 0
+                  ? "bg-violet-500/[0.04] border-violet-500/15"
+                  : "bg-white/[0.02] border-white/[0.05]"
+              }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/40">Username value</span>
@@ -307,7 +385,9 @@ function CollateralModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/40">Yield rate</span>
                 <span
-                  className={`text-sm font-bold ${yieldPct > 0 ? "text-teal-400" : "text-white/20"}`}
+                  className={`text-sm font-bold ${
+                    yieldPct > 0 ? "text-teal-400" : "text-white/20"
+                  }`}
                 >
                   {yieldPct > 0 ? `${yieldPct}% APY` : "No yield"}
                 </span>
@@ -328,6 +408,7 @@ function CollateralModal({
               )}
             </div>
           )}
+
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] divide-y divide-white/[0.04]">
             {[
               ["Username", `@${displayName}`],
@@ -351,6 +432,7 @@ function CollateralModal({
               </div>
             ))}
           </div>
+
           {sigStatus === "signing" && (
             <div className="flex items-center justify-center gap-2 py-1">
               <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
@@ -373,6 +455,7 @@ function CollateralModal({
               {error || sigError}
             </div>
           )}
+
           {(sigStatus === "idle" || sigStatus === "error") && (
             <div className="flex gap-2">
               <button
@@ -385,7 +468,11 @@ function CollateralModal({
               <button
                 onClick={handleSign}
                 disabled={busy}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${isStaking ? "bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30" : "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  isStaking
+                    ? "bg-violet-500/20 border border-violet-500/30 text-violet-300 hover:bg-violet-500/30"
+                    : "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"
+                }`}
               >
                 {isStaking ? (
                   <>
@@ -404,6 +491,37 @@ function CollateralModal({
     </div>
   );
 }
+
+// ─── Claim summary banner ─────────────────────────────────────────────────────
+// Shown at top of positions list when ≥1 position is unlocked.
+
+function ClaimBanner({
+  count,
+  totalRewards,
+}: {
+  count: number;
+  totalRewards: number;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 mb-3">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+          <Gift className="h-4 w-4 text-emerald-400" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-emerald-400">
+            {count} position{count !== 1 ? "s" : ""} ready to claim
+          </p>
+          <p className="text-[10px] text-emerald-400/50 mt-0.5">
+            +{totalRewards.toFixed(4)} SOL total rewards available
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function StakingTab({
   userData,
@@ -442,10 +560,17 @@ export default function StakingTab({
     [period.days],
   );
 
+  // Partition positions by status
   const activePositions =
     userData.stakingPositions?.filter((p) => p.status === "active") ?? [];
   const unlockedPositions =
     userData.stakingPositions?.filter((p) => p.status === "unlocked") ?? [];
+  const totalClaimable = unlockedPositions.reduce(
+    (acc, p) => acc + p.rewards,
+    0,
+  );
+
+  // Username partitions — staked usernames cannot be staked again
   const stakedUsernames = userData.usernames?.filter((u) => u.staked) ?? [];
   const unstakedUsernames = userData.usernames?.filter((u) => !u.staked) ?? [];
   const totalYield = stakedUsernames.reduce(
@@ -462,10 +587,14 @@ export default function StakingTab({
       setDone(true);
       setAmount("");
       setTimeout(() => setDone(false), 3000);
-    } else setError(r.error || "Transaction failed.");
+    } else {
+      setError(r.error || "Transaction failed.");
+    }
   };
 
+  // Claim guard: only one claim in-flight at a time; ignore if already claiming
   const handleClaim = async (id: string) => {
+    if (claimingId) return; // one at a time
     setClaimingId(id);
     await onClaim(id);
     setClaimingId(null);
@@ -503,7 +632,7 @@ export default function StakingTab({
       <div className="space-y-5">
         <SectionTitle>Staking</SectionTitle>
 
-        {/* Summary */}
+        {/* Summary stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             {
@@ -552,7 +681,7 @@ export default function StakingTab({
           ))}
         </div>
 
-        {/* Username Collateral section */}
+        {/* Username collateral section */}
         {(userData.usernames?.length ?? 0) > 0 && (
           <Card className="p-5 space-y-5">
             <div className="flex items-start justify-between">
@@ -562,7 +691,7 @@ export default function StakingTab({
                 </p>
                 <p className="text-xs text-white/30 mt-0.5">
                   Stake your usernames to earn passive yield. Staked usernames
-                  are locked and cannot be sold on the marketplace.
+                  cannot be sold on the marketplace.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/15 shrink-0 ml-4">
@@ -614,7 +743,7 @@ export default function StakingTab({
               ))}
             </div>
 
-            {/* Staked (earning) */}
+            {/* Staked — already staked, cannot stake again */}
             {stakedUsernames.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
@@ -680,7 +809,7 @@ export default function StakingTab({
               </div>
             )}
 
-            {/* Unstaked (available) */}
+            {/* Unstaked — available to stake */}
             {unstakedUsernames.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
@@ -722,6 +851,7 @@ export default function StakingTab({
                           </p>
                         </div>
                       </div>
+                      {/* Stake button — only shown for unstaked usernames */}
                       <button
                         onClick={() => {
                           setModal({ u, isStaking: true });
@@ -740,16 +870,16 @@ export default function StakingTab({
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-violet-500/[0.03] border border-violet-500/10">
               <Info className="h-3.5 w-3.5 text-violet-400/40 shrink-0 mt-0.5" />
               <p className="text-xs text-violet-300/30 leading-relaxed">
-                Staked usernames are used as collateral and earn yield based on
-                their tier. They cannot be listed or sold on the marketplace
-                while staked. Unstaking is instant.
+                Staked usernames earn yield based on their tier. They cannot be
+                listed or sold while staked. Unstaking is instant.
               </p>
             </div>
           </Card>
         )}
 
-        {/* SOL Staking */}
+        {/* SOL Staking + Positions */}
         <div className="grid lg:grid-cols-2 gap-5">
+          {/* Left: stake form */}
           <Card className="p-5 space-y-5">
             <p className="text-sm font-semibold text-white/60">Stake SOL</p>
             <div>
@@ -784,6 +914,7 @@ export default function StakingTab({
                 ))}
               </div>
             </div>
+
             {num > 0 && (
               <div className="p-3.5 rounded-xl bg-white/[0.025] border border-white/[0.06] space-y-2.5">
                 <p className="text-[10px] text-white/25 uppercase tracking-widest font-medium">
@@ -807,18 +938,21 @@ export default function StakingTab({
                 </div>
               </div>
             )}
+
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}
               </div>
             )}
+
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
               <Info className="h-3.5 w-3.5 text-white/20 shrink-0 mt-0.5" />
               <p className="text-xs text-white/25 leading-relaxed">
                 Staked SOL is locked for the full period. No early withdrawal.
-                Rewards accumulate daily and can be claimed on unlock.
+                Rewards accumulate daily and can be claimed once unlocked.
               </p>
             </div>
+
             <button
               onClick={handleStake}
               disabled={!canStake}
@@ -834,26 +968,36 @@ export default function StakingTab({
                 </>
               ) : (
                 <>
-                  <Zap className="h-4 w-4" /> Stake{" "}
-                  {num > 0 ? `${num} SOL` : "SOL"}
+                  <Zap className="h-4 w-4" /> Stake
+                  {num > 0 ? ` ${num} SOL` : " SOL"}
                 </>
               )}
             </button>
           </Card>
 
+          {/* Right: positions */}
           <div className="space-y-4">
+            {/* Unlocked — claimable */}
             {unlockedPositions.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400/60 mb-3">
-                  Ready to claim ({unlockedPositions.length})
-                </p>
+                <ClaimBanner
+                  count={unlockedPositions.length}
+                  totalRewards={totalClaimable}
+                />
                 <div className="space-y-3">
                   {unlockedPositions.map((p) => (
-                    <PositionCard key={p.id} pos={p} onClaim={handleClaim} />
+                    <PositionCard
+                      key={p.id}
+                      pos={p}
+                      onClaim={handleClaim}
+                      claiming={claimingId === p.id}
+                    />
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Active — locked, no claim */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3">
                 Active positions ({activePositions.length})
@@ -869,7 +1013,12 @@ export default function StakingTab({
               ) : (
                 <div className="space-y-3">
                   {activePositions.map((p) => (
-                    <PositionCard key={p.id} pos={p} onClaim={handleClaim} />
+                    <PositionCard
+                      key={p.id}
+                      pos={p}
+                      onClaim={handleClaim}
+                      claiming={claimingId === p.id}
+                    />
                   ))}
                 </div>
               )}

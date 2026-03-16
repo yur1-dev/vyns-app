@@ -20,6 +20,11 @@ const DEFAULT_USER_DATA: UserData = {
   stakingPositions: [],
   referrals: 0,
   referralCode: "",
+  // Referral reward tracking
+  unclaimedReferralSol: 0,
+  unclaimedVyns: 0,
+  claimedVyns: 0,
+  referralClaimPending: false,
   activity: [],
 };
 
@@ -83,12 +88,37 @@ export function useDashboard() {
     }
   }, []);
 
+  // ─── Fetch live referral reward data from the API ────────────────────────────
+  const fetchReferralRewards = useCallback(async () => {
+    try {
+      const res = await fetch("/api/referrals/claim", {
+        credentials: "include",
+      });
+      if (!res.ok) return {};
+      const data = await res.json();
+      if (!data.success) return {};
+      return {
+        referrals: data.totalReferrals,
+        unclaimedReferralSol: data.unclaimedReferralSol,
+        unclaimedVyns: data.unclaimedVyns,
+        claimedVyns: data.claimedVyns,
+        referralClaimPending: data.referralClaimPending,
+      };
+    } catch {
+      return {};
+    }
+  }, []);
+
   const fetchUserData = useCallback(
     async (_walletAddress: string | null, _sessionData: any) => {
       try {
-        const res = await fetch("/api/user/me", { credentials: "include" });
-        if (!res.ok) return;
-        const data = await res.json();
+        const [userRes, referralRewards] = await Promise.all([
+          fetch("/api/user/me", { credentials: "include" }),
+          fetchReferralRewards(),
+        ]);
+
+        if (!userRes.ok) return;
+        const data = await userRes.json();
         const payload = data.user ?? data;
 
         const positions = await fetchStakingPositions();
@@ -103,6 +133,8 @@ export function useDashboard() {
           ...DEFAULT_USER_DATA,
           ...prev,
           ...payload,
+          // Live referral reward data overrides whatever /api/user/me returned
+          ...referralRewards,
           earnings: {
             ...DEFAULT_USER_DATA.earnings,
             ...(payload.earnings ?? {}),
@@ -129,13 +161,104 @@ export function useDashboard() {
         console.error("[useDashboard] fetchUserData error:", err);
       }
     },
-    [fetchStakingPositions],
+    [fetchStakingPositions, fetchReferralRewards],
   );
 
   const refreshUserData = useCallback(async () => {
     await fetchUserData(wallet, session);
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
+
+  // ─── Claim referral rewards ──────────────────────────────────────────────────
+  const claimReferralRewards = useCallback(async (): Promise<{
+    success: boolean;
+    error?: string;
+    solRewarded?: number;
+    vynsRewarded?: number;
+  }> => {
+    // Optimistic: mark pending immediately so button goes into loading state
+    setUserData((prev) => ({ ...prev, referralClaimPending: true }));
+
+    try {
+      const res = await fetch("/api/referrals/claim", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        // Roll back pending flag
+        setUserData((prev) => ({ ...prev, referralClaimPending: false }));
+        return { success: false, error: data.error ?? "Claim failed" };
+      }
+
+      // Update local state immediately — don't wait for a full refresh
+      setUserData((prev) => ({
+        ...prev,
+        referralClaimPending: false,
+        unclaimedReferralSol: 0,
+        unclaimedVyns: 0,
+        claimedVyns: (prev.claimedVyns ?? 0) + (data.vynsRewarded ?? 0),
+        referralEarnings:
+          (prev.referralEarnings ?? 0) + (data.solRewarded ?? 0),
+        earnings: {
+          ...prev.earnings,
+          allTime: (prev.earnings?.allTime ?? 0) + (data.solRewarded ?? 0),
+        },
+      }));
+
+      return {
+        success: true,
+        solRewarded: data.solRewarded,
+        vynsRewarded: data.vynsRewarded,
+      };
+    } catch (err: any) {
+      setUserData((prev) => ({ ...prev, referralClaimPending: false }));
+      return { success: false, error: err.message ?? "Network error" };
+    }
+  }, []);
+
+  // ─── Claim staking position ──────────────────────────────────────────────────
+  const claimStakingPosition = useCallback(
+    async (
+      positionId: string,
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/staking/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ positionId }),
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          return { success: false, error: data.error ?? "Claim failed" };
+        }
+
+        // Optimistically mark position as claimed in local state
+        setUserData((prev) => ({
+          ...prev,
+          stakingPositions: prev.stakingPositions.map((p) =>
+            p.id === positionId ? { ...p, status: "claimed" as const } : p,
+          ),
+          stakedAmount: Math.max(
+            0,
+            (prev.stakedAmount ?? 0) - (data.amount ?? 0),
+          ),
+          stakingRewards: Math.max(
+            0,
+            (prev.stakingRewards ?? 0) - (data.rewards ?? 0),
+          ),
+        }));
+
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message ?? "Network error" };
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (status === "loading") return;
@@ -381,7 +504,7 @@ export function useDashboard() {
     loading,
     balance,
     wallet,
-    setWallet, // ← exposed so header can update wallet state after linking
+    setWallet,
     provider,
     session,
     displayName,
@@ -394,6 +517,9 @@ export function useDashboard() {
     saveCustomization,
     refreshUserData,
     optimisticStakeUsername,
+    // Reward claims
+    claimReferralRewards,
+    claimStakingPosition,
     logout,
   };
 }
