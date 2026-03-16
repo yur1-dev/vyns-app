@@ -1,7 +1,7 @@
 "use client";
 
 // app/signup/page.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 
 const WALLETS = [
   {
@@ -38,6 +38,7 @@ const WALLETS = [
 
 export default function SignupPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,11 +48,43 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
 
+  // ── After Google OAuth returns, track referral then redirect ─────────────
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user) return;
+
+    const trackAndRedirect = async () => {
+      try {
+        const refCode =
+          localStorage.getItem("vyns_ref") || getCookieValue("ref");
+
+        if (refCode) {
+          // Fire and forget — don't block redirect on this
+          fetch("/api/referrals/track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ refCode }),
+          }).catch(() => {});
+
+          // Clean up so repeat logins don't re-trigger
+          localStorage.removeItem("vyns_ref");
+          document.cookie = "ref=; path=/; max-age=0";
+        }
+      } catch {}
+
+      router.push("/dashboard");
+    };
+
+    trackAndRedirect();
+  }, [status, session, router]);
+
   // ── Google ────────────────────────────────────────────────
   const handleGoogle = async () => {
     setLoading(true);
     setLoadingType("google");
-    await signIn("google", { callbackUrl: "/dashboard" });
+    // Don't redirect immediately — let the useEffect above handle it
+    // so we can track the referral first
+    await signIn("google", { redirect: false });
   };
 
   // ── Email registration ────────────────────────────────────
@@ -62,10 +95,12 @@ export default function SignupPage() {
     setError("");
 
     try {
+      const refCode = localStorage.getItem("vyns_ref") || getCookieValue("ref");
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, refCode }),
       });
       const data = await res.json();
 
@@ -76,7 +111,10 @@ export default function SignupPage() {
         return;
       }
 
-      // Auto sign-in then dashboard
+      // Clean up ref
+      localStorage.removeItem("vyns_ref");
+      document.cookie = "ref=; path=/; max-age=0";
+
       await signIn("credentials", {
         email,
         password,
@@ -89,7 +127,7 @@ export default function SignupPage() {
     }
   };
 
-  // ── Wallet — same as login. Connect → verify → dashboard ─
+  // ── Wallet ────────────────────────────────────────────────
   const connectWallet = async (type: "phantom" | "solflare" | "backpack") => {
     setLoading(true);
     setLoadingType(type);
@@ -111,7 +149,8 @@ export default function SignupPage() {
 
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
-      const message = `Sign in to VYNS\nWallet: ${wallet}\nNonce: ${Date.now()}`;
+      const nonce = Date.now();
+      const message = `Sign in to VYNS | Wallet: ${wallet} | Nonce: ${nonce}`;
       const encodedMessage = new TextEncoder().encode(message);
 
       let signed: any;
@@ -126,17 +165,27 @@ export default function SignupPage() {
         throw err;
       }
 
-      const signature = Buffer.from(signed.signature).toString("base64");
+      const sigBytes: Uint8Array = signed.signature ?? signed;
+      const signature = Buffer.from(sigBytes).toString("base64");
+
+      // Pass ref code as a credential so the wallet authorize() can use it
+      const refCode =
+        localStorage.getItem("vyns_ref") || getCookieValue("ref") || "";
 
       const result = await signIn("wallet", {
         wallet,
         signature,
         message,
+        refCode,
         redirect: false,
       });
 
       if (result?.error)
         throw new Error("Wallet verification failed. Please try again.");
+
+      // Clean up ref
+      localStorage.removeItem("vyns_ref");
+      document.cookie = "ref=; path=/; max-age=0";
 
       router.push("/dashboard");
     } catch (err: any) {
@@ -472,4 +521,10 @@ export default function SignupPage() {
       )}
     </div>
   );
+}
+
+// ── Helper: read a cookie by name client-side ─────────────────────────────────
+function getCookieValue(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
 }
