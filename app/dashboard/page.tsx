@@ -143,19 +143,7 @@ function DashboardInner() {
                       ? { success: true }
                       : { success: false, error: data.error };
                   }}
-                  onClaim={async (positionId) => {
-                    const res = await fetch("/api/staking/claim", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({ positionId }),
-                    });
-                    const data = await res.json();
-                    if (data.success) await dash.refreshUserData();
-                    return data.success
-                      ? { success: true }
-                      : { success: false, error: data.error };
-                  }}
+                  onClaim={dash.claimStakingPosition}
                   onStakeUsername={async (_id, username, signature) => {
                     dash.optimisticStakeUsername(username, true);
                     const res = await fetch("/api/username/stake", {
@@ -208,7 +196,11 @@ function DashboardInner() {
               )}
 
               {dash.activeTab === "referrals" && (
-                <ReferralsTab userData={dash.userData} wallet={dash.wallet} />
+                <ReferralsTab
+                  userData={dash.userData}
+                  wallet={dash.wallet}
+                  onClaimReferralRewards={dash.claimReferralRewards}
+                />
               )}
 
               {dash.activeTab === "marketplace" && <MarketplaceTab />}
