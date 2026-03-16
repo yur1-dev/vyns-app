@@ -17,6 +17,12 @@ export interface IUser extends Document {
   stakedAmount: number;
   referralCode: string;
   referredBy?: string;
+  // ── Referral reward tracking ──
+  referrals: number;
+  rewardedReferrals: number;
+  claimedVyns: number;
+  referralClaimPending: boolean;
+  referralEarnings: number;
   customization?: {
     theme: string;
     petId: string;
@@ -39,8 +45,19 @@ const UserSchema = new Schema<IUser>(
     level: { type: Number, default: 1 },
     earnings: { type: Number, default: 0 },
     stakedAmount: { type: Number, default: 0 },
-    referralCode: { type: String, unique: true },
-    referredBy: { type: String },
+
+    // ── THE FIX: sparse: true so null values don't conflict ──
+    referralCode: { type: String, unique: true, sparse: true },
+
+    referredBy: { type: String, default: null },
+
+    // Referral reward tracking
+    referrals: { type: Number, default: 0 },
+    rewardedReferrals: { type: Number, default: 0 },
+    claimedVyns: { type: Number, default: 0 },
+    referralClaimPending: { type: Boolean, default: false },
+    referralEarnings: { type: Number, default: 0 },
+
     customization: {
       theme: { type: String, default: "teal" },
       petId: { type: String, default: "none" },

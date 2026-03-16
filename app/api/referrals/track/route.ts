@@ -1,18 +1,17 @@
 // app/api/referrals/track/route.ts
-// Called client-side after Google OAuth completes.
-// Reads the ref code from the request body and credits the referrer.
-
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/utils/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth/authOptions";
 import connectDB from "@/lib/db/mongodb";
-import { User } from "@/models/index";
+import { User, Referral } from "@/models/index";
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const auth = await verifyAuth(req);
-    if (!auth) {
+    // getServerSession works reliably for Google OAuth — unlike verifyAuth
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
       return NextResponse.json(
         { success: false, error: "Not authenticated" },
         { status: 401 },
@@ -22,14 +21,17 @@ export async function POST(req: NextRequest) {
     const { refCode } = await req.json();
     if (!refCode) {
       return NextResponse.json(
-        { success: false, error: "No ref code provided" },
+        { success: false, error: "No ref code" },
         { status: 400 },
       );
     }
 
-    // Find the current user
-    const filter = auth.wallet ? { wallet: auth.wallet } : { _id: auth.userId };
-    const currentUser = await User.findOne(filter);
+    // Find current user
+    const currentUser = await User.findOne(
+      (session.user as any).id
+        ? { _id: (session.user as any).id }
+        : { email: session.user.email },
+    );
 
     if (!currentUser) {
       return NextResponse.json(
@@ -38,15 +40,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Already been referred — don't double count
+    // Already referred — don't double count
     if (currentUser.referredBy) {
-      return NextResponse.json(
-        { success: false, error: "Already referred" },
-        { status: 409 },
-      );
+      return NextResponse.json({ success: false, error: "Already referred" });
     }
 
-    // Find the referrer by their referral code
+    // Find referrer by their referral code
     const referrer = await User.findOne({ referralCode: refCode });
     if (!referrer) {
       return NextResponse.json(
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Don't let someone refer themselves
+    // Can't refer yourself
     if (referrer._id.toString() === currentUser._id.toString()) {
       return NextResponse.json(
         { success: false, error: "Cannot refer yourself" },
@@ -63,13 +62,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Credit the referrer + mark current user as referred
+    const referredIdentifier =
+      currentUser.wallet ?? currentUser.email ?? currentUser._id.toString();
+    const referrerIdentifier =
+      referrer.wallet ?? referrer.email ?? referrer._id.toString();
+
+    // Guard: check Referral collection so we never double-count
+    const exists = await Referral.findOne({
+      referredWallet: referredIdentifier,
+    });
+    if (exists) {
+      return NextResponse.json({ success: false, error: "Already recorded" });
+    }
+
+    // Write everything atomically
     await Promise.all([
+      Referral.create({
+        referrerWallet: referrerIdentifier,
+        referredWallet: referredIdentifier,
+        rewardEarned: 0,
+      }),
       User.findByIdAndUpdate(referrer._id, {
         $inc: { referrals: 1 },
       }),
       User.findByIdAndUpdate(currentUser._id, {
-        $set: { referredBy: referrer._id },
+        $set: { referredBy: referrerIdentifier },
       }),
     ]);
 

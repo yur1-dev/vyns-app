@@ -1,7 +1,7 @@
 "use client";
 
 // app/signup/page.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,9 @@ import {
   AlertCircle,
   X,
   ExternalLink,
+  Mail,
+  CheckCircle2,
+  RefreshCw,
 } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 
@@ -36,62 +39,121 @@ const WALLETS = [
   },
 ];
 
+type Step = "form" | "otp" | "done";
+
 export default function SignupPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+
+  const [step, setStep] = useState<Step>("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // ── After Google OAuth returns, track referral then redirect ─────────────
+  // ── Cooldown timer ────────────────────────────────────────
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  // ── After Google OAuth returns, track referral then redirect ──────────────
   useEffect(() => {
     if (status !== "authenticated" || !session?.user) return;
+    // Only run if we're not already in the middle of email signup
+    if (step !== "form") return;
 
     const trackAndRedirect = async () => {
       try {
         const refCode =
           localStorage.getItem("vyns_ref") || getCookieValue("ref");
-
         if (refCode) {
-          // Fire and forget — don't block redirect on this
           fetch("/api/referrals/track", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ refCode }),
           }).catch(() => {});
-
-          // Clean up so repeat logins don't re-trigger
           localStorage.removeItem("vyns_ref");
           document.cookie = "ref=; path=/; max-age=0";
         }
       } catch {}
-
       router.push("/dashboard");
     };
 
     trackAndRedirect();
-  }, [status, session, router]);
+  }, [status, session, router, step]);
 
-  // ── Google ────────────────────────────────────────────────
-  const handleGoogle = async () => {
-    setLoading(true);
-    setLoadingType("google");
-    // Don't redirect immediately — let the useEffect above handle it
-    // so we can track the referral first
-    await signIn("google", { redirect: false });
-  };
-
-  // ── Email registration ────────────────────────────────────
-  const handleEmailSignup = async (e: React.FormEvent) => {
+  // ── Step 1: Send OTP ──────────────────────────────────────
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setLoadingType("email");
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setError(data.error ?? "Failed to send code");
+        return;
+      }
+
+      setStep("otp");
+      setResendCooldown(60);
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } finally {
+      setLoading(false);
+      setLoadingType(null);
+    }
+  };
+
+  // ── OTP input handling ────────────────────────────────────
+  const handleOtpChange = (index: number, value: string) => {
+    // Allow paste of full code
+    if (value.length === 6 && /^\d{6}$/.test(value)) {
+      const digits = value.split("");
+      setOtpDigits(digits);
+      otpRefs.current[5]?.focus();
+      return;
+    }
+    if (!/^\d?$/.test(value)) return;
+    const next = [...otpDigits];
+    next[index] = value;
+    setOtpDigits(next);
+    if (value && index < 5) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // ── Step 2: Verify OTP + create account ──────────────────
+  const handleVerifyAndCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const otpCode = otpDigits.join("");
+    if (otpCode.length !== 6) {
+      setError("Please enter all 6 digits");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingType("verify");
     setError("");
 
     try {
@@ -100,14 +162,12 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, refCode }),
+        body: JSON.stringify({ name, email, password, otpCode, refCode }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        setError(data.error || "Failed to create account");
-        setLoading(false);
-        setLoadingType(null);
+        setError(data.error ?? "Verification failed");
         return;
       }
 
@@ -115,16 +175,40 @@ export default function SignupPage() {
       localStorage.removeItem("vyns_ref");
       document.cookie = "ref=; path=/; max-age=0";
 
+      // Auto sign-in
       await signIn("credentials", {
         email,
         password,
         callbackUrl: "/dashboard",
       });
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } finally {
       setLoading(false);
       setLoadingType(null);
     }
+  };
+
+  // ── Resend OTP ────────────────────────────────────────────
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    setError("");
+    setOtpDigits(["", "", "", "", "", ""]);
+    setResendCooldown(60);
+
+    const res = await fetch("/api/auth/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!data.success) setError(data.error ?? "Failed to resend");
+    else setTimeout(() => otpRefs.current[0]?.focus(), 100);
+  };
+
+  // ── Google ────────────────────────────────────────────────
+  const handleGoogle = async () => {
+    setLoading(true);
+    setLoadingType("google");
+    await signIn("google", { redirect: false });
   };
 
   // ── Wallet ────────────────────────────────────────────────
@@ -137,38 +221,32 @@ export default function SignupPage() {
     try {
       const w = window as any;
       let provider: any = null;
-
       if (type === "phantom") provider = w.phantom?.solana ?? w.solana;
       if (type === "solflare") provider = w.solflare;
       if (type === "backpack") provider = w.backpack;
 
       if (!provider)
         throw new Error(
-          `${type.charAt(0).toUpperCase() + type.slice(1)} not found. Please install it.`,
+          `${type.charAt(0).toUpperCase() + type.slice(1)} not found.`,
         );
 
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
       const nonce = Date.now();
       const message = `Sign in to VYNS | Wallet: ${wallet} | Nonce: ${nonce}`;
-      const encodedMessage = new TextEncoder().encode(message);
+      const encoded = new TextEncoder().encode(message);
 
       let signed: any;
       try {
-        signed = await provider.signMessage(encodedMessage, "utf8");
+        signed = await provider.signMessage(encoded, "utf8");
       } catch (err: any) {
-        if (err.code === 4001 || err.message?.includes("rejected")) {
-          throw new Error(
-            "Signature cancelled. Please approve in your wallet.",
-          );
-        }
+        if (err.code === 4001 || err.message?.includes("rejected"))
+          throw new Error("Signature cancelled.");
         throw err;
       }
 
       const sigBytes: Uint8Array = signed.signature ?? signed;
       const signature = Buffer.from(sigBytes).toString("base64");
-
-      // Pass ref code as a credential so the wallet authorize() can use it
       const refCode =
         localStorage.getItem("vyns_ref") || getCookieValue("ref") || "";
 
@@ -180,76 +258,187 @@ export default function SignupPage() {
         redirect: false,
       });
 
-      if (result?.error)
-        throw new Error("Wallet verification failed. Please try again.");
+      if (result?.error) throw new Error("Wallet verification failed.");
 
-      // Clean up ref
       localStorage.removeItem("vyns_ref");
       document.cookie = "ref=; path=/; max-age=0";
-
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to connect wallet");
+      setShowWalletModal(true);
+    } finally {
       setLoading(false);
       setLoadingType(null);
-      setShowWalletModal(true);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#09090b] flex">
-      {/* ── Left branding ── */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-white/[0.06] relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(20,184,166,0.08),transparent_60%)]" />
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)",
-            backgroundSize: "32px 32px",
-          }}
+  // ── Shared left panel ─────────────────────────────────────
+  const LeftPanel = () => (
+    <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-white/[0.06] relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(20,184,166,0.08),transparent_60%)]" />
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)",
+          backgroundSize: "32px 32px",
+        }}
+      />
+      <Link href="/">
+        <Image
+          src="/vyns-logo.png"
+          alt="VYNS"
+          width={100}
+          height={32}
+          className="object-contain relative z-10"
         />
-        <Link href="/">
-          <Image
-            src="/vyns-logo.png"
-            alt="VYNS"
-            width={100}
-            height={32}
-            className="object-contain relative z-10"
-          />
-        </Link>
-        <div className="relative z-10 space-y-6">
-          <blockquote className="space-y-3">
-            <p className="text-xl font-medium text-white/90 leading-relaxed">
-              "Your Web3 identity should work for you — earning yield, building
-              reputation, and resolving across every chain."
-            </p>
-            <footer className="text-sm text-white/40 font-medium">
-              VYNS Protocol
-            </footer>
-          </blockquote>
-          <div className="grid grid-cols-3 gap-3 pt-4">
-            {[
-              ["250K+", "Names"],
-              ["5%+", "Annual Yield"],
-              ["15+", "Chains"],
-            ].map(([val, label]) => (
-              <div
-                key={label}
-                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
-              >
-                <div className="text-lg font-bold text-teal-400">{val}</div>
-                <div className="text-xs text-white/40 mt-0.5">{label}</div>
+      </Link>
+      <div className="relative z-10 space-y-6">
+        <blockquote className="space-y-3">
+          <p className="text-xl font-medium text-white/90 leading-relaxed">
+            "Your Web3 identity should work for you — earning yield, building
+            reputation, and resolving across every chain."
+          </p>
+          <footer className="text-sm text-white/40 font-medium">
+            VYNS Protocol
+          </footer>
+        </blockquote>
+        <div className="grid grid-cols-3 gap-3 pt-4">
+          {[
+            ["250K+", "Names"],
+            ["5%+", "Annual Yield"],
+            ["15+", "Chains"],
+          ].map(([val, label]) => (
+            <div
+              key={label}
+              className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
+            >
+              <div className="text-lg font-bold text-teal-400">{val}</div>
+              <div className="text-xs text-white/40 mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-white/20 relative z-10">
+        © 2026 VYNS Protocol
+      </p>
+    </div>
+  );
+
+  // ── OTP step UI ───────────────────────────────────────────
+  if (step === "otp") {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex">
+        <LeftPanel />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
+          <div className="w-full max-w-sm space-y-6">
+            <div className="lg:hidden flex justify-center mb-2">
+              <Link href="/">
+                <Image
+                  src="/vyns-logo.png"
+                  alt="VYNS"
+                  width={90}
+                  height={28}
+                  className="object-contain"
+                />
+              </Link>
+            </div>
+
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
+                <Mail className="h-6 w-6 text-teal-400" />
               </div>
-            ))}
+            </div>
+
+            <div className="space-y-1 text-center">
+              <h1 className="text-2xl font-semibold tracking-tight text-white">
+                Check your email
+              </h1>
+              <p className="text-sm text-white/40">
+                We sent a 6-digit code to
+                <br />
+                <span className="text-white/70 font-medium">{email}</span>
+              </p>
+            </div>
+
+            <form onSubmit={handleVerifyAndCreate} className="space-y-5">
+              {/* OTP input boxes */}
+              <div className="flex gap-2 justify-center">
+                {otpDigits.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      otpRefs.current[i] = el;
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    className="w-11 h-13 text-center text-xl font-bold rounded-xl border border-white/[0.08] bg-white/[0.03] text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all py-3"
+                  />
+                ))}
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || otpDigits.join("").length !== 6}
+                className="w-full h-10 rounded-md bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loadingType === "verify" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Verifying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" /> Verify & Create Account
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Resend + back */}
+            <div className="flex items-center justify-between text-sm">
+              <button
+                onClick={() => {
+                  setStep("form");
+                  setError("");
+                  setOtpDigits(["", "", "", "", "", ""]);
+                }}
+                className="text-white/30 hover:text-white/60 transition-colors"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleResend}
+                disabled={resendCooldown > 0}
+                className="flex items-center gap-1.5 text-teal-400 hover:text-teal-300 disabled:text-white/20 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : "Resend code"}
+              </button>
+            </div>
           </div>
         </div>
-        <p className="text-xs text-white/20 relative z-10">
-          © 2026 VYNS Protocol
-        </p>
       </div>
+    );
+  }
 
-      {/* ── Right form ── */}
+  // ── Main signup form ──────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#09090b] flex">
+      <LeftPanel />
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-6">
           <div className="lg:hidden flex justify-center mb-2">
@@ -342,7 +531,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <form onSubmit={handleEmailSignup} className="space-y-4">
+          <form onSubmit={handleSendOtp} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">
                 Full Name
@@ -376,9 +565,9 @@ export default function SignupPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 6 characters"
                   required
-                  minLength={8}
+                  minLength={6}
                   className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 />
                 <button
@@ -409,11 +598,12 @@ export default function SignupPage() {
             >
               {loadingType === "email" ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Creating
-                  account...
+                  <Loader2 className="h-4 w-4 animate-spin" /> Sending code...
                 </>
               ) : (
-                "Create account"
+                <>
+                  <Mail className="h-4 w-4" /> Continue with Email
+                </>
               )}
             </button>
           </form>
@@ -447,7 +637,7 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* ── Wallet Modal ── */}
+      {/* Wallet Modal */}
       {showWalletModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -523,8 +713,8 @@ export default function SignupPage() {
   );
 }
 
-// ── Helper: read a cookie by name client-side ─────────────────────────────────
 function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
   const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
   return match ? decodeURIComponent(match[2]) : null;
 }
