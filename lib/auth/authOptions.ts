@@ -5,9 +5,11 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { sign } from "tweetnacl";
 import { PublicKey } from "@solana/web3.js";
 import { nanoid } from "nanoid";
+import { cookies } from "next/headers";
 import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 import { verifyPassword } from "@/lib/utils/auth";
+import { processReferral } from "@/lib/referral";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -56,6 +58,7 @@ export const authOptions: NextAuthOptions = {
         wallet: { label: "Wallet", type: "text" },
         signature: { label: "Signature", type: "text" },
         message: { label: "Message", type: "text" },
+        refCode: { label: "Ref Code", type: "text" },
       },
       async authorize(credentials) {
         if (
@@ -81,6 +84,8 @@ export const authOptions: NextAuthOptions = {
 
           await connectDB();
           let user = await User.findOne({ wallet });
+          const isNew = !user;
+
           if (!user) {
             user = await User.create({
               wallet,
@@ -90,13 +95,18 @@ export const authOptions: NextAuthOptions = {
               stakedAmount: 0,
               referralCode: nanoid(8),
             });
+
+            // Credit referrer if a ref code was passed
+            const refCode = credentials.refCode ?? readRefCookie();
+            await processReferral(user._id.toString(), refCode);
           }
+
           return {
             id: user._id.toString(),
             wallet: user.wallet,
             name: user.username ?? null,
             email: user.email ?? null,
-            isNewUser: !user.username,
+            isNewUser: isNew,
           };
         } catch (err) {
           console.error("[NextAuth] wallet authorize error:", err);
@@ -107,12 +117,14 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
         try {
           await connectDB();
           const existing = await User.findOne({ email: user.email });
+
           if (!existing) {
+            // Brand new Google user — create account
             const newUser = await User.create({
               email: user.email,
               name: user.name,
@@ -124,6 +136,10 @@ export const authOptions: NextAuthOptions = {
               referralCode: nanoid(8),
             });
             user.id = newUser._id.toString();
+
+            // Read the ref cookie set by /ref/[code] page
+            const refCode = readRefCookie();
+            await processReferral(newUser._id.toString(), refCode);
           } else {
             user.id = existing._id.toString();
           }
@@ -168,3 +184,16 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
 };
+
+// ─── Helper: read the ref cookie from the incoming request ───────────────────
+// next/headers cookies() works in server components and route handlers.
+// It returns null if called outside a request context (safe to ignore).
+function readRefCookie(): string | null {
+  try {
+    const cookieStore = cookies();
+    const val = (cookieStore as any).get("ref")?.value;
+    return val ? decodeURIComponent(val) : null;
+  } catch {
+    return null;
+  }
+}
