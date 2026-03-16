@@ -59,6 +59,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
 
+  // Inline password hint — only show if they've typed something short
+  const showLengthHint = password.length > 0 && password.length < 8;
+
   // ── Google ────────────────────────────────────────────────
   const handleGoogle = async () => {
     setLoading(true);
@@ -69,9 +72,15 @@ export default function LoginPage() {
   // ── Email / Password ──────────────────────────────────────
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setLoading(true);
     setLoadingType("email");
-    setError("");
 
     const result = await signIn("credentials", {
       email,
@@ -80,7 +89,7 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("Invalid email or password");
+      setError("Invalid email or password.");
       setLoading(false);
       setLoadingType(null);
       return;
@@ -119,13 +128,8 @@ export default function LoginPage() {
       const response = await provider.connect();
       const wallet = response.publicKey.toString();
 
-      // FIX: Use a single-line message with no newlines so the exact same
-      // string is encoded on both client (signing) and server (verification).
-      // Newlines in template literals get mangled when passed as NextAuth
-      // credentials form fields, causing signature mismatch → 401.
       const nonce = Date.now();
       const message = `Sign in to VYNS | Wallet: ${wallet} | Nonce: ${nonce}`;
-
       const encodedMessage = new TextEncoder().encode(message);
 
       let signed: any;
@@ -140,8 +144,6 @@ export default function LoginPage() {
         throw err;
       }
 
-      // FIX: Handle both Phantom { signature: Uint8Array } and
-      // Solflare/Backpack which may return the raw bytes directly.
       const sigBytes: Uint8Array = signed.signature ?? signed;
       const signature = Buffer.from(sigBytes).toString("base64");
 
@@ -317,17 +319,20 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-4">
+            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder="name@example.com"
                 required
                 className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
+
+            {/* Password */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">
                 Password
@@ -339,7 +344,11 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
+                  className={`w-full h-10 px-3 pr-10 rounded-md border text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 transition-all bg-white/[0.03] ${
+                    showLengthHint
+                      ? "border-red-500/40 focus:ring-red-500/40"
+                      : "border-white/[0.08] focus:ring-teal-500/40 focus:border-teal-500/40"
+                  }`}
                 />
                 <button
                   type="button"
@@ -353,6 +362,14 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+
+              {/* Inline hint if too short */}
+              {showLengthHint && (
+                <p className="text-xs text-red-400">
+                  Password must be at least 8 characters
+                </p>
+              )}
+
               <div className="flex justify-end pt-0.5">
                 <Link
                   href="/forgot-password"
@@ -372,7 +389,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || password.length < 8}
               className="w-full h-10 rounded-md bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
             >
               {loadingType === "email" ? (

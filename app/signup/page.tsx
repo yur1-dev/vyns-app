@@ -15,6 +15,7 @@ import {
   Mail,
   CheckCircle2,
   RefreshCw,
+  Check,
 } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 
@@ -41,6 +42,52 @@ const WALLETS = [
 
 type Step = "form" | "otp" | "done";
 
+// ── Password rules ────────────────────────────────────────────────────────────
+const PASSWORD_RULES = [
+  {
+    id: "length",
+    label: "At least 8 characters",
+    test: (p: string) => p.length >= 8,
+  },
+  {
+    id: "upper",
+    label: "One uppercase letter (A–Z)",
+    test: (p: string) => /[A-Z]/.test(p),
+  },
+  {
+    id: "lower",
+    label: "One lowercase letter (a–z)",
+    test: (p: string) => /[a-z]/.test(p),
+  },
+  {
+    id: "number",
+    label: "One number (0–9)",
+    test: (p: string) => /[0-9]/.test(p),
+  },
+  {
+    id: "special",
+    label: "One special character (!@#$…)",
+    test: (p: string) => /[^A-Za-z0-9]/.test(p),
+  },
+];
+
+function getStrength(password: string): {
+  score: number;
+  label: string;
+  color: string;
+} {
+  const passed = PASSWORD_RULES.filter((r) => r.test(password)).length;
+  if (passed <= 1)
+    return { score: passed, label: "Very weak", color: "bg-red-500" };
+  if (passed === 2)
+    return { score: passed, label: "Weak", color: "bg-orange-500" };
+  if (passed === 3)
+    return { score: passed, label: "Fair", color: "bg-yellow-500" };
+  if (passed === 4)
+    return { score: passed, label: "Strong", color: "bg-teal-400" };
+  return { score: passed, label: "Very strong", color: "bg-green-500" };
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -49,7 +96,10 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<string | null>(null);
@@ -58,6 +108,11 @@ export default function SignupPage() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  const strength = getStrength(password);
+  const allRulesPassed = PASSWORD_RULES.every((r) => r.test(password));
+  const passwordsMatch =
+    password === confirmPassword && confirmPassword.length > 0;
+
   // ── Cooldown timer ────────────────────────────────────────
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -65,10 +120,9 @@ export default function SignupPage() {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  // ── After Google OAuth returns, track referral then redirect ──────────────
+  // ── After Google OAuth returns ────────────────────────────
   useEffect(() => {
     if (status !== "authenticated" || !session?.user) return;
-    // Only run if we're not already in the middle of email signup
     if (step !== "form") return;
 
     const trackAndRedirect = async () => {
@@ -95,9 +149,19 @@ export default function SignupPage() {
   // ── Step 1: Send OTP ──────────────────────────────────────
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (!allRulesPassed) {
+      setError("Password does not meet all requirements.");
+      return;
+    }
+    if (!passwordsMatch) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
     setLoadingType("email");
-    setError("");
 
     try {
       const res = await fetch("/api/auth/send-otp", {
@@ -123,7 +187,6 @@ export default function SignupPage() {
 
   // ── OTP input handling ────────────────────────────────────
   const handleOtpChange = (index: number, value: string) => {
-    // Allow paste of full code
     if (value.length === 6 && /^\d{6}$/.test(value)) {
       const digits = value.split("");
       setOtpDigits(digits);
@@ -171,11 +234,9 @@ export default function SignupPage() {
         return;
       }
 
-      // Clean up ref
       localStorage.removeItem("vyns_ref");
       document.cookie = "ref=; path=/; max-age=0";
 
-      // Auto sign-in
       await signIn("credentials", {
         email,
         password,
@@ -344,7 +405,6 @@ export default function SignupPage() {
               </Link>
             </div>
 
-            {/* Icon */}
             <div className="flex justify-center">
               <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
                 <Mail className="h-6 w-6 text-teal-400" />
@@ -363,7 +423,6 @@ export default function SignupPage() {
             </div>
 
             <form onSubmit={handleVerifyAndCreate} className="space-y-5">
-              {/* OTP input boxes */}
               <div className="flex gap-2 justify-center">
                 {otpDigits.map((digit, i) => (
                   <input
@@ -406,7 +465,6 @@ export default function SignupPage() {
               </button>
             </form>
 
-            {/* Resend + back */}
             <div className="flex items-center justify-between text-sm">
               <button
                 onClick={() => {
@@ -532,6 +590,7 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSendOtp} className="space-y-4">
+            {/* Full Name */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">
                 Full Name
@@ -545,6 +604,8 @@ export default function SignupPage() {
                 className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
+
+            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">Email</label>
               <input
@@ -556,6 +617,8 @@ export default function SignupPage() {
                 className="w-full h-10 px-3 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
               />
             </div>
+
+            {/* Password */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-white/70">
                 Password
@@ -565,9 +628,10 @@ export default function SignupPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 6 characters"
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                  placeholder="Create a strong password"
                   required
-                  minLength={6}
                   className="w-full h-10 px-3 pr-10 rounded-md border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500/40 transition-all"
                 />
                 <button
@@ -582,6 +646,97 @@ export default function SignupPage() {
                   )}
                 </button>
               </div>
+
+              {/* Strength bar — only show when user has typed something */}
+              {password.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                          i <= strength.score
+                            ? strength.color
+                            : "bg-white/[0.08]"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-white/40">
+                    Strength:{" "}
+                    <span className="text-white/70 font-medium">
+                      {strength.label}
+                    </span>
+                  </p>
+                </div>
+              )}
+
+              {/* Rules checklist — show when focused or has content */}
+              {(passwordFocused || password.length > 0) && (
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
+                  {PASSWORD_RULES.map((rule) => {
+                    const passed = rule.test(password);
+                    return (
+                      <div key={rule.id} className="flex items-center gap-2">
+                        <div
+                          className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                            passed
+                              ? "bg-teal-500/20 text-teal-400"
+                              : "bg-white/[0.05] text-white/20"
+                          }`}
+                        >
+                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                        </div>
+                        <span
+                          className={`text-xs transition-colors ${passed ? "text-white/60" : "text-white/30"}`}
+                        >
+                          {rule.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-white/70">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  required
+                  className={`w-full h-10 px-3 pr-10 rounded-md border text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 transition-all bg-white/[0.03] ${
+                    confirmPassword.length > 0
+                      ? passwordsMatch
+                        ? "border-teal-500/40 focus:ring-teal-500/40"
+                        : "border-red-500/40 focus:ring-red-500/40"
+                      : "border-white/[0.08] focus:ring-teal-500/40 focus:border-teal-500/40"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+                >
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {confirmPassword.length > 0 && !passwordsMatch && (
+                <p className="text-xs text-red-400">Passwords do not match</p>
+              )}
+              {confirmPassword.length > 0 && passwordsMatch && (
+                <p className="text-xs text-teal-400">✓ Passwords match</p>
+              )}
             </div>
 
             {error && (
@@ -593,7 +748,7 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !allRulesPassed || !passwordsMatch}
               className="w-full h-10 rounded-md bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
             >
               {loadingType === "email" ? (
