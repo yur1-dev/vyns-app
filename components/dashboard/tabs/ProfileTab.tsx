@@ -456,31 +456,21 @@ export default function ProfilePage() {
   const dash = useDashboard();
   const [notifications] = useState<Notification[]>([]);
 
-  // ── Refs hold the latest URLs synchronously — safe to read inside async handlers ──
-  const avatarUrlRef = useRef<string | null>(null);
-  const coverUrlRef = useRef<string | null>(null);
-  const bioRef = useRef<string>("");
+  // ── Override state — only set during active upload, null means "use dash value" ──
+  const [avatarOverride, setAvatarOverride] = useState<
+    string | null | undefined
+  >(undefined);
+  const [coverOverride, setCoverOverride] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [bioOverride, setBioOverride] = useState<string | undefined>(undefined);
 
-  // ── State drives rendering ──
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
-  const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(null);
-  const [currentBio, setCurrentBio] = useState("");
+  // ── Stable refs for use inside async handlers ──
+  const avatarOverrideRef = useRef<string | null | undefined>(undefined);
+  const coverOverrideRef = useRef<string | null | undefined>(undefined);
+  const bioOverrideRef = useRef<string | undefined>(undefined);
 
-  // Helper: set both ref and state together
-  const setAvatarUrl = (v: string | null) => {
-    avatarUrlRef.current = v;
-    setCurrentAvatarUrl(v);
-  };
-  const setCoverUrl = (v: string | null) => {
-    coverUrlRef.current = v;
-    setCurrentCoverUrl(v);
-  };
-  const setBio = (v: string) => {
-    bioRef.current = v;
-    setCurrentBio(v);
-  };
-
-  // ── Derived from dash ──
+  // ── Derived from dash (same as DashboardHeader does it) ──
   const themeColor =
     THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -489,17 +479,33 @@ export default function ProfilePage() {
   const currentPetId = (dash.customization as any)?.petId ?? "none";
   const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
 
-  // Hydrate once after loading — reads real DB values
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    if (hydratedRef.current) return;
-    if (dash.loading) return;
-    hydratedRef.current = true;
-    const c = dash.customization as any;
-    setAvatarUrl(c?.avatarImage ?? null);
-    setCoverUrl(c?.coverPhoto ?? null);
-    setBio((dash.userData as any)?.bio ?? "");
-  }, [dash.loading, dash.customization, dash.userData]);
+  // ── Displayed values: override takes priority, else use live dash value ──
+  const currentAvatarUrl =
+    avatarOverride !== undefined
+      ? avatarOverride
+      : ((dash.customization as any)?.avatarImage ?? null);
+  const currentCoverUrl =
+    coverOverride !== undefined
+      ? coverOverride
+      : ((dash.customization as any)?.coverPhoto ?? null);
+  const currentBio =
+    bioOverride !== undefined
+      ? bioOverride
+      : ((dash.userData as any)?.bio ?? "");
+
+  // ── Helpers to set both ref and state together ──
+  const setAvatarUrl = (v: string | null) => {
+    avatarOverrideRef.current = v;
+    setAvatarOverride(v);
+  };
+  const setCoverUrl = (v: string | null) => {
+    coverOverrideRef.current = v;
+    setCoverOverride(v);
+  };
+  const setBio = (v: string) => {
+    bioOverrideRef.current = v;
+    setBioOverride(v);
+  };
 
   // Bio
   const [editingBio, setEditingBio] = useState(false);
@@ -572,25 +578,15 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Build save payload — reads refs (always current, never stale) ──────────
+  // ── Build save payload — always uses explicit values passed in ──────────────
   const buildPayload = useCallback(
-    (
-      overrides: Partial<{
-        avatarImage: string | null;
-        coverPhoto: string | null;
-        bio: string;
-      }> = {},
-    ) => ({
+    (avatarImage: string | null, coverPhoto: string | null, bio: string) => ({
       theme: currentTheme,
       petId: currentPetId,
       avatarSeed: currentAvatarSeed,
-      avatarImage:
-        "avatarImage" in overrides
-          ? overrides.avatarImage!
-          : avatarUrlRef.current,
-      coverPhoto:
-        "coverPhoto" in overrides ? overrides.coverPhoto! : coverUrlRef.current,
-      bio: "bio" in overrides ? overrides.bio! : bioRef.current,
+      avatarImage,
+      coverPhoto,
+      bio,
     }),
     [currentTheme, currentPetId, currentAvatarSeed],
   );
@@ -599,7 +595,17 @@ export default function ProfilePage() {
   const saveBio = async () => {
     setSavingBio(true);
     try {
-      await saveCustomization(buildPayload({ bio: bioInput.trim() }));
+      await saveCustomization(
+        buildPayload(
+          avatarOverrideRef.current !== undefined
+            ? avatarOverrideRef.current
+            : ((dash.customization as any)?.avatarImage ?? null),
+          coverOverrideRef.current !== undefined
+            ? coverOverrideRef.current
+            : ((dash.customization as any)?.coverPhoto ?? null),
+          bioInput.trim(),
+        ),
+      );
       setBio(bioInput.trim());
       setEditingBio(false);
     } catch {}
@@ -642,10 +648,21 @@ export default function ProfilePage() {
       // Update local state to CDN URL, then save with that exact value
       setAvatarUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-      await saveCustomization(buildPayload({ avatarImage: cdnUrl }));
+      await saveCustomization(
+        buildPayload(
+          cdnUrl,
+          coverOverrideRef.current !== undefined
+            ? coverOverrideRef.current
+            : ((dash.customization as any)?.coverPhoto ?? null),
+          bioOverrideRef.current !== undefined
+            ? bioOverrideRef.current
+            : ((dash.userData as any)?.bio ?? ""),
+        ),
+      );
     } catch (err) {
       console.error("[avatar upload]", err);
-      setAvatarUrl(avatarUrlRef.current); // revert on error
+      setAvatarOverride(undefined);
+      avatarOverrideRef.current = undefined; // revert
     }
     setSavingAvatar(false);
   };
@@ -684,7 +701,17 @@ export default function ProfilePage() {
 
       setCoverUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-      await saveCustomization(buildPayload({ coverPhoto: cdnUrl }));
+      await saveCustomization(
+        buildPayload(
+          avatarOverrideRef.current !== undefined
+            ? avatarOverrideRef.current
+            : ((dash.customization as any)?.avatarImage ?? null),
+          cdnUrl,
+          bioOverrideRef.current !== undefined
+            ? bioOverrideRef.current
+            : ((dash.userData as any)?.bio ?? ""),
+        ),
+      );
     } catch (err) {
       console.error("[cover upload]", err);
     }
@@ -703,7 +730,17 @@ export default function ProfilePage() {
         body: JSON.stringify({ url: oldUrl }),
       }).catch(() => {});
     }
-    await saveCustomization(buildPayload({ coverPhoto: null }));
+    await saveCustomization(
+      buildPayload(
+        avatarOverrideRef.current !== undefined
+          ? avatarOverrideRef.current
+          : ((dash.customization as any)?.avatarImage ?? null),
+        null,
+        bioOverrideRef.current !== undefined
+          ? bioOverrideRef.current
+          : ((dash.userData as any)?.bio ?? ""),
+      ),
+    );
   };
 
   const copyWallet = () => {
