@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import {
   Copy,
   Check,
@@ -28,14 +27,19 @@ import {
   BarChart2,
   Star,
   Activity,
-  User,
+  Camera,
+  ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Check as CheckIcon,
 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import type { Notification } from "@/components/dashboard/DashboardHeader";
 import type { UsernameItem, ActivityItem } from "@/types/dashboard";
 
-// ─── Shared pixel avatar (same algo as header) ────────────────────────────────
+// ─── Pixel Avatar ──────────────────────────────────────────────────────────────
 function PixelAvatar({
   seed,
   size = 80,
@@ -93,6 +97,277 @@ function PixelAvatar({
   );
 }
 
+// ─── Image Crop Modal ──────────────────────────────────────────────────────────
+function ImageCropModal({
+  src,
+  aspectRatio = 1,
+  circular = false,
+  onSave,
+  onClose,
+  title = "Crop Image",
+}: {
+  src: string;
+  aspectRatio?: number;
+  circular?: boolean;
+  onSave: (croppedBase64: string) => void;
+  onClose: () => void;
+  title?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+
+  // Preview canvas size
+  const PREVIEW_W = aspectRatio >= 1 ? 320 : Math.round(320 * aspectRatio);
+  const PREVIEW_H = aspectRatio <= 1 ? 320 : Math.round(320 / aspectRatio);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.onload = () => {
+      imgRef.current = img;
+      setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+      // Auto-fit: scale so image covers the preview area
+      const fitScale = Math.max(
+        PREVIEW_W / img.naturalWidth,
+        PREVIEW_H / img.naturalHeight,
+      );
+      setScale(fitScale);
+      setOffset({ x: 0, y: 0 });
+      setImgLoaded(true);
+    };
+    img.src = src;
+  }, [src, PREVIEW_W, PREVIEW_H]);
+
+  useEffect(() => {
+    if (!imgLoaded || !canvasRef.current || !imgRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    if (!ctx) return;
+
+    canvasRef.current.width = PREVIEW_W;
+    canvasRef.current.height = PREVIEW_H;
+
+    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+
+    // Clip circle if needed
+    if (circular) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(
+        PREVIEW_W / 2,
+        PREVIEW_H / 2,
+        Math.min(PREVIEW_W, PREVIEW_H) / 2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.clip();
+    }
+
+    const drawW = naturalSize.w * scale;
+    const drawH = naturalSize.h * scale;
+    const drawX = (PREVIEW_W - drawW) / 2 + offset.x;
+    const drawY = (PREVIEW_H - drawH) / 2 + offset.y;
+
+    ctx.drawImage(imgRef.current, drawX, drawY, drawW, drawH);
+
+    if (circular) ctx.restore();
+
+    // Dim outside crop area for cover photo
+    if (!circular) {
+      ctx.fillStyle = "rgba(0,0,0,0)";
+    }
+  }, [imgLoaded, scale, offset, naturalSize, PREVIEW_W, PREVIEW_H, circular]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setDragging(true);
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!dragging) return;
+    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+  };
+  const handleMouseUp = () => setDragging(false);
+
+  // Touch support
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    setDragging(true);
+    setDragStart({ x: t.clientX - offset.x, y: t.clientY - offset.y });
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    setOffset({ x: t.clientX - dragStart.x, y: t.clientY - dragStart.y });
+  };
+
+  const handleSave = () => {
+    if (!canvasRef.current || !imgRef.current) return;
+    // Render at 2x for quality
+    const outputCanvas = document.createElement("canvas");
+    const outW = circular ? 400 : 1200;
+    const outH = circular ? 400 : Math.round(1200 / aspectRatio);
+    outputCanvas.width = outW;
+    outputCanvas.height = outH;
+    const octx = outputCanvas.getContext("2d");
+    if (!octx) return;
+
+    const scaleRatio = outW / PREVIEW_W;
+
+    if (circular) {
+      octx.save();
+      octx.beginPath();
+      octx.arc(outW / 2, outH / 2, outW / 2, 0, Math.PI * 2);
+      octx.clip();
+    }
+
+    const drawW = naturalSize.w * scale * scaleRatio;
+    const drawH = naturalSize.h * scale * scaleRatio;
+    const drawX = (outW - drawW) / 2 + offset.x * scaleRatio;
+    const drawY = (outH - drawH) / 2 + offset.y * scaleRatio;
+
+    octx.drawImage(imgRef.current, drawX, drawY, drawW, drawH);
+    if (circular) octx.restore();
+
+    onSave(outputCanvas.toDataURL("image/jpeg", 0.88));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <p className="text-sm font-semibold text-white">{title}</p>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Canvas preview */}
+          <div className="flex justify-center">
+            <div
+              className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-black/40"
+              style={{
+                width: PREVIEW_W,
+                height: PREVIEW_H,
+                cursor: dragging ? "grabbing" : "grab",
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleMouseUp}
+            >
+              <canvas
+                ref={canvasRef}
+                style={{
+                  display: "block",
+                  width: PREVIEW_W,
+                  height: PREVIEW_H,
+                }}
+              />
+              {/* Circular overlay guide */}
+              {circular && (
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    boxShadow: "inset 0 0 0 9999px rgba(0,0,0,0.5)",
+                    borderRadius: "50%",
+                    margin: "0",
+                  }}
+                />
+              )}
+              {/* Grid guide lines */}
+              <div className="absolute inset-0 pointer-events-none opacity-20">
+                <div className="absolute left-1/3 top-0 bottom-0 border-l border-white/30" />
+                <div className="absolute left-2/3 top-0 bottom-0 border-l border-white/30" />
+                <div className="absolute top-1/3 left-0 right-0 border-t border-white/30" />
+                <div className="absolute top-2/3 left-0 right-0 border-t border-white/30" />
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-white/30 text-center">
+            Drag to reposition
+          </p>
+
+          {/* Zoom controls */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setScale((s) => Math.max(0.1, s - 0.1))}
+              className="p-2 rounded-lg border border-white/[0.07] text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all cursor-pointer"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <div className="flex-1">
+              <input
+                type="range"
+                min="0.1"
+                max="4"
+                step="0.05"
+                value={scale}
+                onChange={(e) => setScale(Number(e.target.value))}
+                className="w-full accent-teal-400"
+              />
+            </div>
+            <button
+              onClick={() => setScale((s) => Math.min(4, s + 0.1))}
+              className="p-2 rounded-lg border border-white/[0.07] text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all cursor-pointer"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                const fitScale = Math.max(
+                  PREVIEW_W / naturalSize.w,
+                  PREVIEW_H / naturalSize.h,
+                );
+                setScale(fitScale);
+                setOffset({ x: 0, y: 0 });
+              }}
+              className="p-2 rounded-lg border border-white/[0.07] text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all cursor-pointer"
+              title="Reset"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 h-10 rounded-xl border border-white/[0.07] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium hover:bg-teal-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <CheckIcon className="w-4 h-4" /> Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Theme map ────────────────────────────────────────────────────────────────
 const THEME_COLORS: Record<string, string> = {
   teal: "#2dd4bf",
@@ -105,7 +380,6 @@ const THEME_COLORS: Record<string, string> = {
   white: "#e2e8f0",
 };
 
-// ─── Tier config based on XP ──────────────────────────────────────────────────
 const XP_TIERS = [
   { min: 0, label: "Observer", hex: "#64748b" },
   { min: 100, label: "Recruiter", hex: "#22d3ee" },
@@ -114,15 +388,6 @@ const XP_TIERS = [
   { min: 5000, label: "Sovereign", hex: "#fbbf24" },
 ];
 
-function getXpTier(xp: number) {
-  return [...XP_TIERS].reverse().find((t) => xp >= t.min) ?? XP_TIERS[0];
-}
-
-function getNextXpTier(xp: number) {
-  return XP_TIERS.find((t) => t.min > xp) ?? null;
-}
-
-// ─── Username tier colors ─────────────────────────────────────────────────────
 const TIER_HEX: Record<string, string> = {
   Diamond: "#22d3ee",
   Platinum: "#a78bfa",
@@ -131,7 +396,6 @@ const TIER_HEX: Record<string, string> = {
   Bronze: "#b45309",
 };
 
-// ─── Activity type config ─────────────────────────────────────────────────────
 const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   claim: { icon: Crown, color: "#2dd4bf" },
   staking: { icon: Zap, color: "#a78bfa" },
@@ -147,9 +411,26 @@ export default function ProfilePage() {
   const dash = useDashboard();
 
   const [notifications] = useState<Notification[]>([]);
+
+  // Bio state
   const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
+  const [bioInput, setBioInput] = useState("");
   const [savingBio, setSavingBio] = useState(false);
+
+  // Avatar upload
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropType, setCropType] = useState<"avatar" | "cover">("avatar");
+  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
+  // Cover photo
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
+  const [savingCover, setSavingCover] = useState(false);
+
+  // Wallet
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [balLoading, setBalLoading] = useState(false);
   const [copiedWallet, setCopiedWallet] = useState(false);
@@ -161,11 +442,11 @@ export default function ProfilePage() {
     dash.customization?.avatarSeed || dash.displayName || "vyns";
 
   const xp = dash.userData.xp ?? 0;
-  const xpTier = getXpTier(xp);
-  const nextTier = getNextXpTier(xp);
-  const prevTierMin = getXpTier(xp).min;
+  const xpTier =
+    [...XP_TIERS].reverse().find((t) => xp >= t.min) ?? XP_TIERS[0];
+  const nextTier = XP_TIERS.find((t) => t.min > xp) ?? null;
   const xpProgress = nextTier
-    ? ((xp - prevTierMin) / (nextTier.min - prevTierMin)) * 100
+    ? ((xp - xpTier.min) / (nextTier.min - xpTier.min)) * 100
     : 100;
 
   const usernames: UsernameItem[] = dash.userData.usernames ?? [];
@@ -180,12 +461,24 @@ export default function ProfilePage() {
     (p: any) => p.status === "active",
   ).length;
 
-  // Load bio from userData
+  // Load existing profile data
   useEffect(() => {
-    if ((dash.userData as any).bio) setBio((dash.userData as any).bio);
-  }, [dash.userData]);
+    if ((dash.userData as any).bio) {
+      setBio((dash.userData as any).bio);
+    }
+    // Load cover + avatar from profile API
+    fetch("/api/user/profile")
+      .then((r) => r.json())
+      .then(({ user }) => {
+        if (user?.coverPhoto) setCoverPhoto(user.coverPhoto);
+        if (user?.bio) setBio(user.bio);
+        // avatarOverride from customization
+        if (dash.customization?.coverPhoto)
+          setCoverPhoto(dash.customization.coverPhoto);
+      })
+      .catch(() => {});
+  }, [dash.userData, dash.customization]);
 
-  // Fetch SOL balance
   const fetchBalance = useCallback(async () => {
     if (!dash.wallet) return;
     setBalLoading(true);
@@ -215,23 +508,84 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // Save bio
+  // ── Bio save ──
+  const startEditBio = () => {
+    setBioInput(bio);
+    setEditingBio(true);
+  };
+  const cancelBio = () => setEditingBio(false);
   const saveBio = async () => {
     setSavingBio(true);
     try {
-      await fetch("/api/user/customization", {
-        method: "POST",
+      await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ bio: bioInput.trim() }),
+      });
+      setBio(bioInput.trim());
+      setEditingBio(false);
+    } catch {}
+    setSavingBio(false);
+  };
+
+  // ── Avatar upload & crop ──
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(reader.result as string);
+      setCropType("avatar");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleAvatarCropSave = async (croppedBase64: string) => {
+    setCropSrc(null);
+    setAvatarOverride(croppedBase64);
+    setSavingAvatar(true);
+    try {
+      // Save as customization avatarImage field
+      await fetch("/api/user/profile", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          ...dash.customization,
-          bio,
-          wallet: dash.wallet,
+          customization: { ...dash.customization, avatarImage: croppedBase64 },
         }),
       });
     } catch {}
-    setSavingBio(false);
-    setEditingBio(false);
+    setSavingAvatar(false);
+  };
+
+  // ── Cover photo upload & crop ──
+  const handleCoverFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(reader.result as string);
+      setCropType("cover");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleCoverCropSave = async (croppedBase64: string) => {
+    setCropSrc(null);
+    setCoverPhoto(croppedBase64);
+    setSavingCover(true);
+    try {
+      await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ coverPhoto: croppedBase64 }),
+      });
+    } catch {}
+    setSavingCover(false);
   };
 
   const copyWallet = () => {
@@ -240,13 +594,19 @@ export default function ProfilePage() {
     setCopiedWallet(true);
     setTimeout(() => setCopiedWallet(false), 2000);
   };
-
   const copyRef = () => {
     if (!referralCode) return;
     navigator.clipboard.writeText(referralCode);
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);
   };
+
+  // Decide which avatar to show
+  const showCustomAvatar =
+    !!(dash.customization as any)?.avatarImage || !!avatarOverride;
+  const customAvatarSrc =
+    avatarOverride || (dash.customization as any)?.avatarImage;
+  const showOAuthAvatar = !!dash.session?.user?.image && !showCustomAvatar;
 
   if (dash.loading) {
     return (
@@ -258,7 +618,39 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#060b14] text-white overflow-x-hidden">
-      {/* Ambient blobs */}
+      {/* Crop Modal */}
+      {cropSrc && (
+        <ImageCropModal
+          src={cropSrc}
+          aspectRatio={cropType === "avatar" ? 1 : 3}
+          circular={cropType === "avatar"}
+          title={
+            cropType === "avatar" ? "Crop Profile Photo" : "Crop Cover Photo"
+          }
+          onSave={
+            cropType === "avatar" ? handleAvatarCropSave : handleCoverCropSave
+          }
+          onClose={() => setCropSrc(null)}
+        />
+      )}
+
+      {/* Hidden file inputs */}
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarFileSelect}
+      />
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileSelect}
+      />
+
+      {/* Ambient */}
       <div
         className="fixed top-0 left-0 w-[700px] h-[400px] pointer-events-none blur-[140px] -translate-x-1/2 -translate-y-1/2 z-0"
         style={{ background: `${themeColor}08` }}
@@ -266,14 +658,6 @@ export default function ProfilePage() {
       <div
         className="fixed bottom-0 right-0 w-[500px] h-[400px] pointer-events-none blur-[120px] translate-x-1/3 translate-y-1/3 z-0"
         style={{ background: "rgba(99,102,241,0.06)" }}
-      />
-      {/* Scanlines */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 opacity-40"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.007) 3px,rgba(255,255,255,0.007) 4px)",
-        }}
       />
 
       <div className="relative z-10">
@@ -291,6 +675,7 @@ export default function ProfilePage() {
           onOpenSettings={() => router.push("/settings")}
           onLogout={dash.logout}
           onWalletLinked={(pk) => dash.setWallet(pk || null)}
+          onOpenProfile={() => {}}
         />
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -302,30 +687,54 @@ export default function ProfilePage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Back to dashboard
           </button>
 
-          {/* ── HERO ──────────────────────────────────────────────────────────── */}
+          {/* ── HERO ── */}
           <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-            {/* Banner */}
+            {/* Cover Banner — clickable */}
             <div
-              className="relative h-28 sm:h-36 overflow-hidden"
-              style={{
-                background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
-              }}
+              className="relative h-32 sm:h-40 overflow-hidden group cursor-pointer"
+              style={
+                coverPhoto
+                  ? {
+                      backgroundImage: `url(${coverPhoto})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }
+                  : {
+                      background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
+                    }
+              }
+              onClick={() => coverInputRef.current?.click()}
             >
-              <div
-                className="absolute inset-0"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0)",
-                  backgroundSize: "24px 24px",
-                }}
-              />
-              <div
-                className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
-                style={{ background: `${themeColor}0f` }}
-              />
+              {!coverPhoto && (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0)",
+                    backgroundSize: "24px 24px",
+                  }}
+                />
+              )}
+              {coverPhoto && <div className="absolute inset-0 bg-black/20" />}
+
+              {/* Hover overlay */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                {savingCover ? (
+                  <Loader2 className="h-6 w-6 text-white/70 animate-spin" />
+                ) : (
+                  <>
+                    <ImageIcon className="h-6 w-6 text-white/80" />
+                    <p className="text-sm font-medium text-white/80">
+                      {coverPhoto ? "Change cover photo" : "Add cover photo"}
+                    </p>
+                    <p className="text-xs text-white/40">Click to upload</p>
+                  </>
+                )}
+              </div>
+
               {/* Tier badge */}
               <div
-                className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide"
+                className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide z-10"
                 style={{
                   borderColor: `${xpTier.hex}35`,
                   background: `${xpTier.hex}12`,
@@ -335,39 +744,81 @@ export default function ProfilePage() {
                 <Shield className="h-3 w-3" />
                 {xpTier.label}
               </div>
+
+              {/* Remove cover button */}
+              {coverPhoto && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCoverPhoto(null);
+                    fetch("/api/user/profile", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
+                      body: JSON.stringify({ coverPhoto: null }),
+                    });
+                  }}
+                  className="absolute top-3 left-3 p-1.5 rounded-lg bg-black/50 border border-white/10 text-white/40 hover:text-red-400 hover:border-red-400/30 transition-all z-10 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Avatar + info */}
+            {/* Profile info row */}
             <div className="bg-[#060b14] px-5 pb-5">
               <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 sm:-mt-12">
-                {/* Avatar */}
+                {/* Avatar — clickable to upload */}
                 <div className="relative shrink-0 z-10">
-                  <div
-                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-[3px] border-[#060b14] overflow-hidden"
-                    style={{
-                      boxShadow: `0 0 0 1px ${themeColor}25, 0 0 24px ${themeColor}18`,
-                    }}
+                  <button
+                    className="group relative block cursor-pointer"
+                    onClick={() => avatarInputRef.current?.click()}
+                    title="Change profile photo"
                   >
-                    {dash.session?.user?.image ? (
-                      <Image
-                        src={dash.session.user.image}
-                        alt="avatar"
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <PixelAvatar
-                        seed={avatarSeed}
-                        size={96}
-                        themeColor={themeColor}
-                      />
-                    )}
-                  </div>
+                    <div
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-[3px] border-[#060b14] overflow-hidden transition-all group-hover:ring-2 group-hover:ring-white/20"
+                      style={{
+                        boxShadow: `0 0 0 1px ${themeColor}25, 0 0 24px ${themeColor}18`,
+                      }}
+                    >
+                      {savingAvatar ? (
+                        <div className="w-full h-full bg-black/60 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 text-teal-400 animate-spin" />
+                        </div>
+                      ) : showCustomAvatar ? (
+                        <img
+                          src={customAvatarSrc}
+                          alt="avatar"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : showOAuthAvatar ? (
+                        <Image
+                          src={dash.session?.user?.image ?? ""}
+                          alt="avatar"
+                          width={96}
+                          height={96}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <PixelAvatar
+                          seed={avatarSeed}
+                          size={96}
+                          themeColor={themeColor}
+                        />
+                      )}
+                    </div>
+                    {/* Edit overlay */}
+                    <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera className="h-5 w-5 text-white" />
+                      <span className="text-[10px] text-white/80 font-medium">
+                        Edit
+                      </span>
+                    </div>
+                  </button>
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#060b14]" />
                 </div>
 
-                {/* Name block */}
+                {/* Name + actions */}
                 <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1">
                   <div className="space-y-0.5">
                     <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight leading-none">
@@ -387,53 +838,63 @@ export default function ProfilePage() {
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => router.push("/settings")}
-                    className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-xs text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all cursor-pointer"
-                  >
-                    <Edit3 className="h-3 w-3" /> Edit profile
-                  </button>
                 </div>
               </div>
 
-              {/* Bio */}
-              <div className="mt-3 ml-0 sm:ml-1">
+              {/* Bio — inline editing */}
+              <div className="mt-4 ml-0 sm:ml-1 max-w-lg">
                 {editingBio ? (
-                  <div className="flex gap-2 max-w-md">
-                    <input
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      maxLength={120}
-                      placeholder="Short bio…"
-                      className="flex-1 h-8 px-3 rounded-lg border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                  <div className="space-y-2">
+                    <textarea
+                      value={bioInput}
+                      onChange={(e) => setBioInput(e.target.value)}
+                      maxLength={160}
+                      placeholder="Tell people a bit about yourself…"
+                      rows={2}
+                      autoFocus
+                      className="w-full px-3 py-2 rounded-xl border border-teal-500/30 bg-white/[0.04] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all resize-none"
                     />
-                    <button
-                      onClick={saveBio}
-                      disabled={savingBio}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-500/15 border border-teal-500/25 text-teal-400 text-xs font-medium hover:bg-teal-500/25 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {savingBio ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Save className="h-3 w-3" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setEditingBio(false)}
-                      className="p-1.5 rounded-lg border border-white/[0.07] text-white/25 hover:text-white/50 transition-colors cursor-pointer"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-white/25">
+                        {bioInput.length}/160
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={cancelBio}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/[0.08] text-xs text-white/40 hover:text-white/60 transition-all cursor-pointer"
+                        >
+                          <X className="h-3 w-3" /> Cancel
+                        </button>
+                        <button
+                          onClick={saveBio}
+                          disabled={savingBio}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-500/30 text-teal-400 text-xs font-medium hover:bg-teal-500/30 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {savingBio ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Save className="h-3 w-3" />
+                          )}
+                          Save
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <button
-                    onClick={() => setEditingBio(true)}
-                    className="group flex items-center gap-1.5 text-sm text-white/30 hover:text-white/50 transition-colors cursor-pointer"
+                    onClick={startEditBio}
+                    className="group flex items-start gap-2 text-sm cursor-pointer w-full text-left"
                   >
-                    {bio || (
-                      <span className="italic text-white/20">Add a bio…</span>
-                    )}
-                    <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    <span
+                      className={
+                        bio
+                          ? "text-white/50 leading-relaxed"
+                          : "italic text-white/20"
+                      }
+                    >
+                      {bio || "Add a bio…"}
+                    </span>
+                    <Edit3 className="h-3.5 w-3.5 text-white/20 group-hover:text-teal-400 transition-colors shrink-0 mt-0.5" />
                   </button>
                 )}
               </div>
@@ -445,12 +906,11 @@ export default function ProfilePage() {
                     className="text-[11px] font-medium"
                     style={{ color: xpTier.hex }}
                   >
-                    {xp.toLocaleString()} XP
+                    {xp.toLocaleString()} XP · {xpTier.label}
                   </span>
                   {nextTier && (
                     <span className="text-[11px] text-white/20">
-                      {nextTier.label} in {(nextTier.min - xp).toLocaleString()}{" "}
-                      XP
+                      {(nextTier.min - xp).toLocaleString()} to {nextTier.label}
                     </span>
                   )}
                 </div>
@@ -467,7 +927,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── STATS ROW ─────────────────────────────────────────────────────── */}
+          {/* ── STATS ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               {
@@ -521,9 +981,9 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* ── MAIN GRID ─────────────────────────────────────────────────────── */}
+          {/* ── MAIN GRID ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left column */}
+            {/* Left col */}
             <div className="space-y-4">
               {/* Wallet */}
               <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
@@ -548,7 +1008,6 @@ export default function ProfilePage() {
                     </button>
                   )}
                 </div>
-
                 {dash.wallet ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.025] border border-white/[0.05]">
@@ -669,7 +1128,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Right column */}
+            {/* Right col */}
             <div className="lg:col-span-2 space-y-4">
               {/* Usernames */}
               <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
@@ -701,33 +1160,29 @@ export default function ProfilePage() {
                     Manage <ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
-
                 {usernames.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {usernames.map((u) => {
-                      const tierHex = TIER_HEX[u.tier] ?? "#64748b";
+                      const hex = TIER_HEX[u.tier] ?? "#64748b";
                       return (
                         <div
                           key={u.id}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
-                          style={{ borderColor: `${tierHex}25` }}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/[0.02]"
+                          style={{ borderColor: `${hex}25` }}
                         >
                           <span className="text-xs font-mono text-white/60">
                             @{u.name}
                           </span>
                           <span
                             className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                            style={{
-                              background: `${tierHex}18`,
-                              color: tierHex,
-                            }}
+                            style={{ background: `${hex}18`, color: hex }}
                           >
                             {u.tier}
                           </span>
                           {u.staked && (
                             <Zap
                               className="h-3 w-3 shrink-0"
-                              style={{ color: tierHex }}
+                              style={{ color: hex }}
                             />
                           )}
                         </div>
@@ -750,7 +1205,7 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Staking summary */}
+              {/* Staking */}
               <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -783,7 +1238,7 @@ export default function ProfilePage() {
                       value: `${stakingRewards.toFixed(4)}`,
                       accent: "#fbbf24",
                     },
-                  ].map(({ label, value, accent }) => (
+                  ].map(({ label, value }) => (
                     <div
                       key={label}
                       className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3 text-center"
@@ -797,7 +1252,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Activity feed */}
+              {/* Activity */}
               <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Activity className="h-3.5 w-3.5 text-white/25" />
@@ -805,9 +1260,8 @@ export default function ProfilePage() {
                     Recent Activity
                   </span>
                 </div>
-
                 {activity.length > 0 ? (
-                  <div className="space-y-0">
+                  <div>
                     {activity.slice(0, 8).map((a, i) => {
                       const cfg = ACT_CONFIG[a.type] ?? {
                         icon: Star,
@@ -828,11 +1282,9 @@ export default function ProfilePage() {
                               style={{ color: cfg.color }}
                             />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white/55 truncate">
-                              {a.description}
-                            </p>
-                          </div>
+                          <p className="flex-1 text-xs text-white/55 truncate">
+                            {a.description}
+                          </p>
                           {a.amount !== 0 && (
                             <span
                               className="text-xs font-mono shrink-0"

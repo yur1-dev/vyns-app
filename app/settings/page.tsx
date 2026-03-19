@@ -1,11 +1,9 @@
 "use client";
-
 // app/settings/page.tsx
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Shield,
-  User,
   Wallet,
   Bell,
   Copy,
@@ -17,18 +15,15 @@ import {
   EyeOff,
   Lock,
   Loader2,
-  Edit3,
-  Save,
-  ImageIcon,
-  X,
+  KeyRound,
+  Mail,
+  RefreshCw,
 } from "lucide-react";
-
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useDashboard } from "@/hook/useDashboard";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Tab = "account" | "wallet" | "preferences" | "security";
+type Tab = "security" | "wallet" | "preferences";
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
@@ -70,11 +65,7 @@ function Toggle({
   return (
     <button
       onClick={() => onChange(!on)}
-      className={`relative w-10 h-5 rounded-full border transition-all cursor-pointer shrink-0 ${
-        on
-          ? "bg-teal-500/30 border-teal-500/40"
-          : "bg-white/[0.05] border-white/[0.08]"
-      }`}
+      className={`relative w-10 h-5 rounded-full border transition-all cursor-pointer shrink-0 ${on ? "bg-teal-500/30 border-teal-500/40" : "bg-white/[0.05] border-white/[0.08]"}`}
     >
       <div
         className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${on ? "right-0.5" : "left-0.5"}`}
@@ -149,230 +140,235 @@ function Input({
   );
 }
 
-// ── Tab content ───────────────────────────────────────────────────────────────
-
-function AccountTab({
+// ── Security Tab ──────────────────────────────────────────────────────────────
+function SecurityTab({
   session,
   wallet,
   provider,
-  displayName,
+  onLogout,
 }: {
   session: any;
   wallet: string | null;
   provider: string;
-  displayName: string;
+  onLogout: () => void;
 }) {
-  const [name, setName] = useState(displayName || "");
-  const [bio, setBio] = useState("");
-  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
 
-  // Load current profile data
-  useEffect(() => {
-    fetch("/api/user/profile")
-      .then((r) => r.json())
-      .then(({ user }) => {
-        if (user?.bio) setBio(user.bio);
-        if (user?.displayName) setName(user.displayName);
-        else if (displayName) setName(displayName);
-        if (user?.coverPhoto) setCoverPhoto(user.coverPhoto);
-      })
-      .catch(() => {
-        if (displayName) setName(displayName);
-      })
-      .finally(() => setLoading(false));
-  }, [displayName]);
+  // Forgot password / reset email
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Resize/compress if needed — basic FileReader for now
-    const reader = new FileReader();
-    reader.onload = () => setCoverPhoto(reader.result as string);
-    reader.readAsDataURL(file);
-    // Reset input so same file can be re-selected
-    e.target.value = "";
-  };
-
-  const removeCover = () => setCoverPhoto(null);
-
-  const save = async () => {
+  const handleChange = async () => {
+    if (next !== confirm) {
+      setErr("Passwords don't match");
+      return;
+    }
+    if (next.length < 8) {
+      setErr("Minimum 8 characters");
+      return;
+    }
     setSaving(true);
+    setErr("");
     try {
-      await fetch("/api/user/profile", {
-        method: "PATCH",
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          displayName: name.trim(),
-          bio: bio.trim(),
-          coverPhoto,
-        }),
+        body: JSON.stringify({ currentPassword: cur, newPassword: next }),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch {}
-    setSaving(false);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed");
+      setDone(true);
+      setCur("");
+      setNext("");
+      setConfirm("");
+      setTimeout(() => setDone(false), 3000);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 animate-spin text-white/20" />
-      </div>
-    );
-  }
+  const handleForgotPassword = async () => {
+    if (!session?.user?.email) return;
+    setSendingReset(true);
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: session.user.email }),
+      });
+      setResetSent(true);
+    } catch {}
+    setSendingReset(false);
+  };
+
+  const isEmailUser =
+    !!session?.user?.email &&
+    provider !== "google" &&
+    provider !== "github" &&
+    !wallet;
+  const isOAuthUser = provider === "google" || provider === "github";
 
   return (
     <div className="space-y-4">
-      {/* Cover Photo */}
-      <Card
-        title="Cover Photo"
-        desc="Displayed at the top of your profile card."
-      >
-        <div className="p-5 space-y-3">
-          <div
-            className="relative h-32 rounded-xl overflow-hidden border border-white/[0.06] cursor-pointer group"
-            style={
-              coverPhoto
-                ? {
-                    backgroundImage: `url(${coverPhoto})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }
-                : {
-                    background:
-                      "linear-gradient(130deg, #07101f 0%, #0d2235 55%, #0b1628 100%)",
-                  }
-            }
-            onClick={() => fileRef.current?.click()}
-          >
-            {/* Hover overlay */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ImageIcon className="h-5 w-5 text-white/70" />
-              <p className="text-xs text-white/70">
-                {coverPhoto ? "Change cover photo" : "Upload cover photo"}
-              </p>
-            </div>
-          </div>
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleCoverUpload}
-          />
-
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] text-white/25">
-              Recommended: 1200×400px, JPG or PNG
-            </p>
-            {coverPhoto && (
-              <button
-                onClick={removeCover}
-                className="flex items-center gap-1 text-xs text-white/25 hover:text-red-400 transition-colors cursor-pointer"
-              >
-                <X className="h-3 w-3" /> Remove
-              </button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Editable profile fields */}
-      <Card title="Profile Info" desc="Your public-facing name and bio.">
-        <div className="p-5 space-y-4">
-          <Input
-            label="Display Name"
-            placeholder="Your display name"
-            value={name}
-            onChange={setName}
-          />
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
-              Bio
-            </label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={160}
-              placeholder="Short bio…"
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500/40 transition-all resize-none"
-            />
-            <p className="text-[11px] text-white/20 text-right">
-              {bio.length}/160
-            </p>
-          </div>
-
-          <button
-            onClick={save}
-            disabled={saving || (!name.trim() && !bio && coverPhoto === null)}
-            className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : saved ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {saved ? "Saved!" : saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
-      </Card>
-
-      {/* Read-only account info */}
-      <Card
-        title="Account Details"
-        desc="Your identity and authentication info."
-      >
-        <Field label="Email address" value={session?.user?.email || "—"} />
-        <Field label="Auth method" value={provider} />
+      {/* Session info */}
+      <Card title="Active Session" desc="Your current authentication status.">
         <Field
-          label="Account type"
+          label="Status"
           aside={
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-400 border border-teal-500/20">
-              Standard
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              Active
             </span>
           }
         />
+        <Field label="Auth provider" value={provider} />
+        {session?.user?.email && (
+          <Field label="Email" value={session.user.email} />
+        )}
         {wallet && (
           <Field
             label="Wallet"
-            value={`${wallet.slice(0, 8)}…${wallet.slice(-6)}`}
+            value={`${wallet.slice(0, 8)}…${wallet.slice(-8)}`}
             mono
           />
         )}
+        <div className="px-5 py-4">
+          <p className="text-xs text-white/25 leading-relaxed">
+            {wallet
+              ? "Authenticated via Solana wallet signature. All sensitive actions require wallet signing."
+              : isOAuthUser
+                ? `Authenticated via ${provider} OAuth. Session managed via NextAuth.js.`
+                : "Authenticated via email/password. Session managed via NextAuth.js with HTTP-only JWT cookies."}
+          </p>
+        </div>
       </Card>
 
-      {session?.user?.image && (
-        <Card title="Profile Picture" desc="Synced from your OAuth provider.">
-          <div className="p-5 flex items-center gap-4">
-            <img
-              src={session.user.image}
-              alt="Avatar"
-              className="w-14 h-14 rounded-full object-cover ring-2 ring-white/10"
+      {/* Change password — only for email/password users */}
+      {isEmailUser && (
+        <Card title="Change Password" desc="Update your login password.">
+          <div className="p-5 space-y-4">
+            <Input
+              label="Current Password"
+              type="password"
+              placeholder="Enter current password"
+              value={cur}
+              onChange={setCur}
             />
-            <div>
-              <p className="text-sm font-medium text-white/70">
-                {session.user.name}
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="At least 8 characters"
+              value={next}
+              onChange={setNext}
+            />
+            <Input
+              label="Confirm New Password"
+              type="password"
+              placeholder="Confirm new password"
+              value={confirm}
+              onChange={setConfirm}
+            />
+
+            {err && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {err}
+              </div>
+            )}
+
+            <button
+              onClick={handleChange}
+              disabled={saving || !cur || !next || !confirm}
+              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+              {done
+                ? "Password updated!"
+                : saving
+                  ? "Updating..."
+                  : "Update Password"}
+            </button>
+
+            {/* Forgot password link */}
+            <div className="pt-1 border-t border-white/[0.05]">
+              <p className="text-xs text-white/30 mb-2">
+                Forgot your current password?
               </p>
-              <p className="text-xs text-white/25 mt-0.5">
-                Pulled from OAuth provider
+              {resetSent ? (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 text-teal-400 text-xs">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  Reset link sent to {session?.user?.email}
+                </div>
+              ) : (
+                <button
+                  onClick={handleForgotPassword}
+                  disabled={sendingReset}
+                  className="flex items-center gap-2 text-xs text-white/30 hover:text-teal-400 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {sendingReset ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5" />
+                  )}
+                  Send password reset email
+                </button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* OAuth users — can't change password */}
+      {isOAuthUser && (
+        <Card title="Password" desc="Your account uses OAuth authentication.">
+          <div className="p-5">
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+              <KeyRound className="h-4 w-4 text-white/20 mt-0.5 shrink-0" />
+              <p className="text-xs text-white/35 leading-relaxed">
+                Your account is linked to {provider}. Password management is
+                handled by {provider} — you can change your password from your{" "}
+                {provider} account settings.
               </p>
             </div>
           </div>
         </Card>
       )}
+
+      {/* Danger zone */}
+      <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.03] overflow-hidden">
+        <div className="px-5 pt-5 pb-4 border-b border-red-500/[0.08] flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-red-400/60" />
+          <div>
+            <p className="text-sm font-semibold text-red-400/70">Danger Zone</p>
+            <p className="text-xs text-white/20 mt-0.5">
+              Signing out will clear your local session.
+            </p>
+          </div>
+        </div>
+        <div className="p-5">
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" /> Sign out
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
+// ── Wallet Tab ────────────────────────────────────────────────────────────────
 function WalletTab({
   wallet,
   balance,
@@ -394,7 +390,7 @@ function WalletTab({
         <Wallet className="h-8 w-8 mx-auto mb-3 text-white/10" />
         <p className="text-sm text-white/30">No wallet connected</p>
         <p className="text-xs text-white/20 mt-1">
-          Sign in with a Solana wallet to see this section
+          Connect a Solana wallet from the dashboard
         </p>
       </div>
     );
@@ -430,7 +426,6 @@ function WalletTab({
           </div>
         </div>
       </Card>
-
       <Card title="Balance" desc="Live balance from Solana mainnet.">
         <div className="p-5 flex items-baseline gap-2">
           <span className="text-4xl font-bold text-white tabular-nums tracking-tight">
@@ -444,6 +439,7 @@ function WalletTab({
   );
 }
 
+// ── Preferences Tab ───────────────────────────────────────────────────────────
 function PreferencesTab() {
   const [prefs, setPrefs] = useState({
     staking: true,
@@ -453,7 +449,6 @@ function PreferencesTab() {
   });
   const [loaded, setLoaded] = useState(false);
 
-  // Load persisted preferences
   useEffect(() => {
     fetch("/api/user/profile")
       .then((r) => r.json())
@@ -467,7 +462,6 @@ function PreferencesTab() {
   const toggle = (k: keyof typeof prefs) => {
     const next = { ...prefs, [k]: !prefs[k] };
     setPrefs(next);
-    // Persist on every toggle
     fetch("/api/user/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -518,180 +512,18 @@ function PreferencesTab() {
   );
 }
 
-function SecurityTab({
-  session,
-  wallet,
-  provider,
-  onLogout,
-}: {
-  session: any;
-  wallet: string | null;
-  provider: string;
-  onLogout: () => void;
-}) {
-  const [cur, setCur] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handleChange = async () => {
-    if (next !== confirm) {
-      setErr("Passwords don't match");
-      return;
-    }
-    if (next.length < 8) {
-      setErr("Minimum 8 characters");
-      return;
-    }
-    setSaving(true);
-    setErr("");
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: cur, newPassword: next }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed");
-      setDone(true);
-      setCur("");
-      setNext("");
-      setConfirm("");
-      setTimeout(() => setDone(false), 3000);
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      {session?.user?.email && !wallet && (
-        <Card
-          title="Change Password"
-          desc="Update your account password for added security."
-        >
-          <div className="p-5 space-y-4">
-            <Input
-              label="Current Password"
-              type="password"
-              placeholder="Enter current password"
-              value={cur}
-              onChange={setCur}
-            />
-            <Input
-              label="New Password"
-              type="password"
-              placeholder="Enter new password (min 8 chars)"
-              value={next}
-              onChange={setNext}
-            />
-            <Input
-              label="Confirm New Password"
-              type="password"
-              placeholder="Confirm new password"
-              value={confirm}
-              onChange={setConfirm}
-            />
-            {err && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {err}
-              </div>
-            )}
-            <button
-              onClick={handleChange}
-              disabled={saving || !cur || !next || !confirm}
-              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Lock className="h-4 w-4" />
-              )}
-              {done
-                ? "Password updated!"
-                : saving
-                  ? "Updating..."
-                  : "Update Password"}
-            </button>
-          </div>
-        </Card>
-      )}
-
-      <Card title="Session" desc="Your current authentication session.">
-        <Field
-          label="Status"
-          aside={
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-              Active
-            </span>
-          }
-        />
-        <Field label="Provider" value={provider} />
-        {session?.user?.email && (
-          <Field label="Email" value={session.user.email} />
-        )}
-        {wallet && (
-          <Field
-            label="Signing key"
-            value={`${wallet.slice(0, 8)}…${wallet.slice(-8)}`}
-            mono
-          />
-        )}
-        <div className="px-5 py-4">
-          <p className="text-xs text-white/30 leading-relaxed">
-            {wallet
-              ? "Authenticated via Solana wallet signature. No password stored — all sensitive actions require wallet signing."
-              : "Authenticated via OAuth. Session managed by NextAuth.js with HTTP-only JWT cookies."}
-          </p>
-        </div>
-      </Card>
-
-      <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.03] overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-red-500/[0.08] flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-red-400/60" />
-          <div>
-            <p className="text-sm font-semibold text-red-400/70">Danger Zone</p>
-            <p className="text-xs text-white/20 mt-0.5">
-              Irreversible actions on your account.
-            </p>
-          </div>
-        </div>
-        <div className="p-5 space-y-3">
-          <p className="text-xs text-white/25 leading-relaxed">
-            Signing out will clear your local session. You can sign back in at
-            any time.
-          </p>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
-          >
-            <LogOut className="h-4 w-4" /> Disconnect
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Tabs config ───────────────────────────────────────────────────────────────
-
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
-  { id: "account", icon: User, label: "Account" },
+  { id: "security", icon: Shield, label: "Security" },
   { id: "wallet", icon: Wallet, label: "Wallet" },
   { id: "preferences", icon: Bell, label: "Preferences" },
-  { id: "security", icon: Shield, label: "Security" },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-
 export default function SettingsPageRoute() {
   const dash = useDashboard();
-  const [activeTab, setActiveTab] = useState<Tab>("account");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>("security");
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const visibleTabs = TABS.filter((t) => !(t.id === "wallet" && !dash.wallet));
@@ -719,15 +551,24 @@ export default function SettingsPageRoute() {
         }
         onOpenSettings={() => {}}
         onLogout={dash.logout}
+        onOpenProfile={() => router.push("/profile")}
       />
 
-      {/* Content */}
       <main className="relative z-10 px-4 sm:px-8 py-8 max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <Shield className="h-5 w-5 text-white/30" />
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Settings
           </h1>
+          <p className="text-sm text-white/25 ml-1">
+            ·{" "}
+            <button
+              onClick={() => router.push("/profile")}
+              className="hover:text-teal-400 transition-colors cursor-pointer"
+            >
+              Edit profile →
+            </button>
+          </p>
         </div>
 
         {/* Tab bar */}
@@ -738,15 +579,11 @@ export default function SettingsPageRoute() {
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`
-                  flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
-                  whitespace-nowrap transition-all duration-150 cursor-pointer
-                  ${
-                    active
-                      ? "bg-white/[0.08] text-white"
-                      : "text-white/30 hover:text-white/60 hover:bg-white/[0.03]"
-                  }
-                `}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                  active
+                    ? "bg-white/[0.08] text-white"
+                    : "text-white/30 hover:text-white/60 hover:bg-white/[0.03]"
+                }`}
               >
                 <t.icon
                   className={`h-3.5 w-3.5 shrink-0 ${active ? "text-teal-400" : ""}`}
@@ -757,19 +594,6 @@ export default function SettingsPageRoute() {
           })}
         </div>
 
-        {/* Tab content */}
-        {activeTab === "account" && (
-          <AccountTab
-            session={dash.session}
-            wallet={dash.wallet}
-            provider={dash.provider}
-            displayName={dash.displayName}
-          />
-        )}
-        {activeTab === "wallet" && (
-          <WalletTab wallet={dash.wallet} balance={dash.balance} />
-        )}
-        {activeTab === "preferences" && <PreferencesTab />}
         {activeTab === "security" && (
           <SecurityTab
             session={dash.session}
@@ -778,6 +602,10 @@ export default function SettingsPageRoute() {
             onLogout={dash.logout}
           />
         )}
+        {activeTab === "wallet" && (
+          <WalletTab wallet={dash.wallet} balance={dash.balance} />
+        )}
+        {activeTab === "preferences" && <PreferencesTab />}
       </main>
     </div>
   );

@@ -67,7 +67,7 @@ function DashboardInner() {
         onOpenSettings={() => router.push("/settings")}
         onLogout={dash.logout}
         onWalletLinked={(pk) => dash.setWallet(pk)}
-        onOpenProfile={() => changeTab("profile")}
+        onOpenProfile={() => router.push("/profile")}
       />
 
       {isProfile ? (
