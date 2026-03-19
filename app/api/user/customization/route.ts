@@ -21,25 +21,45 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    // Preserve ALL customization fields — don't destructure and drop unknown keys
-    const { theme, petId, avatarSeed, avatarImage, coverPhoto, bio } = body;
+    const { theme, petId, avatarSeed, avatarImage, coverPhoto, bio, socials } =
+      body;
 
     const customization: Record<string, any> = { theme, petId, avatarSeed };
-    // Only include image fields if explicitly provided (avoid wiping with undefined)
+
     if (avatarImage !== undefined) customization.avatarImage = avatarImage;
     if (coverPhoto !== undefined) customization.coverPhoto = coverPhoto;
 
+    // Save socials — only update keys that are explicitly provided
+    if (socials !== undefined) {
+      if (socials.x !== undefined)
+        customization["socials.x"] = socials.x || null;
+      if (socials.facebook !== undefined)
+        customization["socials.facebook"] = socials.facebook || null;
+      if (socials.tiktok !== undefined)
+        customization["socials.tiktok"] = socials.tiktok || null;
+      if (socials.telegram !== undefined)
+        customization["socials.telegram"] = socials.telegram || null;
+    }
+
     const userId = (session?.user as any)?.id ?? auth?.userId;
     const walletAddr = (session?.user as any)?.wallet ?? auth?.wallet;
-
     const filter = userId ? { _id: userId } : { walletAddress: walletAddr };
 
-    const updateFields: any = { customization };
-    if (bio !== undefined) updateFields.bio = bio;
+    // Build $set — use dot-notation keys so we don't wipe sibling fields
+    const setPayload: Record<string, any> = {};
+    for (const [k, v] of Object.entries(customization)) {
+      // Keys like "socials.x" go in directly; plain keys get prefixed
+      if (k.startsWith("socials.")) {
+        setPayload[`customization.${k}`] = v;
+      } else {
+        setPayload[`customization.${k}`] = v;
+      }
+    }
+    if (bio !== undefined) setPayload.bio = bio;
 
     const user = await User.findOneAndUpdate(
       filter,
-      { $set: updateFields },
+      { $set: setPayload },
       { new: true, upsert: true },
     );
 
@@ -83,6 +103,7 @@ export async function GET(req: NextRequest) {
         avatarSeed: "",
         avatarImage: null,
         coverPhoto: null,
+        socials: { x: null, facebook: null, tiktok: null, telegram: null },
       },
       bio: user?.bio ?? "",
     });

@@ -83,26 +83,28 @@ export async function GET(req: NextRequest) {
       level: userObj.level ?? 1,
       stakedAmount: userObj.stakedAmount ?? 0,
       referralCode: userObj.referralCode ?? null,
+      activeUsername: userObj.activeUsername ?? null,
       usernames,
       earnings: { today: 0, week: 0, month: 0, allTime: userObj.earnings ?? 0 },
       stakingPositions: [],
-      referrals: 0,
+      referrals: userObj.referrals ?? 0,
       activity: [],
       isNewUser: usernameRecords.length === 0,
-      // ✅ FIXED: include customization and bio so profile page persists on refresh
+      // ── Profile fields ──────────────────────────────────────────────────────
+      bio: userObj.bio ?? "",
       customization: userObj.customization ?? {
         theme: "teal",
         petId: "none",
         avatarSeed: "",
         avatarImage: null,
         coverPhoto: null,
+        socials: { x: null, facebook: null, tiktok: null, telegram: null },
       },
-      bio: userObj.bio ?? "",
-      activeUsername: userObj.activeUsername ?? null,
     };
 
     const res = NextResponse.json({ success: true, user: payload });
 
+    // Clear stale wallet cookie if NextAuth session is active
     if (session?.user && req.cookies.get("auth-token")) {
       res.cookies.set("auth-token", "", { maxAge: 0, path: "/" });
     }

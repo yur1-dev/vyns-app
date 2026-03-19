@@ -36,10 +36,17 @@ export interface IUser extends Document {
     theme: string;
     petId: string;
     avatarSeed: string;
-    avatarImage?: string; // ✅ ADDED
+    avatarImage?: string;
     coverPhoto?: string;
     bio?: string;
     displayName?: string;
+    socials?: {
+      // ✅ ADDED
+      x?: string;
+      facebook?: string;
+      tiktok?: string;
+      telegram?: string;
+    };
   };
   createdAt: Date;
   updatedAt: Date;
@@ -57,7 +64,7 @@ const UserSchema = new Schema<IUser>(
     googleId: { type: String, unique: true, sparse: true },
     username: { type: String, unique: true, sparse: true },
     avatar: { type: String },
-    activeUsername: { type: String }, // ✅ ADDED
+    activeUsername: { type: String },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     earnings: { type: Number, default: 0 },
@@ -79,10 +86,17 @@ const UserSchema = new Schema<IUser>(
       theme: { type: String, default: "teal" },
       petId: { type: String, default: "none" },
       avatarSeed: { type: String, default: "" },
-      avatarImage: { type: String, default: null }, // ✅ ADDED
+      avatarImage: { type: String, default: null },
       coverPhoto: { type: String },
       bio: { type: String },
       displayName: { type: String },
+      socials: {
+        // ✅ ADDED
+        x: { type: String, default: null },
+        facebook: { type: String, default: null },
+        tiktok: { type: String, default: null },
+        telegram: { type: String, default: null },
+      },
     },
   },
   { timestamps: true },
