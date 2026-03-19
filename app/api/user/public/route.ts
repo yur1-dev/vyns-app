@@ -38,11 +38,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
-    // 2. Find the owner User document via walletAddress or username field
+    // 2. Find the owner User document
     const ownerUser = (await User.findOne({
       $or: [
         { wallet: usernameDoc.walletAddress },
         { username: { $regex: new RegExp(`^${username}$`, "i") } },
+        { _id: usernameDoc.walletAddress },
       ],
     }).lean()) as any;
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       walletAddress: usernameDoc.walletAddress,
     }).lean()) as any[];
 
-    // 4. Get recent public activity (last 5, non-sensitive types only)
+    // 4. Get recent public activity
     const recentActivity = (await Activity.find({
       wallet: usernameDoc.walletAddress,
       type: { $in: ["claim", "stake", "unstake", "referral"] },
@@ -60,20 +61,24 @@ export async function GET(req: NextRequest) {
       .limit(5)
       .lean()) as any[];
 
-    // 5. Count referrals made by this wallet
+    // 5. Count referrals
     const referralCount = await Referral.countDocuments({
       referrerWallet: usernameDoc.walletAddress,
     });
 
-    // Build safe public response — no email, password, referralCode, or full wallet
     const publicUser = {
       displayName: ownerUser?.name ?? `@${username}`,
-      bio: usernameDoc.profile?.bio ?? null,
+      activeUsername: ownerUser?.activeUsername ?? null,
+      bio: ownerUser?.bio ?? usernameDoc.profile?.bio ?? null,
       xp: ownerUser?.xp ?? 0,
       level: ownerUser?.level ?? 1,
+      // ✅ Now includes avatarImage and coverPhoto
       customization: {
         theme: ownerUser?.customization?.theme ?? "teal",
         avatarSeed: ownerUser?.customization?.avatarSeed ?? username,
+        avatarImage: ownerUser?.customization?.avatarImage ?? null,
+        coverPhoto: ownerUser?.customization?.coverPhoto ?? null,
+        socials: ownerUser?.customization?.socials ?? null,
       },
       usernames: allUsernames.map((u) => ({
         id: u._id?.toString(),
@@ -81,9 +86,7 @@ export async function GET(req: NextRequest) {
         tier: getTier(u.username),
         staked: u.staked ?? false,
       })),
-      earnings: {
-        allTime: ownerUser?.earnings ?? 0,
-      },
+      earnings: { allTime: ownerUser?.earnings ?? 0 },
       stakedAmount: ownerUser?.stakedAmount ?? 0,
       referrals: referralCount,
       activity: recentActivity.map((a) => ({
