@@ -7,6 +7,9 @@ export interface IUser extends Document {
   wallet?: string;
   email?: string;
   name?: string;
+  displayName?: string;
+  bio?: string;
+  coverPhoto?: string;
   password?: string;
   googleId?: string;
   username?: string;
@@ -17,16 +20,24 @@ export interface IUser extends Document {
   stakedAmount: number;
   referralCode: string;
   referredBy?: string;
-  // ── Referral reward tracking ──
   referrals: number;
   rewardedReferrals: number;
   claimedVyns: number;
   referralClaimPending: boolean;
   referralEarnings: number;
+  preferences?: {
+    staking: boolean;
+    referrals: boolean;
+    rewards: boolean;
+    system: boolean;
+  };
   customization?: {
     theme: string;
     petId: string;
     avatarSeed: string;
+    bio?: string;
+    coverPhoto?: string;
+    displayName?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +48,9 @@ const UserSchema = new Schema<IUser>(
     wallet: { type: String, unique: true, sparse: true },
     email: { type: String, unique: true, sparse: true },
     name: { type: String },
+    displayName: { type: String },
+    bio: { type: String },
+    coverPhoto: { type: String },
     password: { type: String },
     googleId: { type: String, unique: true, sparse: true },
     username: { type: String, unique: true, sparse: true },
@@ -45,23 +59,26 @@ const UserSchema = new Schema<IUser>(
     level: { type: Number, default: 1 },
     earnings: { type: Number, default: 0 },
     stakedAmount: { type: Number, default: 0 },
-
-    // ── THE FIX: sparse: true so null values don't conflict ──
     referralCode: { type: String, unique: true, sparse: true },
-
     referredBy: { type: String, default: null },
-
-    // Referral reward tracking
     referrals: { type: Number, default: 0 },
     rewardedReferrals: { type: Number, default: 0 },
     claimedVyns: { type: Number, default: 0 },
     referralClaimPending: { type: Boolean, default: false },
     referralEarnings: { type: Number, default: 0 },
-
+    preferences: {
+      staking: { type: Boolean, default: true },
+      referrals: { type: Boolean, default: false },
+      rewards: { type: Boolean, default: true },
+      system: { type: Boolean, default: true },
+    },
     customization: {
       theme: { type: String, default: "teal" },
       petId: { type: String, default: "none" },
       avatarSeed: { type: String, default: "" },
+      bio: { type: String },
+      coverPhoto: { type: String },
+      displayName: { type: String },
     },
   },
   { timestamps: true },
