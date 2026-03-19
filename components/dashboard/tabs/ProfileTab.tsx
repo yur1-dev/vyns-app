@@ -456,13 +456,31 @@ export default function ProfilePage() {
   const dash = useDashboard();
   const [notifications] = useState<Notification[]>([]);
 
-  // ── Local mirror of persisted values ──
-  // These are the GROUND TRUTH for saves — never read dash.customization in save calls
+  // ── Refs hold the latest URLs synchronously — safe to read inside async handlers ──
+  const avatarUrlRef = useRef<string | null>(null);
+  const coverUrlRef = useRef<string | null>(null);
+  const bioRef = useRef<string>("");
+
+  // ── State drives rendering ──
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
   const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(null);
   const [currentBio, setCurrentBio] = useState("");
 
-  // ── Derived from dash — only used for display base values before hydration ──
+  // Helper: set both ref and state together
+  const setAvatarUrl = (v: string | null) => {
+    avatarUrlRef.current = v;
+    setCurrentAvatarUrl(v);
+  };
+  const setCoverUrl = (v: string | null) => {
+    coverUrlRef.current = v;
+    setCurrentCoverUrl(v);
+  };
+  const setBio = (v: string) => {
+    bioRef.current = v;
+    setCurrentBio(v);
+  };
+
+  // ── Derived from dash ──
   const themeColor =
     THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -471,17 +489,16 @@ export default function ProfilePage() {
   const currentPetId = (dash.customization as any)?.petId ?? "none";
   const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
 
-  // Hydrate local state once — only after loading finishes so we get real DB values
+  // Hydrate once after loading — reads real DB values
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
-    if (dash.loading) return; // wait for real data from API
+    if (dash.loading) return;
     hydratedRef.current = true;
     const c = dash.customization as any;
-    if (c?.avatarImage) setCurrentAvatarUrl(c.avatarImage);
-    if (c?.coverPhoto) setCurrentCoverUrl(c.coverPhoto);
-    const b = (dash.userData as any)?.bio ?? "";
-    if (b) setCurrentBio(b);
+    setAvatarUrl(c?.avatarImage ?? null);
+    setCoverUrl(c?.coverPhoto ?? null);
+    setBio((dash.userData as any)?.bio ?? "");
   }, [dash.loading, dash.customization, dash.userData]);
 
   // Bio
@@ -555,7 +572,7 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Build save payload from LOCAL state (never stale hook state) ────────────
+  // ── Build save payload — reads refs (always current, never stale) ──────────
   const buildPayload = useCallback(
     (
       overrides: Partial<{
@@ -568,19 +585,14 @@ export default function ProfilePage() {
       petId: currentPetId,
       avatarSeed: currentAvatarSeed,
       avatarImage:
-        "avatarImage" in overrides ? overrides.avatarImage! : currentAvatarUrl,
+        "avatarImage" in overrides
+          ? overrides.avatarImage!
+          : avatarUrlRef.current,
       coverPhoto:
-        "coverPhoto" in overrides ? overrides.coverPhoto! : currentCoverUrl,
-      bio: "bio" in overrides ? overrides.bio! : currentBio,
+        "coverPhoto" in overrides ? overrides.coverPhoto! : coverUrlRef.current,
+      bio: "bio" in overrides ? overrides.bio! : bioRef.current,
     }),
-    [
-      currentTheme,
-      currentPetId,
-      currentAvatarSeed,
-      currentAvatarUrl,
-      currentCoverUrl,
-      currentBio,
-    ],
+    [currentTheme, currentPetId, currentAvatarSeed],
   );
 
   // ── Bio ──
@@ -588,7 +600,7 @@ export default function ProfilePage() {
     setSavingBio(true);
     try {
       await saveCustomization(buildPayload({ bio: bioInput.trim() }));
-      setCurrentBio(bioInput.trim());
+      setBio(bioInput.trim());
       setEditingBio(false);
     } catch {}
     setSavingBio(false);
@@ -612,7 +624,7 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingAvatar(true);
     const localPreview = URL.createObjectURL(blob);
-    setCurrentAvatarUrl(localPreview); // optimistic
+    setAvatarUrl(localPreview); // optimistic
     try {
       const cdnUrl = await uploadImageBlob(blob, "avatar");
 
@@ -628,14 +640,12 @@ export default function ProfilePage() {
       }
 
       // Update local state to CDN URL, then save with that exact value
-      setCurrentAvatarUrl(cdnUrl);
+      setAvatarUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-
-      // Save with explicit cdnUrl — never reads stale state
       await saveCustomization(buildPayload({ avatarImage: cdnUrl }));
     } catch (err) {
       console.error("[avatar upload]", err);
-      setCurrentAvatarUrl(currentAvatarUrl); // revert on error
+      setAvatarUrl(avatarUrlRef.current); // revert on error
     }
     setSavingAvatar(false);
   };
@@ -658,7 +668,7 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingCover(true);
     const localPreview = URL.createObjectURL(blob);
-    setCurrentCoverUrl(localPreview); // optimistic
+    setCoverUrl(localPreview); // optimistic
     try {
       const cdnUrl = await uploadImageBlob(blob, "cover");
 
@@ -672,9 +682,8 @@ export default function ProfilePage() {
         }).catch(() => {});
       }
 
-      setCurrentCoverUrl(cdnUrl);
+      setCoverUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-
       await saveCustomization(buildPayload({ coverPhoto: cdnUrl }));
     } catch (err) {
       console.error("[cover upload]", err);
@@ -685,7 +694,7 @@ export default function ProfilePage() {
   // ── Remove cover ──
   const removeCover = async () => {
     const oldUrl = currentCoverUrl;
-    setCurrentCoverUrl(null);
+    setCoverUrl(null);
     if (oldUrl && oldUrl.includes("vercel-storage.com")) {
       fetch("/api/user/upload-image", {
         method: "DELETE",
