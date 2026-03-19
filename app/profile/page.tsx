@@ -456,13 +456,21 @@ export default function ProfilePage() {
   const dash = useDashboard();
   const [notifications] = useState<Notification[]>([]);
 
-  // ── Local mirror of persisted values ──
-  // These are the GROUND TRUTH for saves — never read dash.customization in save calls
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
-  const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(null);
-  const [currentBio, setCurrentBio] = useState("");
+  // ── Override state — only set during active upload, null means "use dash value" ──
+  const [avatarOverride, setAvatarOverride] = useState<
+    string | null | undefined
+  >(undefined);
+  const [coverOverride, setCoverOverride] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [bioOverride, setBioOverride] = useState<string | undefined>(undefined);
 
-  // ── Derived from dash — only used for display base values before hydration ──
+  // ── Stable refs for use inside async handlers ──
+  const avatarOverrideRef = useRef<string | null | undefined>(undefined);
+  const coverOverrideRef = useRef<string | null | undefined>(undefined);
+  const bioOverrideRef = useRef<string | undefined>(undefined);
+
+  // ── Derived from dash (same as DashboardHeader does it) ──
   const themeColor =
     THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -471,18 +479,33 @@ export default function ProfilePage() {
   const currentPetId = (dash.customization as any)?.petId ?? "none";
   const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
 
-  // Hydrate local state once when dash.customization loads
-  const hydratedRef = useRef(false);
-  useEffect(() => {
-    if (hydratedRef.current) return;
-    const c = dash.customization as any;
-    if (!c && !dash.userData) return; // not loaded yet
-    hydratedRef.current = true;
-    if (c?.avatarImage) setCurrentAvatarUrl(c.avatarImage);
-    if (c?.coverPhoto) setCurrentCoverUrl(c.coverPhoto);
-    const b = (dash.userData as any)?.bio ?? "";
-    if (b) setCurrentBio(b);
-  }, [dash.customization, dash.userData]);
+  // ── Displayed values: override takes priority, else use live dash value ──
+  const currentAvatarUrl =
+    avatarOverride !== undefined
+      ? avatarOverride
+      : ((dash.customization as any)?.avatarImage ?? null);
+  const currentCoverUrl =
+    coverOverride !== undefined
+      ? coverOverride
+      : ((dash.customization as any)?.coverPhoto ?? null);
+  const currentBio =
+    bioOverride !== undefined
+      ? bioOverride
+      : ((dash.userData as any)?.bio ?? "");
+
+  // ── Helpers to set both ref and state together ──
+  const setAvatarUrl = (v: string | null) => {
+    avatarOverrideRef.current = v;
+    setAvatarOverride(v);
+  };
+  const setCoverUrl = (v: string | null) => {
+    coverOverrideRef.current = v;
+    setCoverOverride(v);
+  };
+  const setBio = (v: string) => {
+    bioOverrideRef.current = v;
+    setBioOverride(v);
+  };
 
   // Bio
   const [editingBio, setEditingBio] = useState(false);
@@ -555,40 +578,35 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Build save payload from LOCAL state (never stale hook state) ────────────
+  // ── Build save payload — always uses explicit values passed in ──────────────
   const buildPayload = useCallback(
-    (
-      overrides: Partial<{
-        avatarImage: string | null;
-        coverPhoto: string | null;
-        bio: string;
-      }> = {},
-    ) => ({
+    (avatarImage: string | null, coverPhoto: string | null, bio: string) => ({
       theme: currentTheme,
       petId: currentPetId,
       avatarSeed: currentAvatarSeed,
-      avatarImage:
-        "avatarImage" in overrides ? overrides.avatarImage! : currentAvatarUrl,
-      coverPhoto:
-        "coverPhoto" in overrides ? overrides.coverPhoto! : currentCoverUrl,
-      bio: "bio" in overrides ? overrides.bio! : currentBio,
+      avatarImage,
+      coverPhoto,
+      bio,
     }),
-    [
-      currentTheme,
-      currentPetId,
-      currentAvatarSeed,
-      currentAvatarUrl,
-      currentCoverUrl,
-      currentBio,
-    ],
+    [currentTheme, currentPetId, currentAvatarSeed],
   );
 
   // ── Bio ──
   const saveBio = async () => {
     setSavingBio(true);
     try {
-      await saveCustomization(buildPayload({ bio: bioInput.trim() }));
-      setCurrentBio(bioInput.trim());
+      await saveCustomization(
+        buildPayload(
+          avatarOverrideRef.current !== undefined
+            ? avatarOverrideRef.current
+            : ((dash.customization as any)?.avatarImage ?? null),
+          coverOverrideRef.current !== undefined
+            ? coverOverrideRef.current
+            : ((dash.customization as any)?.coverPhoto ?? null),
+          bioInput.trim(),
+        ),
+      );
+      setBio(bioInput.trim());
       setEditingBio(false);
     } catch {}
     setSavingBio(false);
@@ -612,7 +630,7 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingAvatar(true);
     const localPreview = URL.createObjectURL(blob);
-    setCurrentAvatarUrl(localPreview); // optimistic
+    setAvatarUrl(localPreview); // optimistic
     try {
       const cdnUrl = await uploadImageBlob(blob, "avatar");
 
@@ -628,14 +646,23 @@ export default function ProfilePage() {
       }
 
       // Update local state to CDN URL, then save with that exact value
-      setCurrentAvatarUrl(cdnUrl);
+      setAvatarUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-
-      // Save with explicit cdnUrl — never reads stale state
-      await saveCustomization(buildPayload({ avatarImage: cdnUrl }));
+      await saveCustomization(
+        buildPayload(
+          cdnUrl,
+          coverOverrideRef.current !== undefined
+            ? coverOverrideRef.current
+            : ((dash.customization as any)?.coverPhoto ?? null),
+          bioOverrideRef.current !== undefined
+            ? bioOverrideRef.current
+            : ((dash.userData as any)?.bio ?? ""),
+        ),
+      );
     } catch (err) {
       console.error("[avatar upload]", err);
-      setCurrentAvatarUrl(currentAvatarUrl); // revert on error
+      setAvatarOverride(undefined);
+      avatarOverrideRef.current = undefined; // revert
     }
     setSavingAvatar(false);
   };
@@ -658,7 +685,7 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingCover(true);
     const localPreview = URL.createObjectURL(blob);
-    setCurrentCoverUrl(localPreview); // optimistic
+    setCoverUrl(localPreview); // optimistic
     try {
       const cdnUrl = await uploadImageBlob(blob, "cover");
 
@@ -672,10 +699,19 @@ export default function ProfilePage() {
         }).catch(() => {});
       }
 
-      setCurrentCoverUrl(cdnUrl);
+      setCoverUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
-
-      await saveCustomization(buildPayload({ coverPhoto: cdnUrl }));
+      await saveCustomization(
+        buildPayload(
+          avatarOverrideRef.current !== undefined
+            ? avatarOverrideRef.current
+            : ((dash.customization as any)?.avatarImage ?? null),
+          cdnUrl,
+          bioOverrideRef.current !== undefined
+            ? bioOverrideRef.current
+            : ((dash.userData as any)?.bio ?? ""),
+        ),
+      );
     } catch (err) {
       console.error("[cover upload]", err);
     }
@@ -685,7 +721,7 @@ export default function ProfilePage() {
   // ── Remove cover ──
   const removeCover = async () => {
     const oldUrl = currentCoverUrl;
-    setCurrentCoverUrl(null);
+    setCoverUrl(null);
     if (oldUrl && oldUrl.includes("vercel-storage.com")) {
       fetch("/api/user/upload-image", {
         method: "DELETE",
@@ -694,7 +730,17 @@ export default function ProfilePage() {
         body: JSON.stringify({ url: oldUrl }),
       }).catch(() => {});
     }
-    await saveCustomization(buildPayload({ coverPhoto: null }));
+    await saveCustomization(
+      buildPayload(
+        avatarOverrideRef.current !== undefined
+          ? avatarOverrideRef.current
+          : ((dash.customization as any)?.avatarImage ?? null),
+        null,
+        bioOverrideRef.current !== undefined
+          ? bioOverrideRef.current
+          : ((dash.userData as any)?.bio ?? ""),
+      ),
+    );
   };
 
   const copyWallet = () => {
@@ -786,13 +832,6 @@ export default function ProfilePage() {
         />
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="inline-flex items-center gap-1.5 text-xs text-white/25 hover:text-white/50 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to dashboard
-          </button>
-
           {/* ── HERO ── */}
           <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
             {/* Cover photo */}
@@ -1003,32 +1042,6 @@ export default function ProfilePage() {
                     <Edit3 className="h-3.5 w-3.5 text-white/20 group-hover:text-teal-400 transition-colors shrink-0 mt-0.5" />
                   </button>
                 )}
-              </div>
-
-              {/* XP bar */}
-              <div className="mt-4 max-w-sm">
-                <div className="flex items-center justify-between mb-1">
-                  <span
-                    className="text-[11px] font-medium"
-                    style={{ color: xpTier.hex }}
-                  >
-                    {xp.toLocaleString()} XP · {xpTier.label}
-                  </span>
-                  {nextTier && (
-                    <span className="text-[11px] text-white/20">
-                      {(nextTier.min - xp).toLocaleString()} to {nextTier.label}
-                    </span>
-                  )}
-                </div>
-                <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${Math.min(xpProgress, 100)}%`,
-                      background: `linear-gradient(90deg, ${xpTier.hex}, ${themeColor})`,
-                    }}
-                  />
-                </div>
               </div>
             </div>
           </div>
