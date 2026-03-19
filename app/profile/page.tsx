@@ -33,6 +33,8 @@ import {
   ZoomOut,
   RotateCcw,
   Check as CheckIcon,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -109,13 +111,12 @@ function ImageCropModal({
   src: string;
   aspectRatio?: number;
   circular?: boolean;
-  onSave: (croppedBase64: string) => void;
+  onSave: (blob: Blob) => void;
   onClose: () => void;
   title?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -124,7 +125,6 @@ function ImageCropModal({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
 
-  // Preview canvas size
   const PREVIEW_W = aspectRatio >= 1 ? 320 : Math.round(320 * aspectRatio);
   const PREVIEW_H = aspectRatio <= 1 ? 320 : Math.round(320 / aspectRatio);
 
@@ -133,7 +133,6 @@ function ImageCropModal({
     img.onload = () => {
       imgRef.current = img;
       setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-      // Auto-fit: scale so image covers the preview area
       const fitScale = Math.max(
         PREVIEW_W / img.naturalWidth,
         PREVIEW_H / img.naturalHeight,
@@ -149,13 +148,9 @@ function ImageCropModal({
     if (!imgLoaded || !canvasRef.current || !imgRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
-
     canvasRef.current.width = PREVIEW_W;
     canvasRef.current.height = PREVIEW_H;
-
     ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
-
-    // Clip circle if needed
     if (circular) {
       ctx.save();
       ctx.beginPath();
@@ -168,20 +163,12 @@ function ImageCropModal({
       );
       ctx.clip();
     }
-
     const drawW = naturalSize.w * scale;
     const drawH = naturalSize.h * scale;
     const drawX = (PREVIEW_W - drawW) / 2 + offset.x;
     const drawY = (PREVIEW_H - drawH) / 2 + offset.y;
-
     ctx.drawImage(imgRef.current, drawX, drawY, drawW, drawH);
-
     if (circular) ctx.restore();
-
-    // Dim outside crop area for cover photo
-    if (!circular) {
-      ctx.fillStyle = "rgba(0,0,0,0)";
-    }
   }, [imgLoaded, scale, offset, naturalSize, PREVIEW_W, PREVIEW_H, circular]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -193,8 +180,6 @@ function ImageCropModal({
     setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
   const handleMouseUp = () => setDragging(false);
-
-  // Touch support
   const handleTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
     setDragging(true);
@@ -208,7 +193,6 @@ function ImageCropModal({
 
   const handleSave = () => {
     if (!canvasRef.current || !imgRef.current) return;
-    // Render at 2x for quality
     const outputCanvas = document.createElement("canvas");
     const outW = circular ? 400 : 1200;
     const outH = circular ? 400 : Math.round(1200 / aspectRatio);
@@ -216,25 +200,26 @@ function ImageCropModal({
     outputCanvas.height = outH;
     const octx = outputCanvas.getContext("2d");
     if (!octx) return;
-
     const scaleRatio = outW / PREVIEW_W;
-
     if (circular) {
       octx.save();
       octx.beginPath();
       octx.arc(outW / 2, outH / 2, outW / 2, 0, Math.PI * 2);
       octx.clip();
     }
-
     const drawW = naturalSize.w * scale * scaleRatio;
     const drawH = naturalSize.h * scale * scaleRatio;
     const drawX = (outW - drawW) / 2 + offset.x * scaleRatio;
     const drawY = (outH - drawH) / 2 + offset.y * scaleRatio;
-
     octx.drawImage(imgRef.current, drawX, drawY, drawW, drawH);
     if (circular) octx.restore();
-
-    onSave(outputCanvas.toDataURL("image/jpeg", 0.88));
+    outputCanvas.toBlob(
+      (blob) => {
+        if (blob) onSave(blob);
+      },
+      "image/jpeg",
+      0.88,
+    );
   };
 
   return (
@@ -244,7 +229,6 @@ function ImageCropModal({
         onClick={onClose}
       />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
           <p className="text-sm font-semibold text-white">{title}</p>
           <button
@@ -254,9 +238,7 @@ function ImageCropModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <div className="p-5 space-y-4">
-          {/* Canvas preview */}
           <div className="flex justify-center">
             <div
               className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-black/40"
@@ -281,18 +263,15 @@ function ImageCropModal({
                   height: PREVIEW_H,
                 }}
               />
-              {/* Circular overlay guide */}
               {circular && (
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{
                     boxShadow: "inset 0 0 0 9999px rgba(0,0,0,0.5)",
                     borderRadius: "50%",
-                    margin: "0",
                   }}
                 />
               )}
-              {/* Grid guide lines */}
               <div className="absolute inset-0 pointer-events-none opacity-20">
                 <div className="absolute left-1/3 top-0 bottom-0 border-l border-white/30" />
                 <div className="absolute left-2/3 top-0 bottom-0 border-l border-white/30" />
@@ -301,12 +280,9 @@ function ImageCropModal({
               </div>
             </div>
           </div>
-
           <p className="text-[11px] text-white/30 text-center">
             Drag to reposition
           </p>
-
-          {/* Zoom controls */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setScale((s) => Math.max(0.1, s - 0.1))}
@@ -341,13 +317,10 @@ function ImageCropModal({
                 setOffset({ x: 0, y: 0 });
               }}
               className="p-2 rounded-lg border border-white/[0.07] text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all cursor-pointer"
-              title="Reset"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Actions */}
           <div className="flex gap-2">
             <button
               onClick={onClose}
@@ -368,7 +341,45 @@ function ImageCropModal({
   );
 }
 
-// ─── Theme map ────────────────────────────────────────────────────────────────
+// ─── Cover Options Menu ────────────────────────────────────────────────────────
+function CoverMenu({
+  onEdit,
+  onRemove,
+  onClose,
+}: {
+  onEdit: () => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-[49]" onClick={onClose} />
+      <div className="absolute top-12 right-3 z-50 w-48 rounded-2xl border border-white/[0.08] bg-[#0d1525] shadow-2xl overflow-hidden">
+        <button
+          onClick={() => {
+            onEdit();
+            onClose();
+          }}
+          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white/70 hover:bg-white/[0.06] hover:text-white transition-all cursor-pointer"
+        >
+          <Camera className="h-4 w-4" /> Change cover photo
+        </button>
+        <div className="h-px bg-white/[0.06]" />
+        <button
+          onClick={() => {
+            onRemove();
+            onClose();
+          }}
+          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400/80 hover:bg-red-500/[0.08] hover:text-red-400 transition-all cursor-pointer"
+        >
+          <Trash2 className="h-4 w-4" /> Remove cover photo
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const THEME_COLORS: Record<string, string> = {
   teal: "#2dd4bf",
   violet: "#a78bfa",
@@ -379,7 +390,6 @@ const THEME_COLORS: Record<string, string> = {
   pink: "#f472b6",
   white: "#e2e8f0",
 };
-
 const XP_TIERS = [
   { min: 0, label: "Observer", hex: "#64748b" },
   { min: 100, label: "Recruiter", hex: "#22d3ee" },
@@ -387,7 +397,6 @@ const XP_TIERS = [
   { min: 1000, label: "Architect", hex: "#2dd4bf" },
   { min: 5000, label: "Sovereign", hex: "#fbbf24" },
 ];
-
 const TIER_HEX: Record<string, string> = {
   Diamond: "#22d3ee",
   Platinum: "#a78bfa",
@@ -395,7 +404,6 @@ const TIER_HEX: Record<string, string> = {
   Silver: "#94a3b8",
   Bronze: "#b45309",
 };
-
 const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   claim: { icon: Crown, color: "#2dd4bf" },
   staking: { icon: Zap, color: "#a78bfa" },
@@ -406,40 +414,97 @@ const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   reward: { icon: Star, color: "#f472b6" },
 };
 
+// ─── Upload helper ─────────────────────────────────────────────────────────────
+async function uploadImageBlob(
+  blob: Blob,
+  type: "avatar" | "cover",
+): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", blob, `${type}.jpg`);
+  fd.append("type", type);
+  const res = await fetch("/api/user/upload-image", {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error ?? "Upload failed");
+  return data.url as string;
+}
+
+// ─── Save customization — uses EXPLICIT values, never reads stale hook state ──
+async function saveCustomization(payload: {
+  theme: string;
+  petId: string;
+  avatarSeed: string;
+  avatarImage: string | null;
+  coverPhoto: string | null;
+  bio: string;
+}) {
+  const res = await fetch("/api/user/customization", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter();
   const dash = useDashboard();
-
   const [notifications] = useState<Notification[]>([]);
 
-  // Bio state
-  const [bio, setBio] = useState("");
+  // ── Local mirror of persisted values ──
+  // These are the GROUND TRUTH for saves — never read dash.customization in save calls
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
+  const [currentCoverUrl, setCurrentCoverUrl] = useState<string | null>(null);
+  const [currentBio, setCurrentBio] = useState("");
+
+  // ── Derived from dash — only used for display base values before hydration ──
+  const themeColor =
+    THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
+  const avatarSeed =
+    dash.customization?.avatarSeed || dash.displayName || "vyns";
+  const currentTheme = (dash.customization as any)?.theme ?? "teal";
+  const currentPetId = (dash.customization as any)?.petId ?? "none";
+  const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
+
+  // Hydrate local state once when dash.customization loads
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    const c = dash.customization as any;
+    if (!c && !dash.userData) return; // not loaded yet
+    hydratedRef.current = true;
+    if (c?.avatarImage) setCurrentAvatarUrl(c.avatarImage);
+    if (c?.coverPhoto) setCurrentCoverUrl(c.coverPhoto);
+    const b = (dash.userData as any)?.bio ?? "";
+    if (b) setCurrentBio(b);
+  }, [dash.customization, dash.userData]);
+
+  // Bio
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [savingBio, setSavingBio] = useState(false);
 
-  // Avatar upload
+  // Avatar
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropType, setCropType] = useState<"avatar" | "cover">("avatar");
-  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
 
-  // Cover photo
+  // Cover
   const coverInputRef = useRef<HTMLInputElement>(null);
-  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [savingCover, setSavingCover] = useState(false);
+  const [showCoverMenu, setShowCoverMenu] = useState(false);
 
   // Wallet
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [balLoading, setBalLoading] = useState(false);
   const [copiedWallet, setCopiedWallet] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
-
-  const themeColor =
-    THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
-  const avatarSeed =
-    dash.customization?.avatarSeed || dash.displayName || "vyns";
 
   const xp = dash.userData.xp ?? 0;
   const xpTier =
@@ -460,24 +525,6 @@ export default function ProfilePage() {
   const activePositions = positions.filter(
     (p: any) => p.status === "active",
   ).length;
-
-  // Load existing profile data
-  useEffect(() => {
-    if ((dash.userData as any).bio) {
-      setBio((dash.userData as any).bio);
-    }
-    // Load cover + avatar from profile API
-    fetch("/api/user/profile")
-      .then((r) => r.json())
-      .then(({ user }) => {
-        if (user?.coverPhoto) setCoverPhoto(user.coverPhoto);
-        if (user?.bio) setBio(user.bio);
-        // avatarOverride from customization
-        if (dash.customization?.coverPhoto)
-          setCoverPhoto(dash.customization.coverPhoto);
-      })
-      .catch(() => {});
-  }, [dash.userData, dash.customization]);
 
   const fetchBalance = useCallback(async () => {
     if (!dash.wallet) return;
@@ -508,28 +555,46 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Bio save ──
-  const startEditBio = () => {
-    setBioInput(bio);
-    setEditingBio(true);
-  };
-  const cancelBio = () => setEditingBio(false);
+  // ── Build save payload from LOCAL state (never stale hook state) ────────────
+  const buildPayload = useCallback(
+    (
+      overrides: Partial<{
+        avatarImage: string | null;
+        coverPhoto: string | null;
+        bio: string;
+      }> = {},
+    ) => ({
+      theme: currentTheme,
+      petId: currentPetId,
+      avatarSeed: currentAvatarSeed,
+      avatarImage:
+        "avatarImage" in overrides ? overrides.avatarImage! : currentAvatarUrl,
+      coverPhoto:
+        "coverPhoto" in overrides ? overrides.coverPhoto! : currentCoverUrl,
+      bio: "bio" in overrides ? overrides.bio! : currentBio,
+    }),
+    [
+      currentTheme,
+      currentPetId,
+      currentAvatarSeed,
+      currentAvatarUrl,
+      currentCoverUrl,
+      currentBio,
+    ],
+  );
+
+  // ── Bio ──
   const saveBio = async () => {
     setSavingBio(true);
     try {
-      await fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ bio: bioInput.trim() }),
-      });
-      setBio(bioInput.trim());
+      await saveCustomization(buildPayload({ bio: bioInput.trim() }));
+      setCurrentBio(bioInput.trim());
       setEditingBio(false);
     } catch {}
     setSavingBio(false);
   };
 
-  // ── Avatar upload & crop ──
+  // ── Avatar file select ──
   const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -542,25 +607,40 @@ export default function ProfilePage() {
     e.target.value = "";
   };
 
-  const handleAvatarCropSave = async (croppedBase64: string) => {
+  // ── Avatar crop save ──
+  const handleAvatarCropSave = async (blob: Blob) => {
     setCropSrc(null);
-    setAvatarOverride(croppedBase64);
     setSavingAvatar(true);
+    const localPreview = URL.createObjectURL(blob);
+    setCurrentAvatarUrl(localPreview); // optimistic
     try {
-      // Save as customization avatarImage field
-      await fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          customization: { ...dash.customization, avatarImage: croppedBase64 },
-        }),
-      });
-    } catch {}
+      const cdnUrl = await uploadImageBlob(blob, "avatar");
+
+      // Clean up old CDN blob
+      const oldUrl = (dash.customization as any)?.avatarImage;
+      if (oldUrl && oldUrl.includes("vercel-storage.com")) {
+        fetch("/api/user/upload-image", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ url: oldUrl }),
+        }).catch(() => {});
+      }
+
+      // Update local state to CDN URL, then save with that exact value
+      setCurrentAvatarUrl(cdnUrl);
+      URL.revokeObjectURL(localPreview);
+
+      // Save with explicit cdnUrl — never reads stale state
+      await saveCustomization(buildPayload({ avatarImage: cdnUrl }));
+    } catch (err) {
+      console.error("[avatar upload]", err);
+      setCurrentAvatarUrl(currentAvatarUrl); // revert on error
+    }
     setSavingAvatar(false);
   };
 
-  // ── Cover photo upload & crop ──
+  // ── Cover file select ──
   const handleCoverFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -573,19 +653,48 @@ export default function ProfilePage() {
     e.target.value = "";
   };
 
-  const handleCoverCropSave = async (croppedBase64: string) => {
+  // ── Cover crop save ──
+  const handleCoverCropSave = async (blob: Blob) => {
     setCropSrc(null);
-    setCoverPhoto(croppedBase64);
     setSavingCover(true);
+    const localPreview = URL.createObjectURL(blob);
+    setCurrentCoverUrl(localPreview); // optimistic
     try {
-      await fetch("/api/user/profile", {
-        method: "PATCH",
+      const cdnUrl = await uploadImageBlob(blob, "cover");
+
+      const oldUrl = (dash.customization as any)?.coverPhoto;
+      if (oldUrl && oldUrl.includes("vercel-storage.com")) {
+        fetch("/api/user/upload-image", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ url: oldUrl }),
+        }).catch(() => {});
+      }
+
+      setCurrentCoverUrl(cdnUrl);
+      URL.revokeObjectURL(localPreview);
+
+      await saveCustomization(buildPayload({ coverPhoto: cdnUrl }));
+    } catch (err) {
+      console.error("[cover upload]", err);
+    }
+    setSavingCover(false);
+  };
+
+  // ── Remove cover ──
+  const removeCover = async () => {
+    const oldUrl = currentCoverUrl;
+    setCurrentCoverUrl(null);
+    if (oldUrl && oldUrl.includes("vercel-storage.com")) {
+      fetch("/api/user/upload-image", {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ coverPhoto: croppedBase64 }),
-      });
-    } catch {}
-    setSavingCover(false);
+        body: JSON.stringify({ url: oldUrl }),
+      }).catch(() => {});
+    }
+    await saveCustomization(buildPayload({ coverPhoto: null }));
   };
 
   const copyWallet = () => {
@@ -601,11 +710,7 @@ export default function ProfilePage() {
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
-  // Decide which avatar to show
-  const showCustomAvatar =
-    !!(dash.customization as any)?.avatarImage || !!avatarOverride;
-  const customAvatarSrc =
-    avatarOverride || (dash.customization as any)?.avatarImage;
+  const showCustomAvatar = !!currentAvatarUrl;
   const showOAuthAvatar = !!dash.session?.user?.image && !showCustomAvatar;
 
   if (dash.loading) {
@@ -618,7 +723,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#060b14] text-white overflow-x-hidden">
-      {/* Crop Modal */}
       {cropSrc && (
         <ImageCropModal
           src={cropSrc}
@@ -634,7 +738,6 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* Hidden file inputs */}
       <input
         ref={avatarInputRef}
         type="file"
@@ -650,7 +753,6 @@ export default function ProfilePage() {
         onChange={handleCoverFileSelect}
       />
 
-      {/* Ambient */}
       <div
         className="fixed top-0 left-0 w-[700px] h-[400px] pointer-events-none blur-[140px] -translate-x-1/2 -translate-y-1/2 z-0"
         style={{ background: `${themeColor}08` }}
@@ -667,7 +769,12 @@ export default function ProfilePage() {
           provider={dash.provider}
           displayName={dash.displayName}
           activeUsername={dash.activeUsername}
-          customization={dash.customization}
+          customization={
+            {
+              ...(dash.customization ?? {}),
+              avatarImage: currentAvatarUrl,
+            } as any
+          }
           notifications={notifications}
           sidebarOpen={false}
           onToggleSidebar={() => {}}
@@ -679,7 +786,6 @@ export default function ProfilePage() {
         />
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-          {/* Back */}
           <button
             onClick={() => router.push("/dashboard")}
             className="inline-flex items-center gap-1.5 text-xs text-white/25 hover:text-white/50 transition-colors cursor-pointer"
@@ -689,13 +795,13 @@ export default function ProfilePage() {
 
           {/* ── HERO ── */}
           <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-            {/* Cover Banner — clickable */}
+            {/* Cover photo */}
             <div
-              className="relative h-32 sm:h-40 overflow-hidden group cursor-pointer"
+              className="relative h-32 sm:h-44 overflow-visible group"
               style={
-                coverPhoto
+                currentCoverUrl
                   ? {
-                      backgroundImage: `url(${coverPhoto})`,
+                      backgroundImage: `url(${currentCoverUrl})`,
                       backgroundSize: "cover",
                       backgroundPosition: "center",
                     }
@@ -703,9 +809,8 @@ export default function ProfilePage() {
                       background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
                     }
               }
-              onClick={() => coverInputRef.current?.click()}
             >
-              {!coverPhoto && (
+              {!currentCoverUrl && (
                 <div
                   className="absolute inset-0"
                   style={{
@@ -715,26 +820,13 @@ export default function ProfilePage() {
                   }}
                 />
               )}
-              {coverPhoto && <div className="absolute inset-0 bg-black/20" />}
+              {currentCoverUrl && (
+                <div className="absolute inset-0 bg-black/10" />
+              )}
 
-              {/* Hover overlay */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                {savingCover ? (
-                  <Loader2 className="h-6 w-6 text-white/70 animate-spin" />
-                ) : (
-                  <>
-                    <ImageIcon className="h-6 w-6 text-white/80" />
-                    <p className="text-sm font-medium text-white/80">
-                      {coverPhoto ? "Change cover photo" : "Add cover photo"}
-                    </p>
-                    <p className="text-xs text-white/40">Click to upload</p>
-                  </>
-                )}
-              </div>
-
-              {/* Tier badge */}
+              {/* Tier badge — top left */}
               <div
-                className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide z-10"
+                className="absolute top-3 left-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide z-10"
                 style={{
                   borderColor: `${xpTier.hex}35`,
                   background: `${xpTier.hex}12`,
@@ -745,30 +837,41 @@ export default function ProfilePage() {
                 {xpTier.label}
               </div>
 
-              {/* Remove cover button */}
-              {coverPhoto && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCoverPhoto(null);
-                    fetch("/api/user/profile", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({ coverPhoto: null }),
-                    });
-                  }}
-                  className="absolute top-3 left-3 p-1.5 rounded-lg bg-black/50 border border-white/10 text-white/40 hover:text-red-400 hover:border-red-400/30 transition-all z-10 cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+              {/* Cover edit button — top right, always visible */}
+              <div className="absolute top-3 right-3 z-20">
+                {savingCover ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white/50">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={() =>
+                        currentCoverUrl
+                          ? setShowCoverMenu((v) => !v)
+                          : coverInputRef.current?.click()
+                      }
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white/70 hover:text-white hover:bg-black/80 transition-all cursor-pointer backdrop-blur-sm"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      {currentCoverUrl ? "Edit cover" : "Add cover photo"}
+                    </button>
+                    {showCoverMenu && currentCoverUrl && (
+                      <CoverMenu
+                        onEdit={() => coverInputRef.current?.click()}
+                        onRemove={removeCover}
+                        onClose={() => setShowCoverMenu(false)}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Profile info row */}
             <div className="bg-[#060b14] px-5 pb-5">
               <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 sm:-mt-12">
-                {/* Avatar — clickable to upload */}
+                {/* Avatar with camera overlay */}
                 <div className="relative shrink-0 z-10">
                   <button
                     className="group relative block cursor-pointer"
@@ -776,7 +879,7 @@ export default function ProfilePage() {
                     title="Change profile photo"
                   >
                     <div
-                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-[3px] border-[#060b14] overflow-hidden transition-all group-hover:ring-2 group-hover:ring-white/20"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-[3px] border-[#060b14] overflow-hidden transition-all"
                       style={{
                         boxShadow: `0 0 0 1px ${themeColor}25, 0 0 24px ${themeColor}18`,
                       }}
@@ -787,7 +890,7 @@ export default function ProfilePage() {
                         </div>
                       ) : showCustomAvatar ? (
                         <img
-                          src={customAvatarSrc}
+                          src={currentAvatarUrl!}
                           alt="avatar"
                           className="w-full h-full object-cover"
                         />
@@ -807,10 +910,10 @@ export default function ProfilePage() {
                         />
                       )}
                     </div>
-                    {/* Edit overlay */}
-                    <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Camera overlay — only on hover */}
+                    <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center gap-0.5 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                       <Camera className="h-5 w-5 text-white" />
-                      <span className="text-[10px] text-white/80 font-medium">
+                      <span className="text-[10px] text-white/90 font-medium">
                         Edit
                       </span>
                     </div>
@@ -841,7 +944,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Bio — inline editing */}
+              {/* Bio — inline edit like Facebook */}
               <div className="mt-4 ml-0 sm:ml-1 max-w-lg">
                 {editingBio ? (
                   <div className="space-y-2">
@@ -860,7 +963,7 @@ export default function ProfilePage() {
                       </span>
                       <div className="flex gap-2">
                         <button
-                          onClick={cancelBio}
+                          onClick={() => setEditingBio(false)}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/[0.08] text-xs text-white/40 hover:text-white/60 transition-all cursor-pointer"
                         >
                           <X className="h-3 w-3" /> Cancel
@@ -874,7 +977,7 @@ export default function ProfilePage() {
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <Save className="h-3 w-3" />
-                          )}
+                          )}{" "}
                           Save
                         </button>
                       </div>
@@ -882,17 +985,20 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <button
-                    onClick={startEditBio}
+                    onClick={() => {
+                      setBioInput(currentBio);
+                      setEditingBio(true);
+                    }}
                     className="group flex items-start gap-2 text-sm cursor-pointer w-full text-left"
                   >
                     <span
                       className={
-                        bio
+                        currentBio
                           ? "text-white/50 leading-relaxed"
                           : "italic text-white/20"
                       }
                     >
-                      {bio || "Add a bio…"}
+                      {currentBio || "Add a bio…"}
                     </span>
                     <Edit3 className="h-3.5 w-3.5 text-white/20 group-hover:text-teal-400 transition-colors shrink-0 mt-0.5" />
                   </button>
@@ -983,7 +1089,6 @@ export default function ProfilePage() {
 
           {/* ── MAIN GRID ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left col */}
             <div className="space-y-4">
               {/* Wallet */}
               <div className="rounded-2xl border border-white/[0.06] bg-[#060b14] p-5">
