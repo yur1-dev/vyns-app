@@ -12,8 +12,6 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // Check NextAuth session FIRST — if it exists, it takes priority.
-    // This prevents a stale wallet auth-token cookie from overriding a Google login.
     const session = await getServerSession(authOptions);
     const auth = !session?.user ? await verifyAuth(req) : null;
 
@@ -75,6 +73,7 @@ export async function GET(req: NextRequest) {
     });
 
     const userObj = user.toObject();
+
     const payload = {
       _id: userObj._id?.toString() ?? null,
       wallet: wallet ?? userObj.wallet ?? null,
@@ -90,11 +89,20 @@ export async function GET(req: NextRequest) {
       referrals: 0,
       activity: [],
       isNewUser: usernameRecords.length === 0,
+      // ✅ FIXED: include customization and bio so profile page persists on refresh
+      customization: userObj.customization ?? {
+        theme: "teal",
+        petId: "none",
+        avatarSeed: "",
+        avatarImage: null,
+        coverPhoto: null,
+      },
+      bio: userObj.bio ?? "",
+      activeUsername: userObj.activeUsername ?? null,
     };
 
     const res = NextResponse.json({ success: true, user: payload });
 
-    // If NextAuth session is active but stale wallet cookie exists, clear it
     if (session?.user && req.cookies.get("auth-token")) {
       res.cookies.set("auth-token", "", { maxAge: 0, path: "/" });
     }
