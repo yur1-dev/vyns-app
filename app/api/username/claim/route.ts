@@ -18,38 +18,21 @@ const RESERVED = [
 ];
 
 function getTier(len: number): string {
-  if (len <= 3) return "Diamond";
-  if (len <= 5) return "Platinum";
-  if (len <= 8) return "Gold";
-  if (len <= 15) return "Silver";
-  return "Bronze";
+  if (len <= 2) return "Legendary";
+  if (len <= 4) return "Premium";
+  return "Standard";
 }
 
 function getPrice(tier: string): number {
-  return tier === "Diamond"
-    ? 1.0
-    : tier === "Platinum"
-      ? 0.5
-      : tier === "Gold"
-        ? 0.2
-        : tier === "Silver"
-          ? 0.1
-          : 0.05;
+  return tier === "Legendary" ? 1.0 : tier === "Premium" ? 0.5 : 0.2;
 }
 
 function getYield(tier: string): number {
-  return tier === "Diamond"
-    ? 5
-    : tier === "Platinum"
-      ? 3
-      : tier === "Gold"
-        ? 1.5
-        : 0;
+  return tier === "Legendary" ? 5 : tier === "Premium" ? 3 : 1.5;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Auth check
     const auth = await verifyAuth(req);
     if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -58,7 +41,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { username, wallet } = body;
 
-    // 2. Validate
     if (!username || !USERNAME_REGEX.test(username)) {
       return NextResponse.json(
         { error: "Invalid username — letters, numbers, underscores only" },
@@ -74,9 +56,12 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
-    // 3. Check if already taken in the Username collection
+    // Normalize: ALWAYS store WITHOUT @ prefix going forward
+    const cleanUsername = username.toLowerCase().replace(/^@/, "");
+
+    // Check BOTH formats to catch legacy entries that have @ prefix
     const existing = await Username.findOne({
-      username: username.toLowerCase(),
+      username: { $in: [cleanUsername, `@${cleanUsername}`] },
     });
     if (existing) {
       return NextResponse.json(
@@ -85,11 +70,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Resolve which user owns this claim
     const resolvedWallet = auth.wallet ?? wallet ?? null;
     const resolvedUserId = auth.userId ?? null;
 
-    // Find the user in the User collection
     let user = null;
     if (resolvedWallet) {
       user = await User.findOne({ wallet: resolvedWallet });
@@ -97,7 +80,6 @@ export async function POST(req: NextRequest) {
     if (!user && resolvedUserId) {
       user = await User.findById(resolvedUserId);
     }
-
     if (!user) {
       return NextResponse.json(
         { error: "User not found — please log in again" },
@@ -105,21 +87,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Derive tier + price
-    const tier = getTier(username.length);
+    const tier = getTier(cleanUsername.length);
     const price = getPrice(tier);
     const yieldRate = getYield(tier);
-
     const claimedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
 
-    // 6. Save to Username collection
+    // Store WITHOUT @ prefix for consistency
     await Username.create({
-      username: username.toLowerCase(),
+      username: cleanUsername,
       walletAddress: resolvedWallet ?? resolvedUserId ?? user._id.toString(),
       level: 1,
       xp: 0,
-      isPremium: tier === "Diamond" || tier === "Platinum",
+      isPremium: tier === "Legendary" || tier === "Premium",
       isVerified: false,
       totalYield: yieldRate,
       profile: {},
@@ -134,17 +114,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 7. FIX: ALSO push into User.usernames[] so the dashboard can read it.
-    // Previously this was missing — usernames were saved to the Username
-    // collection but User.usernames[] (what the dashboard reads) was never
-    // updated, so claimed names never appeared in the dashboard.
     await User.findByIdAndUpdate(user._id, {
       $inc: { xp: 50 },
       $set: { isNewUser: false },
       $push: {
         usernames: {
-          id: username.toLowerCase(),
-          name: username.toLowerCase(),
+          id: cleanUsername,
+          name: cleanUsername,
           tier,
           yield: yieldRate,
           value: price,
@@ -155,7 +131,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, username, tier, price });
+    return NextResponse.json({
+      success: true,
+      username: cleanUsername,
+      tier,
+      price,
+    });
   } catch (err) {
     console.error("[username/claim]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

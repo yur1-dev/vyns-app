@@ -14,18 +14,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    // Normalize: strip @ and clean — store WITHOUT @ prefix always
+    const cleanUsername = username
+      .replace(/^@/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "");
 
-    if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+    if (cleanUsername.length < 1 || cleanUsername.length > 32) {
       return NextResponse.json(
-        { error: "Username must be 3-20 characters" },
+        { error: "Username must be 1-32 characters" },
         { status: 400 },
       );
     }
 
     await connectDB();
 
-    const existing = await Username.findOne({ username: `@${cleanUsername}` });
+    // Check BOTH formats to catch old entries stored with @
+    const existing = await Username.findOne({
+      username: { $in: [cleanUsername, `@${cleanUsername}`] },
+    });
     if (existing) {
       return NextResponse.json(
         { error: "Username already taken" },
@@ -33,8 +40,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine tier
+    const tier =
+      cleanUsername.length <= 2
+        ? "Legendary"
+        : cleanUsername.length <= 4
+          ? "Premium"
+          : "Standard";
+
+    // Store WITHOUT @ prefix
     const newUsername = await Username.create({
-      username: `@${cleanUsername}`,
+      username: cleanUsername,
       walletAddress,
       level: 1,
       xp: 0,
@@ -50,12 +66,16 @@ export async function POST(request: NextRequest) {
         twitter: "",
         website: "",
       },
+      stats: {
+        tier,
+        staked: false,
+      },
     });
 
     return NextResponse.json(
       {
         success: true,
-        username: `@${cleanUsername}`,
+        username: cleanUsername,
         id: newUsername._id,
       },
       { status: 201 },
