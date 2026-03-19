@@ -14,6 +14,7 @@ export interface IUser extends Document {
   googleId?: string;
   username?: string;
   avatar?: string;
+  activeUsername?: string;
   xp: number;
   level: number;
   earnings: number;
@@ -35,8 +36,9 @@ export interface IUser extends Document {
     theme: string;
     petId: string;
     avatarSeed: string;
-    bio?: string;
+    avatarImage?: string; // ✅ ADDED
     coverPhoto?: string;
+    bio?: string;
     displayName?: string;
   };
   createdAt: Date;
@@ -55,6 +57,7 @@ const UserSchema = new Schema<IUser>(
     googleId: { type: String, unique: true, sparse: true },
     username: { type: String, unique: true, sparse: true },
     avatar: { type: String },
+    activeUsername: { type: String }, // ✅ ADDED
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     earnings: { type: Number, default: 0 },
@@ -76,8 +79,9 @@ const UserSchema = new Schema<IUser>(
       theme: { type: String, default: "teal" },
       petId: { type: String, default: "none" },
       avatarSeed: { type: String, default: "" },
-      bio: { type: String },
+      avatarImage: { type: String, default: null }, // ✅ ADDED
       coverPhoto: { type: String },
+      bio: { type: String },
       displayName: { type: String },
     },
   },
