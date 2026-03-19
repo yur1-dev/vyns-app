@@ -9,6 +9,9 @@ export interface ProfileCustomization {
   theme: string;
   petId: string;
   avatarSeed: string;
+  bio?: string;
+  coverPhoto?: string;
+  displayName?: string;
 }
 
 // ── Themes ────────────────────────────────────────────────────────────────────
@@ -108,17 +111,13 @@ export function PixelAvatar({
   );
 }
 
-// ── Pet Sprite Data (16×16 grid, walk cycles) ─────────────────────────────────
-// Colors: 0=transparent, 1=body, 2=eye/detail, 3=outline, 4=accent(theme), 5=belly/light
-
+// ── Pet Sprite Data ───────────────────────────────────────────────────────────
 export const PETS = [
   {
     id: "cat",
     label: "Cat",
     emoji: "🐱",
-    // 3-frame walk cycle: stand, step-left, step-right
     frames: [
-      // Frame 0: standing
       [
         [0, 0, 0, 0, 3, 3, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 3, 1, 1, 3, 3, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -137,7 +136,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 1: walk A
       [
         [0, 0, 0, 0, 3, 3, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 3, 1, 1, 3, 3, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -156,7 +154,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 2: walk B
       [
         [0, 0, 0, 0, 3, 3, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 3, 1, 1, 3, 3, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -182,7 +179,6 @@ export const PETS = [
     label: "Dog",
     emoji: "🐶",
     frames: [
-      // Frame 0: stand
       [
         [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0],
         [3, 1, 1, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 0, 0, 0],
@@ -201,7 +197,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 1: walk A (tail up)
       [
         [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 3, 0],
         [3, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 3, 0],
@@ -220,7 +215,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 2: walk B (tail down)
       [
         [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0],
         [3, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 3, 0, 3, 0, 0],
@@ -246,7 +240,6 @@ export const PETS = [
     label: "Frog",
     emoji: "🐸",
     frames: [
-      // Frame 0: sit
       [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0],
@@ -265,7 +258,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 1: hop up
       [
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0],
         [0, 0, 3, 4, 4, 1, 1, 1, 1, 4, 4, 3, 0, 0, 0, 0],
@@ -284,7 +276,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 2: land
       [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0],
@@ -310,7 +301,6 @@ export const PETS = [
     label: "Penguin",
     emoji: "🐧",
     frames: [
-      // Frame 0: stand
       [
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -329,7 +319,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 1: waddle left
       [
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -348,7 +337,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 2: waddle right
       [
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0],
         [0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0],
@@ -374,7 +362,6 @@ export const PETS = [
     label: "Bunny",
     emoji: "🐰",
     frames: [
-      // Frame 0: sit
       [
         [0, 0, 3, 3, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0],
         [0, 3, 1, 1, 3, 0, 0, 0, 3, 1, 1, 3, 0, 0, 0, 0],
@@ -393,7 +380,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 1: hop
       [
         [0, 0, 3, 3, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0],
         [0, 3, 1, 1, 3, 0, 0, 0, 3, 1, 1, 3, 0, 0, 0, 0],
@@ -412,7 +398,6 @@ export const PETS = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       ],
-      // Frame 2: land + ear wiggle
       [
         [0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0],
         [3, 1, 1, 3, 0, 0, 0, 0, 0, 3, 1, 1, 3, 0, 0, 0],
@@ -521,7 +506,6 @@ export function PetCanvas({
     canvas.width = GRID;
     canvas.height = GRID;
 
-    // 0=transparent 1=body(dark) 2=eyes 3=outline(black) 4=accent(theme) 5=belly
     const COLORS = [
       "transparent",
       "#1a2744",
@@ -694,7 +678,13 @@ export default function ProfileCustomizeModal({
 
   async function handleSave() {
     setSaving(true);
-    await onSave({ theme, petId, avatarSeed });
+    // Preserve any existing fields (bio, coverPhoto, displayName) from initialCustomization
+    await onSave({
+      ...initialCustomization,
+      theme,
+      petId,
+      avatarSeed,
+    });
     setSaving(false);
     setSaved(true);
     setTimeout(() => {
@@ -847,7 +837,11 @@ export default function ProfileCustomizeModal({
                   <button
                     key={seed}
                     onClick={() => setAvatarSeed(seed)}
-                    className={`rounded-xl overflow-hidden transition-all cursor-pointer ${avatarSeed === seed ? "ring-2 ring-white/30 scale-105" : "opacity-60 hover:opacity-100 hover:scale-105"}`}
+                    className={`rounded-xl overflow-hidden transition-all cursor-pointer ${
+                      avatarSeed === seed
+                        ? "ring-2 ring-white/30 scale-105"
+                        : "opacity-60 hover:opacity-100 hover:scale-105"
+                    }`}
                     title={seed}
                   >
                     <PixelAvatar

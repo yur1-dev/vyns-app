@@ -2,7 +2,7 @@
 
 // app/settings/page.tsx
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Shield,
   User,
@@ -17,6 +17,10 @@ import {
   EyeOff,
   Lock,
   Loader2,
+  Edit3,
+  Save,
+  ImageIcon,
+  X,
 } from "lucide-react";
 
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -158,16 +162,175 @@ function AccountTab({
   provider: string;
   displayName: string;
 }) {
+  const [name, setName] = useState(displayName || "");
+  const [bio, setBio] = useState("");
+  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load current profile data
+  useEffect(() => {
+    fetch("/api/user/profile")
+      .then((r) => r.json())
+      .then(({ user }) => {
+        if (user?.bio) setBio(user.bio);
+        if (user?.displayName) setName(user.displayName);
+        else if (displayName) setName(displayName);
+        if (user?.coverPhoto) setCoverPhoto(user.coverPhoto);
+      })
+      .catch(() => {
+        if (displayName) setName(displayName);
+      })
+      .finally(() => setLoading(false));
+  }, [displayName]);
+
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Resize/compress if needed — basic FileReader for now
+    const reader = new FileReader();
+    reader.onload = () => setCoverPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removeCover = () => setCoverPhoto(null);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          displayName: name.trim(),
+          bio: bio.trim(),
+          coverPhoto,
+        }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {}
+    setSaving(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-5 w-5 animate-spin text-white/20" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {/* Cover Photo */}
+      <Card
+        title="Cover Photo"
+        desc="Displayed at the top of your profile card."
+      >
+        <div className="p-5 space-y-3">
+          <div
+            className="relative h-32 rounded-xl overflow-hidden border border-white/[0.06] cursor-pointer group"
+            style={
+              coverPhoto
+                ? {
+                    backgroundImage: `url(${coverPhoto})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
+                : {
+                    background:
+                      "linear-gradient(130deg, #07101f 0%, #0d2235 55%, #0b1628 100%)",
+                  }
+            }
+            onClick={() => fileRef.current?.click()}
+          >
+            {/* Hover overlay */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+              <ImageIcon className="h-5 w-5 text-white/70" />
+              <p className="text-xs text-white/70">
+                {coverPhoto ? "Change cover photo" : "Upload cover photo"}
+              </p>
+            </div>
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleCoverUpload}
+          />
+
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-white/25">
+              Recommended: 1200×400px, JPG or PNG
+            </p>
+            {coverPhoto && (
+              <button
+                onClick={removeCover}
+                className="flex items-center gap-1 text-xs text-white/25 hover:text-red-400 transition-colors cursor-pointer"
+              >
+                <X className="h-3 w-3" /> Remove
+              </button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Editable profile fields */}
+      <Card title="Profile Info" desc="Your public-facing name and bio.">
+        <div className="p-5 space-y-4">
+          <Input
+            label="Display Name"
+            placeholder="Your display name"
+            value={name}
+            onChange={setName}
+          />
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
+              Bio
+            </label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={160}
+              placeholder="Short bio…"
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500/40 transition-all resize-none"
+            />
+            <p className="text-[11px] text-white/20 text-right">
+              {bio.length}/160
+            </p>
+          </div>
+
+          <button
+            onClick={save}
+            disabled={saving || (!name.trim() && !bio && coverPhoto === null)}
+            className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saved ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saved ? "Saved!" : saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </Card>
+
+      {/* Read-only account info */}
       <Card
         title="Account Details"
-        desc="Your identity and profile information."
+        desc="Your identity and authentication info."
       >
-        <Field
-          label="Display name"
-          value={session?.user?.name || displayName || "Wallet user"}
-        />
         <Field label="Email address" value={session?.user?.email || "—"} />
         <Field label="Auth method" value={provider} />
         <Field
@@ -178,7 +341,6 @@ function AccountTab({
             </span>
           }
         />
-        <Field label="Member since" value="—" />
         {wallet && (
           <Field
             label="Wallet"
@@ -189,7 +351,7 @@ function AccountTab({
       </Card>
 
       {session?.user?.image && (
-        <Card title="Profile Picture" desc="Synced from your Google account.">
+        <Card title="Profile Picture" desc="Synced from your OAuth provider.">
           <div className="p-5 flex items-center gap-4">
             <img
               src={session.user.image}
@@ -201,7 +363,7 @@ function AccountTab({
                 {session.user.name}
               </p>
               <p className="text-xs text-white/25 mt-0.5">
-                Avatar pulled from Google OAuth
+                Pulled from OAuth provider
               </p>
             </div>
           </div>
@@ -289,8 +451,30 @@ function PreferencesTab() {
     rewards: true,
     system: true,
   });
-  const toggle = (k: keyof typeof prefs) =>
-    setPrefs((p) => ({ ...p, [k]: !p[k] }));
+  const [loaded, setLoaded] = useState(false);
+
+  // Load persisted preferences
+  useEffect(() => {
+    fetch("/api/user/profile")
+      .then((r) => r.json())
+      .then(({ user }) => {
+        if (user?.preferences) setPrefs((p) => ({ ...p, ...user.preferences }));
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const toggle = (k: keyof typeof prefs) => {
+    const next = { ...prefs, [k]: !prefs[k] };
+    setPrefs(next);
+    // Persist on every toggle
+    fetch("/api/user/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ preferences: next }),
+    }).catch(() => {});
+  };
 
   return (
     <Card

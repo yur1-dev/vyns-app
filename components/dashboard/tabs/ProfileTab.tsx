@@ -212,11 +212,11 @@ export default function ProfileTab({
   const saveBio = async () => {
     setSavingBio(true);
     try {
-      await fetch("/api/user/customization", {
-        method: "POST",
+      await fetch("/api/user/profile", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...customization, bio, wallet }),
+        body: JSON.stringify({ bio }),
       });
     } catch {}
     setSavingBio(false);
@@ -237,24 +237,43 @@ export default function ProfileTab({
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
+  // Resolve the effective display name — settings page can override via customization.displayName
+  const effectiveDisplayName = customization?.displayName || displayName;
+
   return (
     <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-5">
       {/* ── HERO ── */}
       <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
+        {/* Banner — uses coverPhoto if set, otherwise gradient */}
         <div
           className="relative h-28 sm:h-36 overflow-hidden"
-          style={{
-            background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
-          }}
+          style={
+            customization?.coverPhoto
+              ? {
+                  backgroundImage: `url(${customization.coverPhoto})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : {
+                  background: `linear-gradient(130deg, #07101f 0%, ${themeColor}1a 55%, #0b1628 100%)`,
+                }
+          }
         >
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0)",
-              backgroundSize: "24px 24px",
-            }}
-          />
+          {/* Dot grid overlay — only shown when no cover photo */}
+          {!customization?.coverPhoto && (
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0)",
+                backgroundSize: "24px 24px",
+              }}
+            />
+          )}
+          {/* Subtle darkening overlay when cover photo is set */}
+          {customization?.coverPhoto && (
+            <div className="absolute inset-0 bg-black/30" />
+          )}
           <div
             className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
             style={{ background: `${themeColor}0e` }}
@@ -305,7 +324,7 @@ export default function ProfileTab({
             <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1 pt-10 sm:pt-0">
               <div className="space-y-0.5">
                 <h2 className="text-xl font-bold text-white tracking-tight leading-none">
-                  {displayName}
+                  {effectiveDisplayName}
                 </h2>
                 {activeUsername && (
                   <p
@@ -328,7 +347,7 @@ export default function ProfileTab({
                 <input
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  maxLength={120}
+                  maxLength={160}
                   placeholder="Short bio…"
                   className="flex-1 h-8 px-3 rounded-lg border border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
                 />
@@ -355,7 +374,9 @@ export default function ProfileTab({
                 onClick={() => setEditingBio(true)}
                 className="group flex items-center gap-1.5 text-sm text-white/30 hover:text-white/50 transition-colors cursor-pointer"
               >
-                {bio || (
+                {bio ? (
+                  <span className="text-white/40">{bio}</span>
+                ) : (
                   <span className="italic text-white/20">Add a bio…</span>
                 )}
                 <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
