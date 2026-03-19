@@ -471,18 +471,18 @@ export default function ProfilePage() {
   const currentPetId = (dash.customization as any)?.petId ?? "none";
   const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
 
-  // Hydrate local state once when dash.customization loads
+  // Hydrate local state once — only after loading finishes so we get real DB values
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
-    const c = dash.customization as any;
-    if (!c && !dash.userData) return; // not loaded yet
+    if (dash.loading) return; // wait for real data from API
     hydratedRef.current = true;
+    const c = dash.customization as any;
     if (c?.avatarImage) setCurrentAvatarUrl(c.avatarImage);
     if (c?.coverPhoto) setCurrentCoverUrl(c.coverPhoto);
     const b = (dash.userData as any)?.bio ?? "";
     if (b) setCurrentBio(b);
-  }, [dash.customization, dash.userData]);
+  }, [dash.loading, dash.customization, dash.userData]);
 
   // Bio
   const [editingBio, setEditingBio] = useState(false);
