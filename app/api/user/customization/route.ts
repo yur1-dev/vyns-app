@@ -21,9 +21,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { theme, petId, avatarSeed, bio } = body;
+    // Preserve ALL customization fields — don't destructure and drop unknown keys
+    const { theme, petId, avatarSeed, avatarImage, coverPhoto, bio } = body;
 
-    const customization = { theme, petId, avatarSeed };
+    const customization: Record<string, any> = { theme, petId, avatarSeed };
+    // Only include image fields if explicitly provided (avoid wiping with undefined)
+    if (avatarImage !== undefined) customization.avatarImage = avatarImage;
+    if (coverPhoto !== undefined) customization.coverPhoto = coverPhoto;
 
     const userId = (session?.user as any)?.id ?? auth?.userId;
     const walletAddr = (session?.user as any)?.wallet ?? auth?.wallet;
@@ -77,6 +81,8 @@ export async function GET(req: NextRequest) {
         theme: "teal",
         petId: "none",
         avatarSeed: "",
+        avatarImage: null,
+        coverPhoto: null,
       },
       bio: user?.bio ?? "",
     });

@@ -278,7 +278,26 @@ export default function DashboardHeader({
     }
   };
 
+  // ── Avatar render — checks uploaded avatarImage first ──────────────────────
   const renderAvatar = (size = 28) => {
+    const avatarImage = (customization as any)?.avatarImage;
+    if (avatarImage)
+      return (
+        <div
+          className="rounded-full overflow-hidden shrink-0"
+          style={{
+            width: size,
+            height: size,
+            boxShadow: `0 0 8px ${themeColor}50`,
+          }}
+        >
+          <img
+            src={avatarImage}
+            alt="avatar"
+            style={{ width: size, height: size, objectFit: "cover" }}
+          />
+        </div>
+      );
     if (session?.user?.image)
       return (
         <div
@@ -494,7 +513,14 @@ export default function DashboardHeader({
                         boxShadow: `0 0 12px ${themeColor}40`,
                       }}
                     >
-                      {session?.user?.image ? (
+                      {/* Priority: uploaded avatarImage > OAuth > pixel */}
+                      {(customization as any)?.avatarImage ? (
+                        <img
+                          src={(customization as any).avatarImage}
+                          alt="avatar"
+                          style={{ width: 44, height: 44, objectFit: "cover" }}
+                        />
+                      ) : session?.user?.image ? (
                         <Image
                           src={session.user.image}
                           alt="avatar"
