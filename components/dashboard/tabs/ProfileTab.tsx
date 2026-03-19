@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   Check,
@@ -25,6 +26,8 @@ import {
   BarChart2,
   Star,
   Activity,
+  Palette,
+  ImageIcon,
 } from "lucide-react";
 import type { UserData, UsernameItem, ActivityItem } from "@/types/dashboard";
 import type { ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
@@ -133,6 +136,7 @@ interface Props {
   customization: ProfileCustomization;
   onSaveCustomization: (c: ProfileCustomization) => Promise<void>;
   onTabChange: (tab: any) => void;
+  onOpenCustomize: () => void;
 }
 
 export default function ProfileTab({
@@ -145,7 +149,9 @@ export default function ProfileTab({
   customization,
   onSaveCustomization,
   onTabChange,
+  onOpenCustomize,
 }: Props) {
+  const router = useRouter();
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
 
@@ -237,14 +243,13 @@ export default function ProfileTab({
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
-  // Resolve the effective display name — settings page can override via customization.displayName
   const effectiveDisplayName = customization?.displayName || displayName;
 
   return (
     <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-5">
       {/* ── HERO ── */}
       <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-        {/* Banner — uses coverPhoto if set, otherwise gradient */}
+        {/* Banner */}
         <div
           className="relative h-28 sm:h-36 overflow-hidden"
           style={
@@ -259,7 +264,6 @@ export default function ProfileTab({
                 }
           }
         >
-          {/* Dot grid overlay — only shown when no cover photo */}
           {!customization?.coverPhoto && (
             <div
               className="absolute inset-0"
@@ -270,7 +274,6 @@ export default function ProfileTab({
               }}
             />
           )}
-          {/* Subtle darkening overlay when cover photo is set */}
           {customization?.coverPhoto && (
             <div className="absolute inset-0 bg-black/30" />
           )}
@@ -278,6 +281,17 @@ export default function ProfileTab({
             className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
             style={{ background: `${themeColor}0e` }}
           />
+
+          {/* Cover photo button — sits on banner top-left */}
+          <button
+            onClick={() => router.push("/settings")}
+            className="absolute top-3 left-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/[0.12] bg-black/30 backdrop-blur-sm text-[11px] text-white/50 hover:text-white/80 hover:bg-black/50 transition-all cursor-pointer"
+          >
+            <ImageIcon className="h-3 w-3" />
+            {customization?.coverPhoto ? "Change cover" : "Add cover"}
+          </button>
+
+          {/* XP tier badge — top right */}
           <div
             className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide"
             style={{
@@ -293,31 +307,42 @@ export default function ProfileTab({
 
         <div className="bg-[#060b14] px-5 pb-5">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-9">
+            {/* Avatar — clickable to open customize modal */}
             <div className="relative shrink-0 z-10">
-              <div
-                className="rounded-2xl border-[3px] border-[#060b14] overflow-hidden"
-                style={{
-                  width: 72,
-                  height: 72,
-                  boxShadow: `0 0 0 1px ${themeColor}25, 0 0 20px ${themeColor}15`,
-                }}
+              <button
+                onClick={onOpenCustomize}
+                className="group block cursor-pointer"
+                title="Customize avatar"
               >
-                {session?.user?.image ? (
-                  <Image
-                    src={session.user.image}
-                    alt="avatar"
-                    width={72}
-                    height={72}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <PixelAvatar
-                    seed={avatarSeed}
-                    size={72}
-                    themeColor={themeColor}
-                  />
-                )}
-              </div>
+                <div
+                  className="rounded-2xl border-[3px] border-[#060b14] overflow-hidden transition-all group-hover:ring-2 group-hover:ring-white/20"
+                  style={{
+                    width: 72,
+                    height: 72,
+                    boxShadow: `0 0 0 1px ${themeColor}25, 0 0 20px ${themeColor}15`,
+                  }}
+                >
+                  {session?.user?.image ? (
+                    <Image
+                      src={session.user.image}
+                      alt="avatar"
+                      width={72}
+                      height={72}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <PixelAvatar
+                      seed={avatarSeed}
+                      size={72}
+                      themeColor={themeColor}
+                    />
+                  )}
+                </div>
+                {/* Edit overlay on hover */}
+                <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Palette className="h-4 w-4 text-white" />
+                </div>
+              </button>
               <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#060b14]" />
             </div>
 
@@ -337,6 +362,22 @@ export default function ProfileTab({
                 {session?.user?.email && (
                   <p className="text-xs text-white/25">{session.user.email}</p>
                 )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 sm:pb-0.5">
+                <button
+                  onClick={onOpenCustomize}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.07] text-xs text-white/40 hover:text-white/70 transition-all cursor-pointer"
+                >
+                  <Palette className="h-3 w-3" /> Customize
+                </button>
+                <button
+                  onClick={() => router.push("/settings")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.07] text-xs text-white/40 hover:text-white/70 transition-all cursor-pointer"
+                >
+                  <Edit3 className="h-3 w-3" /> Edit profile
+                </button>
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ import EarningsTab from "@/components/dashboard/tabs/EarningsTab";
 import ReferralsTab from "@/components/dashboard/tabs/ReferralsTab";
 import MarketplaceTab from "@/components/dashboard/tabs/MarketplaceTab";
 import UsernameModal from "@/components/dashboard/modals/UsernameModal";
+import ProfileCustomizeModal from "@/components/dashboard/modals/ProfileCustomizeModal";
 import ProfileTab from "@/components/dashboard/tabs/ProfileTab";
 
 function DashboardInner() {
@@ -21,9 +22,10 @@ function DashboardInner() {
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  // Sync active tab from URL ?tab= — also resets to overview when no tab param
+  // Sync active tab from URL ?tab=
   useEffect(() => {
     const tabFromUrl = (searchParams.get("tab") ?? "overview") as any;
     if (tabFromUrl !== dash.activeTab) {
@@ -69,7 +71,7 @@ function DashboardInner() {
       />
 
       {isProfile ? (
-        /* ── Profile: full width, no sidebar ───────────────────────── */
+        /* ── Profile: full width, no sidebar ── */
         <div className="flex-1 overflow-y-auto">
           <ProfileTab
             session={dash.session}
@@ -81,10 +83,11 @@ function DashboardInner() {
             customization={dash.customization}
             onSaveCustomization={dash.saveCustomization}
             onTabChange={(tab) => changeTab(tab)}
+            onOpenCustomize={() => setShowCustomizeModal(true)}
           />
         </div>
       ) : (
-        /* ── All other tabs: sidebar + main ────────────────────────── */
+        /* ── All other tabs: sidebar + main ── */
         <div className="flex flex-1 overflow-hidden">
           <DashboardSidebar
             activeTab={dash.activeTab}
@@ -219,6 +222,18 @@ function DashboardInner() {
           return result;
         }}
       />
+
+      {showCustomizeModal && (
+        <ProfileCustomizeModal
+          currentName={dash.activeUsername ?? dash.displayName ?? ""}
+          initialCustomization={dash.customization}
+          onSave={async (c) => {
+            await dash.saveCustomization(c);
+            setShowCustomizeModal(false);
+          }}
+          onClose={() => setShowCustomizeModal(false)}
+        />
+      )}
     </div>
   );
 }
