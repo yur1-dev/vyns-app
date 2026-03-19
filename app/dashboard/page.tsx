@@ -14,7 +14,6 @@ import ReferralsTab from "@/components/dashboard/tabs/ReferralsTab";
 import MarketplaceTab from "@/components/dashboard/tabs/MarketplaceTab";
 import UsernameModal from "@/components/dashboard/modals/UsernameModal";
 import ProfileCustomizeModal from "@/components/dashboard/modals/ProfileCustomizeModal";
-import ProfileTab from "@/components/dashboard/tabs/ProfileTab";
 
 function DashboardInner() {
   const dash = useDashboard();
@@ -47,8 +46,6 @@ function DashboardInner() {
     );
   }
 
-  const isProfile = dash.activeTab === "profile";
-
   return (
     <div className="h-screen bg-[#060b14] text-white flex flex-col overflow-hidden">
       <DashboardHeader
@@ -70,147 +67,131 @@ function DashboardInner() {
         onOpenProfile={() => router.push("/profile")}
       />
 
-      {isProfile ? (
-        /* ── Profile: full width, no sidebar ── */
-        <div className="flex-1 overflow-y-auto">
-          <ProfileTab
-            session={dash.session}
-            userData={dash.userData}
-            wallet={dash.wallet}
-            provider={dash.provider}
-            displayName={dash.displayName}
-            activeUsername={dash.activeUsername}
-            customization={dash.customization}
-            onSaveCustomization={dash.saveCustomization}
-            onTabChange={(tab) => changeTab(tab)}
-            onOpenCustomize={() => setShowCustomizeModal(true)}
-          />
-        </div>
-      ) : (
-        /* ── All other tabs: sidebar + main ── */
-        <div className="flex flex-1 overflow-hidden">
-          <DashboardSidebar
-            activeTab={dash.activeTab}
-            sidebarOpen={sidebarOpen}
-            usernameCount={dash.userData.usernames?.length ?? 0}
-            referralCount={dash.userData.referrals ?? 0}
-            onTabChange={(tab) => {
-              if (tab === "settings") {
-                router.push("/settings");
-              } else {
-                changeTab(tab);
-              }
-            }}
-            onClose={() => setSidebarOpen(false)}
-          />
+      {/* Sidebar + main layout — profile tab removed, it lives at /profile */}
+      <div className="flex flex-1 overflow-hidden">
+        <DashboardSidebar
+          activeTab={dash.activeTab}
+          sidebarOpen={sidebarOpen}
+          usernameCount={dash.userData.usernames?.length ?? 0}
+          referralCount={dash.userData.referrals ?? 0}
+          onTabChange={(tab) => {
+            if (tab === "settings") {
+              router.push("/settings");
+            } else if (tab === "profile") {
+              router.push("/profile");
+            } else {
+              changeTab(tab);
+            }
+          }}
+          onClose={() => setSidebarOpen(false)}
+        />
 
-          <main className="flex-1 overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-              {dash.activeTab === "overview" && (
-                <OverviewTab
-                  userData={dash.userData}
-                  session={dash.session}
-                  onTabChange={changeTab}
-                  onClaim={dash.claimUsername}
-                  onClaimSuccess={dash.refreshUserData}
-                />
-              )}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            {dash.activeTab === "overview" && (
+              <OverviewTab
+                userData={dash.userData}
+                session={dash.session}
+                onTabChange={changeTab}
+                onClaim={dash.claimUsername}
+                onClaimSuccess={dash.refreshUserData}
+              />
+            )}
 
-              {dash.activeTab === "usernames" && (
-                <UsernamesTab
-                  usernames={dash.userData.usernames}
-                  activeUsername={dash.activeUsername}
-                  onClaim={() => setShowUsernameModal(true)}
-                  onTabChange={changeTab}
-                  onSetActiveUsername={dash.setActiveUsername}
-                  onListUsername={dash.listUsername}
-                  onDelistUsername={dash.delistUsername}
-                />
-              )}
+            {dash.activeTab === "usernames" && (
+              <UsernamesTab
+                usernames={dash.userData.usernames}
+                activeUsername={dash.activeUsername}
+                onClaim={() => setShowUsernameModal(true)}
+                onTabChange={changeTab}
+                onSetActiveUsername={dash.setActiveUsername}
+                onListUsername={dash.listUsername}
+                onDelistUsername={dash.delistUsername}
+              />
+            )}
 
-              {dash.activeTab === "staking" && (
-                <StakingTab
-                  userData={dash.userData}
-                  balance={dash.balance}
-                  walletAddress={dash.wallet ?? undefined}
-                  onStake={async (amount, lockPeriod) => {
-                    const res = await fetch("/api/staking/stake", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({ amount, lockPeriod }),
-                    });
-                    const data = await res.json();
-                    if (data.success) await dash.refreshUserData();
-                    return data.success
-                      ? { success: true }
-                      : { success: false, error: data.error };
-                  }}
-                  onClaim={dash.claimStakingPosition}
-                  onStakeUsername={async (_id, username, signature) => {
-                    dash.optimisticStakeUsername(username, true);
-                    const res = await fetch("/api/username/stake", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({
-                        username,
-                        action: "stake",
-                        signature,
-                        wallet: dash.wallet,
-                      }),
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      await dash.refreshUserData();
-                      return { success: true };
-                    } else {
-                      dash.optimisticStakeUsername(username, false);
-                      return { success: false, error: data.error };
-                    }
-                  }}
-                  onUnstakeUsername={async (_id, username, signature) => {
+            {dash.activeTab === "staking" && (
+              <StakingTab
+                userData={dash.userData}
+                balance={dash.balance}
+                walletAddress={dash.wallet ?? undefined}
+                onStake={async (amount, lockPeriod) => {
+                  const res = await fetch("/api/staking/stake", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ amount, lockPeriod }),
+                  });
+                  const data = await res.json();
+                  if (data.success) await dash.refreshUserData();
+                  return data.success
+                    ? { success: true }
+                    : { success: false, error: data.error };
+                }}
+                onClaim={dash.claimStakingPosition}
+                onStakeUsername={async (_id, username, signature) => {
+                  dash.optimisticStakeUsername(username, true);
+                  const res = await fetch("/api/username/stake", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                      username,
+                      action: "stake",
+                      signature,
+                      wallet: dash.wallet,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    await dash.refreshUserData();
+                    return { success: true };
+                  } else {
                     dash.optimisticStakeUsername(username, false);
-                    const res = await fetch("/api/username/stake", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({
-                        username,
-                        action: "unstake",
-                        signature,
-                        wallet: dash.wallet,
-                      }),
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      await dash.refreshUserData();
-                      return { success: true };
-                    } else {
-                      dash.optimisticStakeUsername(username, true);
-                      return { success: false, error: data.error };
-                    }
-                  }}
-                />
-              )}
+                    return { success: false, error: data.error };
+                  }
+                }}
+                onUnstakeUsername={async (_id, username, signature) => {
+                  dash.optimisticStakeUsername(username, false);
+                  const res = await fetch("/api/username/stake", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                      username,
+                      action: "unstake",
+                      signature,
+                      wallet: dash.wallet,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    await dash.refreshUserData();
+                    return { success: true };
+                  } else {
+                    dash.optimisticStakeUsername(username, true);
+                    return { success: false, error: data.error };
+                  }
+                }}
+              />
+            )}
 
-              {dash.activeTab === "earnings" && (
-                <EarningsTab userData={dash.userData} />
-              )}
+            {dash.activeTab === "earnings" && (
+              <EarningsTab userData={dash.userData} />
+            )}
 
-              {dash.activeTab === "referrals" && (
-                <ReferralsTab
-                  userData={dash.userData}
-                  wallet={dash.wallet}
-                  onClaimReferralRewards={dash.claimReferralRewards}
-                />
-              )}
+            {dash.activeTab === "referrals" && (
+              <ReferralsTab
+                userData={dash.userData}
+                wallet={dash.wallet}
+                onClaimReferralRewards={dash.claimReferralRewards}
+              />
+            )}
 
-              {dash.activeTab === "marketplace" && <MarketplaceTab />}
-            </div>
-          </main>
-        </div>
-      )}
+            {dash.activeTab === "marketplace" && <MarketplaceTab />}
+          </div>
+        </main>
+      </div>
 
       <UsernameModal
         open={showUsernameModal}
