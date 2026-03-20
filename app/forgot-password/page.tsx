@@ -4,13 +4,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  Mail,
-} from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, Mail } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -22,7 +16,6 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
@@ -41,7 +34,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen bg-[#09090b] flex">
-      {/* Left branding — matches login page */}
+      {/* Left branding — identical to login */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 border-r border-white/[0.06] relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(20,184,166,0.08),transparent_60%)]" />
         <div
@@ -95,6 +88,7 @@ export default function ForgotPasswordPage() {
       {/* Right form */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-6">
+          {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-2">
             <Link href="/">
               <Image
@@ -106,13 +100,6 @@ export default function ForgotPasswordPage() {
               />
             </Link>
           </div>
-
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
-          </Link>
 
           {!sent ? (
             <>
@@ -163,9 +150,20 @@ export default function ForgotPasswordPage() {
                   )}
                 </button>
               </form>
+
+              {/* Bottom link — matches login page style */}
+              <p className="text-center text-sm text-white/30">
+                Remember your password?{" "}
+                <Link
+                  href="/login"
+                  className="text-white/70 hover:text-white font-medium transition-colors underline underline-offset-4"
+                >
+                  Sign in
+                </Link>
+              </p>
             </>
           ) : (
-            <div className="space-y-4">
+            <>
               <div className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight text-white">
                   Check your email
@@ -174,6 +172,7 @@ export default function ForgotPasswordPage() {
                   We sent a reset link to your inbox.
                 </p>
               </div>
+
               <div className="flex items-start gap-3 p-4 rounded-xl bg-teal-500/[0.08] border border-teal-500/20">
                 <CheckCircle2 className="h-5 w-5 text-teal-400 shrink-0 mt-0.5" />
                 <div>
@@ -187,16 +186,28 @@ export default function ForgotPasswordPage() {
                   </p>
                 </div>
               </div>
+
               <button
                 onClick={() => {
                   setSent(false);
                   setEmail("");
                 }}
-                className="text-sm text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+                className="w-full h-10 rounded-md border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] text-sm text-white/50 hover:text-white/80 transition-all cursor-pointer"
               >
                 Try a different email
               </button>
-            </div>
+
+              {/* Bottom link */}
+              <p className="text-center text-sm text-white/30">
+                Remember your password?{" "}
+                <Link
+                  href="/login"
+                  className="text-white/70 hover:text-white font-medium transition-colors underline underline-offset-4"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </>
           )}
         </div>
       </div>
