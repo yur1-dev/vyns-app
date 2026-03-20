@@ -20,7 +20,6 @@ const DEFAULT_USER_DATA: UserData = {
   stakingPositions: [],
   referrals: 0,
   referralCode: "",
-  // Referral reward tracking
   unclaimedReferralSol: 0,
   unclaimedVyns: 0,
   claimedVyns: 0,
@@ -88,7 +87,6 @@ export function useDashboard() {
     }
   }, []);
 
-  // ─── Fetch live referral reward data from the API ────────────────────────────
   const fetchReferralRewards = useCallback(async () => {
     try {
       const res = await fetch("/api/referrals/claim", {
@@ -133,7 +131,6 @@ export function useDashboard() {
           ...DEFAULT_USER_DATA,
           ...prev,
           ...payload,
-          // Live referral reward data overrides whatever /api/user/me returned
           ...referralRewards,
           earnings: {
             ...DEFAULT_USER_DATA.earnings,
@@ -169,30 +166,23 @@ export function useDashboard() {
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
 
-  // ─── Claim referral rewards ──────────────────────────────────────────────────
   const claimReferralRewards = useCallback(async (): Promise<{
     success: boolean;
     error?: string;
     solRewarded?: number;
     vynsRewarded?: number;
   }> => {
-    // Optimistic: mark pending immediately so button goes into loading state
     setUserData((prev) => ({ ...prev, referralClaimPending: true }));
-
     try {
       const res = await fetch("/api/referrals/claim", {
         method: "POST",
         credentials: "include",
       });
       const data = await res.json();
-
       if (!res.ok || !data.success) {
-        // Roll back pending flag
         setUserData((prev) => ({ ...prev, referralClaimPending: false }));
         return { success: false, error: data.error ?? "Claim failed" };
       }
-
-      // Update local state immediately — don't wait for a full refresh
       setUserData((prev) => ({
         ...prev,
         referralClaimPending: false,
@@ -206,7 +196,6 @@ export function useDashboard() {
           allTime: (prev.earnings?.allTime ?? 0) + (data.solRewarded ?? 0),
         },
       }));
-
       return {
         success: true,
         solRewarded: data.solRewarded,
@@ -218,7 +207,6 @@ export function useDashboard() {
     }
   }, []);
 
-  // ─── Claim staking position ──────────────────────────────────────────────────
   const claimStakingPosition = useCallback(
     async (
       positionId: string,
@@ -231,12 +219,9 @@ export function useDashboard() {
           body: JSON.stringify({ positionId }),
         });
         const data = await res.json();
-
         if (!res.ok || !data.success) {
           return { success: false, error: data.error ?? "Claim failed" };
         }
-
-        // Optimistically mark position as claimed in local state
         setUserData((prev) => ({
           ...prev,
           stakingPositions: prev.stakingPositions.map((p) =>
@@ -251,7 +236,6 @@ export function useDashboard() {
             (prev.stakingRewards ?? 0) - (data.rewards ?? 0),
           ),
         }));
-
         return { success: true };
       } catch (err: any) {
         return { success: false, error: err.message ?? "Network error" };
@@ -271,11 +255,19 @@ export function useDashboard() {
         if (session?.user) {
           setWallet((session.user as any).wallet ?? null);
           setBalance(0);
-          const isGoogle = !!(
-            session.user.image?.includes("google") ||
-            session.user.image?.includes("googleusercontent")
+
+          // Use the provider stored in the JWT token — reliable across all auth methods
+          const p = session.user.provider ?? "credentials";
+          setProvider(
+            p === "google"
+              ? "google"
+              : p === "github"
+                ? "github"
+                : p === "wallet"
+                  ? "wallet"
+                  : "credentials",
           );
-          setProvider(isGoogle ? "Google" : "Email");
+
           await fetchUserData(null, session);
           return;
         }
@@ -517,7 +509,6 @@ export function useDashboard() {
     saveCustomization,
     refreshUserData,
     optimisticStakeUsername,
-    // Reward claims
     claimReferralRewards,
     claimStakingPosition,
     logout,

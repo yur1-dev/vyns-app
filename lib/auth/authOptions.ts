@@ -96,7 +96,6 @@ export const authOptions: NextAuthOptions = {
               referralCode: nanoid(8),
             });
 
-            // Credit referrer if a ref code was passed
             const refCode = credentials.refCode ?? readRefCookie();
             await processReferral(user._id.toString(), refCode);
           }
@@ -124,7 +123,6 @@ export const authOptions: NextAuthOptions = {
           const existing = await User.findOne({ email: user.email });
 
           if (!existing) {
-            // Brand new Google user — create account
             const newUser = await User.create({
               email: user.email,
               name: user.name,
@@ -137,7 +135,6 @@ export const authOptions: NextAuthOptions = {
             });
             user.id = newUser._id.toString();
 
-            // Read the ref cookie set by /ref/[code] page
             const refCode = readRefCookie();
             await processReferral(newUser._id.toString(), refCode);
           } else {
@@ -169,6 +166,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.userId as string;
         session.user.wallet = (token.wallet as string | null) ?? null;
         session.user.isNewUser = (token.isNewUser as boolean) ?? false;
+        session.user.provider = token.provider ?? "credentials";
       }
       return session;
     },
@@ -185,9 +183,6 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-// ─── Helper: read the ref cookie from the incoming request ───────────────────
-// next/headers cookies() works in server components and route handlers.
-// It returns null if called outside a request context (safe to ignore).
 function readRefCookie(): string | null {
   try {
     const cookieStore = cookies();

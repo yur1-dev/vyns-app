@@ -14,6 +14,7 @@ declare module "next-auth" {
       level?: number;
       xp?: number;
       isNewUser?: boolean;
+      provider?: string;
     };
   }
 
@@ -29,5 +30,6 @@ declare module "next-auth/jwt" {
     userId?: string;
     wallet?: string | null;
     isNewUser?: boolean;
+    provider?: string;
   }
 }
