@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
 
     const lowerUsername = username.toLowerCase().replace(/^@/, "");
 
-    // Find username with or without @ prefix
     const record =
       (await Username.findOne({ username: lowerUsername })) ||
       (await Username.findOne({ username: `@${lowerUsername}` }));
@@ -32,28 +31,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Multi-strategy ownership check
+    // Find the user making the request
+    const userFilter = auth.wallet
+      ? { wallet: auth.wallet }
+      : { _id: auth.userId };
+    const user = (await User.findOne(userFilter).lean()) as any;
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     const ownerId = record.stats?.ownerId ?? null;
     const storedWallet = record.walletAddress ?? null;
+    const userId = user._id.toString();
+
+    // Check ownership via Username record fields OR via User's username array
+    const ownedInArray = (user.usernames ?? []).some(
+      (u: any) =>
+        (u.name ?? u.username ?? "").replace(/^@/, "").toLowerCase() ===
+        lowerUsername,
+    );
 
     const isOwner =
+      ownedInArray ||
       (auth.wallet && storedWallet === auth.wallet) ||
-      (auth.userId && storedWallet === auth.userId) ||
-      (auth.userId && ownerId === auth.userId);
+      storedWallet === userId ||
+      ownerId === userId ||
+      (auth.wallet && ownerId === auth.wallet);
 
     if (!isOwner) {
       return NextResponse.json(
         {
-          error: `You don't own this username. storedWallet: ${storedWallet?.slice(0, 10)}, ownerId: ${ownerId?.slice(0, 10)}, yourId: ${auth.userId?.slice(0, 10)}`,
+          error: `You don't own this username. storedWallet: ${storedWallet?.slice(0, 10)}, ownerId: ${ownerId?.slice(0, 10)}, yourId: ${userId?.slice(0, 10)}`,
         },
         { status: 403 },
       );
     }
-
-    // Update active username on User document
-    const userFilter = auth.wallet
-      ? { wallet: auth.wallet }
-      : { _id: auth.userId };
 
     await User.findOneAndUpdate(userFilter, {
       $set: { activeUsername: lowerUsername },
