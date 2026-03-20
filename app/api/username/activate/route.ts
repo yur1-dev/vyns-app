@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/utils/auth";
 import connectDB from "@/lib/db/mongodb";
 import { Username, User } from "@/models/index";
+import { Types } from "mongoose";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
 
     const lowerUsername = username.toLowerCase().replace(/^@/, "");
 
+    // Find username record with or without @ prefix
     const record =
       (await Username.findOne({ username: lowerUsername })) ||
       (await Username.findOne({ username: `@${lowerUsername}` }));
@@ -31,22 +33,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the user making the request
-    const userFilter = auth.wallet
-      ? { wallet: auth.wallet }
-      : { _id: auth.userId };
-    const user = (await User.findOne(userFilter).lean()) as any;
+    // Find the user making the request — try all strategies
+    let user: any = null;
+    if (auth.wallet) {
+      user = await User.findOne({ wallet: auth.wallet }).lean();
+    }
+    if (!user && auth.userId && Types.ObjectId.isValid(auth.userId)) {
+      user = await User.findById(auth.userId).lean();
+    }
+    if (!user && auth.email) {
+      user = await User.findOne({ email: auth.email }).lean();
+    }
+    if (!user && auth.userId) {
+      // userId might be email string (NextAuth Google)
+      user = await User.findOne({ email: auth.userId }).lean();
+    }
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const userId = (user as any)._id.toString();
     const ownerId = record.stats?.ownerId ?? null;
     const storedWallet = record.walletAddress ?? null;
-    const userId = user._id.toString();
 
-    // Check ownership via Username record fields OR via User's username array
-    const ownedInArray = (user.usernames ?? []).some(
+    // Check ownership: via Username record fields OR via User's usernames array
+    const ownedInArray = ((user as any).usernames ?? []).some(
       (u: any) =>
         (u.name ?? u.username ?? "").replace(/^@/, "").toLowerCase() ===
         lowerUsername,
@@ -68,9 +80,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await User.findOneAndUpdate(userFilter, {
-      $set: { activeUsername: lowerUsername },
-    });
+    // Update active username — try all filter strategies
+    let updated: any = null;
+    if (auth.wallet) {
+      updated = await User.findOneAndUpdate(
+        { wallet: auth.wallet },
+        { $set: { activeUsername: lowerUsername } },
+        { new: true },
+      );
+    }
+    if (!updated && Types.ObjectId.isValid(userId)) {
+      updated = await User.findByIdAndUpdate(
+        userId,
+        { $set: { activeUsername: lowerUsername } },
+        { new: true },
+      );
+    }
+    if (!updated && auth.email) {
+      updated = await User.findOneAndUpdate(
+        { email: auth.email },
+        { $set: { activeUsername: lowerUsername } },
+        { new: true },
+      );
+    }
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Failed to update user" },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({ success: true, activeUsername: lowerUsername });
   } catch (err: any) {
