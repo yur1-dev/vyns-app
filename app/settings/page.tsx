@@ -1,7 +1,7 @@
 "use client";
 // app/settings/page.tsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Shield,
   Wallet,
@@ -17,16 +17,49 @@ import {
   Loader2,
   KeyRound,
   Mail,
-  RefreshCw,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useDashboard } from "@/hook/useDashboard";
 
 type Tab = "security" | "wallet" | "preferences";
+type PrefKey = "staking" | "referrals" | "rewards" | "system";
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function Toast({
+  message,
+  type,
+  onClose,
+}: {
+  message: string;
+  type: "success" | "error";
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  return (
+    <div
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl border shadow-2xl text-sm font-medium backdrop-blur-xl ${
+        type === "success"
+          ? "bg-emerald-950/90 border-emerald-500/30 text-emerald-300"
+          : "bg-red-950/90 border-red-500/30 text-red-300"
+      }`}
+    >
+      {type === "success" ? (
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+      ) : (
+        <XCircle className="h-4 w-4 shrink-0" />
+      )}
+      {message}
+    </div>
+  );
+}
 
 // ── Primitives ────────────────────────────────────────────────────────────────
-
 function Field({
   label,
   value,
@@ -58,17 +91,22 @@ function Field({
 function Toggle({
   on,
   onChange,
+  disabled,
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
-      onClick={() => onChange(!on)}
-      className={`relative w-10 h-5 rounded-full border transition-all cursor-pointer shrink-0 ${on ? "bg-teal-500/30 border-teal-500/40" : "bg-white/[0.05] border-white/[0.08]"}`}
+      onClick={() => !disabled && onChange(!on)}
+      disabled={disabled}
+      role="switch"
+      aria-checked={on}
+      className={`relative w-10 h-5 rounded-full border transition-all cursor-pointer shrink-0 ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${on ? "bg-teal-500/30 border-teal-500/40" : "bg-white/[0.05] border-white/[0.08]"}`}
     >
       <div
-        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${on ? "right-0.5" : "left-0.5"}`}
+        className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all duration-200 ${on ? "right-0.5 bg-teal-400" : "left-0.5 bg-white"}`}
       />
     </button>
   );
@@ -94,21 +132,20 @@ function Card({
   );
 }
 
-function Input({
+function PasswordInput({
   label,
-  type = "text",
   placeholder,
   value,
   onChange,
+  error,
 }: {
   label: string;
-  type?: string;
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
+  error?: boolean;
 }) {
   const [show, setShow] = useState(false);
-  const isPassword = type === "password";
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
@@ -116,25 +153,80 @@ function Input({
       </label>
       <div className="relative">
         <input
-          type={isPassword && show ? "text" : type}
+          type={show ? "text" : "password"}
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-11 px-4 pr-10 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500/40 transition-all"
+          className={`w-full h-11 px-4 pr-10 rounded-xl border bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 transition-all ${
+            error
+              ? "border-red-500/40 focus:ring-red-500/20"
+              : "border-white/[0.07] focus:ring-teal-500/30 focus:border-teal-500/40"
+          }`}
         />
-        {isPassword && (
-          <button
-            type="button"
-            onClick={() => setShow((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors cursor-pointer"
-          >
-            {show ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors cursor-pointer"
+        >
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PasswordStrength({ password }: { password: string }) {
+  if (!password) return null;
+  const checks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^a-zA-Z0-9]/.test(password),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  const colors = [
+    "bg-red-500",
+    "bg-red-400",
+    "bg-amber-400",
+    "bg-teal-400",
+    "bg-emerald-400",
+  ];
+  const labels = ["Too short", "Weak", "Fair", "Strong", "Very strong"];
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className={`h-1 flex-1 rounded-full transition-all duration-300 ${i < score ? colors[score] : "bg-white/[0.06]"}`}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between">
+        <span
+          className={`text-xs ${score >= 3 ? "text-teal-400" : "text-white/25"}`}
+        >
+          {labels[score]}
+        </span>
+        <div className="flex gap-3 text-xs">
+          {[
+            { key: "length", label: "8+" },
+            { key: "uppercase", label: "A-Z" },
+            { key: "number", label: "0-9" },
+            { key: "special", label: "!@#" },
+          ].map((c) => (
+            <span
+              key={c.key}
+              className={
+                checks[c.key as keyof typeof checks]
+                  ? "text-teal-400"
+                  : "text-white/20"
+              }
+            >
+              {c.label}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -146,34 +238,37 @@ function SecurityTab({
   wallet,
   provider,
   onLogout,
+  onToast,
 }: {
   session: any;
   wallet: string | null;
   provider: string;
   onLogout: () => void;
+  onToast: (msg: string, type: "success" | "error") => void;
 }) {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState("");
-
-  // Forgot password / reset email
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleChange = async () => {
-    if (next !== confirm) {
-      setErr("Passwords don't match");
+    const errs: Record<string, string> = {};
+    if (!cur) errs.cur = "Required";
+    if (!next) errs.next = "Required";
+    else if (next.length < 8) errs.next = "Minimum 8 characters";
+    if (!confirm) errs.confirm = "Required";
+    else if (next && confirm && next !== confirm)
+      errs.confirm = "Passwords don't match";
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
       return;
     }
-    if (next.length < 8) {
-      setErr("Minimum 8 characters");
-      return;
-    }
+    setFieldErrors({});
     setSaving(true);
-    setErr("");
     try {
       const res = await fetch("/api/auth/change-password", {
         method: "POST",
@@ -181,14 +276,17 @@ function SecurityTab({
         body: JSON.stringify({ currentPassword: cur, newPassword: next }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed");
-      setDone(true);
-      setCur("");
-      setNext("");
-      setConfirm("");
-      setTimeout(() => setDone(false), 3000);
-    } catch (e: any) {
-      setErr(e.message);
+      if (!data.success) {
+        setFieldErrors({ cur: data.error });
+        onToast(data.error, "error");
+      } else {
+        onToast("Password updated successfully!", "success");
+        setCur("");
+        setNext("");
+        setConfirm("");
+      }
+    } catch {
+      onToast("Something went wrong. Try again.", "error");
     } finally {
       setSaving(false);
     }
@@ -198,14 +296,21 @@ function SecurityTab({
     if (!session?.user?.email) return;
     setSendingReset(true);
     try {
-      await fetch("/api/auth/forgot-password", {
+      const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: session.user.email }),
       });
-      setResetSent(true);
-    } catch {}
-    setSendingReset(false);
+      const data = await res.json();
+      if (data.success) {
+        setResetSent(true);
+        onToast(`Reset link sent to ${session.user.email}`, "success");
+      } else onToast(data.error ?? "Failed to send reset email", "error");
+    } catch {
+      onToast("Failed to send reset email", "error");
+    } finally {
+      setSendingReset(false);
+    }
   };
 
   const isEmailUser =
@@ -217,18 +322,17 @@ function SecurityTab({
 
   return (
     <div className="space-y-4">
-      {/* Session info */}
       <Card title="Active Session" desc="Your current authentication status.">
         <Field
           label="Status"
           aside={
             <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
               Active
             </span>
           }
         />
-        <Field label="Auth provider" value={provider} />
+        <Field label="Auth provider" value={provider || "email"} />
         {session?.user?.email && (
           <Field label="Email" value={session.user.email} />
         )}
@@ -242,7 +346,7 @@ function SecurityTab({
         <div className="px-5 py-4">
           <p className="text-xs text-white/25 leading-relaxed">
             {wallet
-              ? "Authenticated via Solana wallet signature. All sensitive actions require wallet signing."
+              ? "Authenticated via Solana wallet signature."
               : isOAuthUser
                 ? `Authenticated via ${provider} OAuth. Session managed via NextAuth.js.`
                 : "Authenticated via email/password. Session managed via NextAuth.js with HTTP-only JWT cookies."}
@@ -250,64 +354,87 @@ function SecurityTab({
         </div>
       </Card>
 
-      {/* Change password — only for email/password users */}
       {isEmailUser && (
         <Card title="Change Password" desc="Update your login password.">
           <div className="p-5 space-y-4">
-            <Input
+            <PasswordInput
               label="Current Password"
-              type="password"
               placeholder="Enter current password"
               value={cur}
-              onChange={setCur}
+              onChange={(v) => {
+                setCur(v);
+                setFieldErrors((e) => ({ ...e, cur: "" }));
+              }}
+              error={!!fieldErrors.cur}
             />
-            <Input
+            {fieldErrors.cur && (
+              <p className="text-xs text-red-400 -mt-2">{fieldErrors.cur}</p>
+            )}
+
+            <PasswordInput
               label="New Password"
-              type="password"
               placeholder="At least 8 characters"
               value={next}
-              onChange={setNext}
+              onChange={(v) => {
+                setNext(v);
+                setFieldErrors((e) => ({ ...e, next: "" }));
+              }}
+              error={!!fieldErrors.next}
             />
-            <Input
+            {next && <PasswordStrength password={next} />}
+            {fieldErrors.next && (
+              <p className="text-xs text-red-400 -mt-2">{fieldErrors.next}</p>
+            )}
+
+            <PasswordInput
               label="Confirm New Password"
-              type="password"
               placeholder="Confirm new password"
               value={confirm}
-              onChange={setConfirm}
+              onChange={(v) => {
+                setConfirm(v);
+                setFieldErrors((e) => ({ ...e, confirm: "" }));
+              }}
+              error={!!fieldErrors.confirm}
             />
-
-            {err && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {err}
+            {next && confirm && (
+              <div
+                className={`flex items-center gap-1.5 text-xs ${next === confirm ? "text-teal-400" : "text-red-400"}`}
+              >
+                {next === confirm ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <XCircle className="h-3 w-3" />
+                )}
+                {next === confirm ? "Passwords match" : "Passwords don't match"}
               </div>
+            )}
+            {fieldErrors.confirm && (
+              <p className="text-xs text-red-400 -mt-2">
+                {fieldErrors.confirm}
+              </p>
             )}
 
             <button
               onClick={handleChange}
               disabled={saving || !cur || !next || !confirm}
-              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Lock className="h-4 w-4" />
               )}
-              {done
-                ? "Password updated!"
-                : saving
-                  ? "Updating..."
-                  : "Update Password"}
+              {saving ? "Updating..." : "Update Password"}
             </button>
 
-            {/* Forgot password link */}
             <div className="pt-1 border-t border-white/[0.05]">
               <p className="text-xs text-white/30 mb-2">
                 Forgot your current password?
               </p>
               {resetSent ? (
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 text-teal-400 text-xs">
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                  Reset link sent to {session?.user?.email}
+                  <Check className="h-3.5 w-3.5 shrink-0" /> Reset link sent to{" "}
+                  {session?.user?.email}
                 </div>
               ) : (
                 <button
@@ -328,23 +455,20 @@ function SecurityTab({
         </Card>
       )}
 
-      {/* OAuth users — can't change password */}
       {isOAuthUser && (
         <Card title="Password" desc="Your account uses OAuth authentication.">
           <div className="p-5">
             <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
               <KeyRound className="h-4 w-4 text-white/20 mt-0.5 shrink-0" />
               <p className="text-xs text-white/35 leading-relaxed">
-                Your account is linked to {provider}. Password management is
-                handled by {provider} — you can change your password from your{" "}
-                {provider} account settings.
+                Your account is linked to {provider}. Manage your password from
+                your {provider} account settings.
               </p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* Danger zone */}
       <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.03] overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-red-500/[0.08] flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-red-400/60" />
@@ -356,12 +480,34 @@ function SecurityTab({
           </div>
         </div>
         <div className="p-5">
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
+          {!showLogoutConfirm ? (
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-white/40">
+                Are you sure you want to sign out?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={onLogout}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4" /> Yes, sign out
+                </button>
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -372,16 +518,23 @@ function SecurityTab({
 function WalletTab({
   wallet,
   balance,
+  onToast,
 }: {
   wallet: string | null;
   balance: number;
+  onToast: (msg: string, type: "success" | "error") => void;
 }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     if (!wallet) return;
-    navigator.clipboard.writeText(wallet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(wallet)
+      .then(() => {
+        setCopied(true);
+        onToast("Address copied to clipboard", "success");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => onToast("Failed to copy", "error"));
   };
 
   if (!wallet) {
@@ -406,7 +559,7 @@ function WalletTab({
           <div className="flex gap-2">
             <button
               onClick={copy}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] text-sm text-white/50 hover:text-white/80 transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] text-sm text-white/50 hover:text-white/80 transition-all cursor-pointer active:scale-[0.97]"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -440,34 +593,77 @@ function WalletTab({
 }
 
 // ── Preferences Tab ───────────────────────────────────────────────────────────
-function PreferencesTab() {
-  const [prefs, setPrefs] = useState({
+const NOTIF_ITEMS: { key: PrefKey; label: string; desc: string }[] = [
+  {
+    key: "staking",
+    label: "Staking alerts",
+    desc: "When positions unlock or need attention",
+  },
+  {
+    key: "referrals",
+    label: "Referral activity",
+    desc: "New signups through your referral link",
+  },
+  {
+    key: "rewards",
+    label: "Reward earnings",
+    desc: "When yield is credited to your account",
+  },
+  {
+    key: "system",
+    label: "System updates",
+    desc: "Protocol announcements and maintenance",
+  },
+];
+
+function PreferencesTab({
+  onToast,
+}: {
+  onToast: (msg: string, type: "success" | "error") => void;
+}) {
+  const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>({
     staking: true,
     referrals: false,
     rewards: true,
     system: true,
   });
   const [loaded, setLoaded] = useState(false);
+  const [savingKey, setSavingKey] = useState<PrefKey | null>(null);
 
   useEffect(() => {
-    fetch("/api/user/profile")
+    fetch("/api/user/preferences", { credentials: "include" })
       .then((r) => r.json())
-      .then(({ user }) => {
-        if (user?.preferences) setPrefs((p) => ({ ...p, ...user.preferences }));
+      .then(({ preferences }) => {
+        if (preferences) setPrefs((p) => ({ ...p, ...preferences }));
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
-  const toggle = (k: keyof typeof prefs) => {
-    const next = { ...prefs, [k]: !prefs[k] };
-    setPrefs(next);
-    fetch("/api/user/profile", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ preferences: next }),
-    }).catch(() => {});
+  const toggle = async (key: PrefKey) => {
+    const updated = { [key]: !prefs[key] };
+    setPrefs((p) => ({ ...p, ...updated }));
+    setSavingKey(key);
+    try {
+      const res = await fetch("/api/user/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updated),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      if (data.preferences) setPrefs((p) => ({ ...p, ...data.preferences }));
+      onToast(
+        `${NOTIF_ITEMS.find((n) => n.key === key)?.label} ${!prefs[key] ? "enabled" : "disabled"}`,
+        "success",
+      );
+    } catch {
+      setPrefs((p) => ({ ...p, [key]: prefs[key] }));
+      onToast("Failed to save preference", "error");
+    } finally {
+      setSavingKey(null);
+    }
   };
 
   return (
@@ -475,62 +671,71 @@ function PreferencesTab() {
       title="Notifications"
       desc="Choose what you want to be notified about."
     >
-      {[
-        {
-          key: "staking" as const,
-          label: "Staking alerts",
-          desc: "When positions unlock or need attention",
-        },
-        {
-          key: "referrals" as const,
-          label: "Referral activity",
-          desc: "New signups through your referral link",
-        },
-        {
-          key: "rewards" as const,
-          label: "Reward earnings",
-          desc: "When yield is credited to your account",
-        },
-        {
-          key: "system" as const,
-          label: "System updates",
-          desc: "Protocol announcements and maintenance",
-        },
-      ].map((n) => (
-        <div
-          key={n.key}
-          className="flex items-center justify-between px-5 py-4 border-b border-white/[0.04] last:border-0"
-        >
-          <div>
-            <p className="text-sm text-white/70">{n.label}</p>
-            <p className="text-xs text-white/25 mt-0.5">{n.desc}</p>
-          </div>
-          <Toggle on={prefs[n.key]} onChange={() => toggle(n.key)} />
+      {!loaded ? (
+        <div className="p-8 flex justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-white/20" />
         </div>
-      ))}
+      ) : (
+        NOTIF_ITEMS.map((n) => (
+          <div
+            key={n.key}
+            className="flex items-center justify-between px-5 py-4 border-b border-white/[0.04] last:border-0 group"
+          >
+            <div>
+              <p className="text-sm text-white/70 group-hover:text-white/90 transition-colors">
+                {n.label}
+              </p>
+              <p className="text-xs text-white/25 mt-0.5">{n.desc}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {savingKey === n.key && (
+                <Loader2 className="h-3 w-3 animate-spin text-white/20" />
+              )}
+              <Toggle
+                on={prefs[n.key]}
+                onChange={() => toggle(n.key)}
+                disabled={savingKey !== null}
+              />
+            </div>
+          </div>
+        ))
+      )}
+      {loaded && (
+        <div className="px-5 py-3 border-t border-white/[0.04]">
+          <p className="text-xs text-white/20">
+            {Object.values(prefs).filter(Boolean).length} of{" "}
+            {Object.keys(prefs).length} notifications enabled
+          </p>
+        </div>
+      )}
     </Card>
   );
 }
 
-// ── Tabs config ───────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: "security", icon: Shield, label: "Security" },
   { id: "wallet", icon: Wallet, label: "Wallet" },
   { id: "preferences", icon: Bell, label: "Preferences" },
 ];
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function SettingsPageRoute() {
   const dash = useDashboard();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("security");
   const [notifications, setNotifications] = useState<any[]>([]);
-
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const showToast = useCallback(
+    (message: string, type: "success" | "error") => setToast({ message, type }),
+    [],
+  );
   const visibleTabs = TABS.filter((t) => !(t.id === "wallet" && !dash.wallet));
 
   return (
     <div className="min-h-screen bg-[#060b14] text-slate-200 antialiased">
-      {/* Ambient */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div className="absolute -top-64 -left-64 w-[800px] h-[800px] rounded-full bg-teal-600/[0.05] blur-[200px]" />
         <div className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full bg-indigo-600/[0.06] blur-[180px]" />
@@ -571,7 +776,6 @@ export default function SettingsPageRoute() {
           </p>
         </div>
 
-        {/* Tab bar */}
         <div className="flex items-center gap-1 p-1 rounded-2xl bg-white/[0.03] border border-white/[0.05] mb-6 overflow-x-auto">
           {visibleTabs.map((t) => {
             const active = activeTab === t.id;
@@ -579,11 +783,7 @@ export default function SettingsPageRoute() {
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                  active
-                    ? "bg-white/[0.08] text-white"
-                    : "text-white/30 hover:text-white/60 hover:bg-white/[0.03]"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${active ? "bg-white/[0.08] text-white" : "text-white/30 hover:text-white/60 hover:bg-white/[0.03]"}`}
               >
                 <t.icon
                   className={`h-3.5 w-3.5 shrink-0 ${active ? "text-teal-400" : ""}`}
@@ -600,13 +800,26 @@ export default function SettingsPageRoute() {
             wallet={dash.wallet}
             provider={dash.provider}
             onLogout={dash.logout}
+            onToast={showToast}
           />
         )}
         {activeTab === "wallet" && (
-          <WalletTab wallet={dash.wallet} balance={dash.balance} />
+          <WalletTab
+            wallet={dash.wallet}
+            balance={dash.balance}
+            onToast={showToast}
+          />
         )}
-        {activeTab === "preferences" && <PreferencesTab />}
+        {activeTab === "preferences" && <PreferencesTab onToast={showToast} />}
       </main>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
