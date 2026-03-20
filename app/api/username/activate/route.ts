@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { username } = await req.json();
+    const { username, wallet: bodyWallet } = await req.json();
     if (!username) {
       return NextResponse.json({ error: "Username required" }, { status: 400 });
     }
@@ -33,9 +33,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the user making the request — try all strategies
+    // Find the user — try all strategies
     let user: any = null;
-    if (auth.wallet) {
+
+    if (bodyWallet) {
+      user = await User.findOne({ wallet: bodyWallet }).lean();
+    }
+    if (!user && auth.wallet) {
       user = await User.findOne({ wallet: auth.wallet }).lean();
     }
     if (!user && auth.userId && Types.ObjectId.isValid(auth.userId)) {
@@ -45,7 +49,6 @@ export async function POST(req: NextRequest) {
       user = await User.findOne({ email: auth.email }).lean();
     }
     if (!user && auth.userId) {
-      // userId might be email string (NextAuth Google)
       user = await User.findOne({ email: auth.userId }).lean();
     }
 
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     const ownerId = record.stats?.ownerId ?? null;
     const storedWallet = record.walletAddress ?? null;
 
-    // Check ownership: via Username record fields OR via User's usernames array
+    // Check ownership via Username record fields OR User's usernames array
     const ownedInArray = ((user as any).usernames ?? []).some(
       (u: any) =>
         (u.name ?? u.username ?? "").replace(/^@/, "").toLowerCase() ===
@@ -66,10 +69,12 @@ export async function POST(req: NextRequest) {
 
     const isOwner =
       ownedInArray ||
+      (bodyWallet && storedWallet === bodyWallet) ||
+      (bodyWallet && ownerId === bodyWallet) ||
       (auth.wallet && storedWallet === auth.wallet) ||
+      (auth.wallet && ownerId === auth.wallet) ||
       storedWallet === userId ||
-      ownerId === userId ||
-      (auth.wallet && ownerId === auth.wallet);
+      ownerId === userId;
 
     if (!isOwner) {
       return NextResponse.json(
@@ -80,9 +85,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update active username — try all filter strategies
+    // Update — try all filter strategies
     let updated: any = null;
-    if (auth.wallet) {
+
+    if (bodyWallet) {
+      updated = await User.findOneAndUpdate(
+        { wallet: bodyWallet },
+        { $set: { activeUsername: lowerUsername } },
+        { new: true },
+      );
+    }
+    if (!updated && auth.wallet) {
       updated = await User.findOneAndUpdate(
         { wallet: auth.wallet },
         { $set: { activeUsername: lowerUsername } },
