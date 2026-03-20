@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
+import { verify } from "jsonwebtoken";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/authOptions"; // adjust path if yours differs
+import { authOptions } from "@/lib/auth/authOptions";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET as string);
 
@@ -50,7 +51,7 @@ export async function setAuthCookie(token: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
     path: "/",
   });
 }
@@ -77,25 +78,40 @@ export async function getUser(): Promise<AuthPayload | null> {
 }
 
 // ─── Request Auth Verification ────────────────────────────
-// Handles three session types in priority order:
-//   1. Custom JWT cookie (auth-token)  — wallet + email/password users
-//   2. Authorization header Bearer     — API clients
-//   3. NextAuth session token          — Google OAuth users
+// Priority order:
+//   1. Bearer header — mobile JWT signed with NEXTAUTH_SECRET (Google OAuth mobile)
+//   2. auth-token cookie — wallet / email users signed with JWT_SECRET (jose)
+//   3. NextAuth session — Google OAuth on web
 export async function verifyAuth(
   req: NextRequest,
 ): Promise<AuthPayload | null> {
   try {
-    // 1 & 2 — custom JWT (wallet / email users)
-    const token =
-      req.cookies.get("auth-token")?.value ||
-      req.headers.get("authorization")?.replace("Bearer ", "");
+    // 1. Bearer token — mobile Google JWT (signed with NEXTAUTH_SECRET via jsonwebtoken)
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const raw = authHeader.slice(7);
+      try {
+        const payload = verify(raw, process.env.NEXTAUTH_SECRET!) as any;
+        if (payload?.userId) {
+          return {
+            userId: payload.userId,
+            email: payload.email ?? undefined,
+            wallet: payload.wallet ?? undefined,
+          };
+        }
+      } catch {
+        // not a NEXTAUTH_SECRET token, fall through
+      }
+    }
 
-    if (token) {
-      const payload = await verifyToken(token);
+    // 2. Custom JWT cookie — wallet / email users (signed with JWT_SECRET via jose)
+    const cookieToken = req.cookies.get("auth-token")?.value;
+    if (cookieToken) {
+      const payload = await verifyToken(cookieToken);
       if (payload) return payload;
     }
 
-    // 3 — NextAuth session (Google OAuth users)
+    // 3. NextAuth session — Google OAuth on web
     const session = await getServerSession(authOptions);
     if (session?.user) {
       const user = session.user as any;
