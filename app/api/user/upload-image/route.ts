@@ -7,21 +7,28 @@ import { put, del } from "@vercel/blob";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const auth = !session?.user ? await verifyAuth(req) : null;
+    let userId = "unknown";
 
-    if (!session?.user && !auth) {
-      return NextResponse.json(
-        { success: false, error: "Not authenticated" },
-        { status: 401 },
-      );
+    // Try NextAuth session first (web)
+    const session = await getServerSession(authOptions).catch(() => null);
+    if (session?.user) {
+      userId =
+        (session.user as any)?.id ?? (session.user as any)?.email ?? "unknown";
+    } else {
+      // Fall back to JWT Bearer token (mobile)
+      const auth = await verifyAuth(req);
+      if (!auth) {
+        return NextResponse.json(
+          { success: false, error: "Not authenticated" },
+          { status: 401 },
+        );
+      }
+      userId = auth.userId ?? "unknown";
     }
-
-    const userId = (session?.user as any)?.id ?? auth?.userId ?? "unknown";
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const type = (formData.get("type") as string) ?? "avatar"; // "avatar" | "cover"
+    const type = (formData.get("type") as string) ?? "avatar";
 
     if (!file) {
       return NextResponse.json(
@@ -29,16 +36,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       return NextResponse.json(
         { success: false, error: "File must be an image" },
         { status: 400 },
       );
     }
-
-    // Max 5MB
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json(
         { success: false, error: "Image must be under 5MB" },
@@ -64,10 +67,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Optional: delete old blob when user replaces image
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions).catch(() => null);
     const auth = !session?.user ? await verifyAuth(req) : null;
 
     if (!session?.user && !auth) {
