@@ -40,35 +40,50 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
-    // 2. Find or create user
-    let user = await User.findOne({
-      $or: [
-        { email: googleUser.email.toLowerCase() },
-        { googleId: googleUser.id },
-      ],
-    });
+    const email = googleUser.email.toLowerCase();
 
+    // FIX: always check googleId FIRST — never match by email alone.
+    // Matching by email caused the wrong account to load when an email/password
+    // account already existed with the same email address.
+
+    // Step 1: try to find by googleId
+    let user = await User.findOne({ googleId: googleUser.id });
+
+    // Step 2: if no googleId match, check if an email/password account exists
     if (!user) {
-      // Auto-create account for new Google users
+      const emailUser = await User.findOne({ email });
+
+      if (emailUser) {
+        if (emailUser.googleId) {
+          // Another Google account already owns this email — block it
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "This email is already linked to a different Google account.",
+            },
+            { status: 409 },
+          );
+        }
+        // Email/password account exists — link Google to it
+        emailUser.googleId = googleUser.id;
+        if (!emailUser.avatar && googleUser.picture) {
+          emailUser.avatar = googleUser.picture;
+        }
+        await emailUser.save();
+        user = emailUser;
+      }
+    }
+
+    // Step 3: no existing account at all — create a fresh one
+    if (!user) {
       user = await User.create({
-        email: googleUser.email.toLowerCase(),
-        name: googleUser.name ?? googleUser.email.split("@")[0],
+        email,
+        name: googleUser.name ?? email.split("@")[0],
         avatar: googleUser.picture ?? null,
         googleId: googleUser.id,
         createdAt: new Date(),
       });
-    } else {
-      // Link Google ID if signing in with Google for the first time
-      let changed = false;
-      if (!user.googleId) {
-        user.googleId = googleUser.id;
-        changed = true;
-      }
-      if (!user.avatar && googleUser.picture) {
-        user.avatar = googleUser.picture;
-        changed = true;
-      }
-      if (changed) await user.save();
     }
 
     // 3. Issue a JWT the mobile app uses as Bearer token
