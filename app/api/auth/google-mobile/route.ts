@@ -1,6 +1,7 @@
 // app/api/auth/google-mobile/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { sign } from "jsonwebtoken";
+import { nanoid } from "nanoid";
 import connectDB from "@/lib/db/mongodb";
 import { User } from "@/models";
 
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Verify the access token with Google and get user info
+    // 1. Verify the access token with Google
     const googleRes = await fetch("https://www.googleapis.com/userinfo/v2/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -41,52 +42,45 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const email = googleUser.email.toLowerCase();
+    const googleId = googleUser.id;
 
-    // FIX: always check googleId FIRST — never match by email alone.
-    // Matching by email caused the wrong account to load when an email/password
-    // account already existed with the same email address.
+    // FIX: always search by googleId first — most reliable unique identifier
+    let user = await User.findOne({ googleId });
 
-    // Step 1: try to find by googleId
-    let user = await User.findOne({ googleId: googleUser.id });
-
-    // Step 2: if no googleId match, check if an email/password account exists
+    // No googleId match — check by email (handles email/password accounts)
     if (!user) {
-      const emailUser = await User.findOne({ email });
-
-      if (emailUser) {
-        if (emailUser.googleId) {
-          // Another Google account already owns this email — block it
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "This email is already linked to a different Google account.",
-            },
-            { status: 409 },
-          );
-        }
-        // Email/password account exists — link Google to it
-        emailUser.googleId = googleUser.id;
-        if (!emailUser.avatar && googleUser.picture) {
-          emailUser.avatar = googleUser.picture;
-        }
-        await emailUser.save();
-        user = emailUser;
-      }
+      user = await User.findOne({ email });
     }
 
-    // Step 3: no existing account at all — create a fresh one
-    if (!user) {
+    if (user) {
+      // Link googleId if not already saved (first time Google login for this account)
+      let changed = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        changed = true;
+      }
+      if (!user.avatar && googleUser.picture) {
+        user.avatar = googleUser.picture;
+        changed = true;
+      }
+      if (changed) await user.save();
+    } else {
+      // Brand new user — create fresh account
       user = await User.create({
         email,
         name: googleUser.name ?? email.split("@")[0],
         avatar: googleUser.picture ?? null,
-        googleId: googleUser.id,
+        googleId,
+        xp: 0,
+        level: 1,
+        earnings: 0,
+        stakedAmount: 0,
+        referralCode: nanoid(8),
         createdAt: new Date(),
       });
     }
 
-    // 3. Issue a JWT the mobile app uses as Bearer token
+    // 2. Issue JWT for mobile
     const token = sign(
       {
         userId: user._id.toString(),
@@ -98,7 +92,7 @@ export async function POST(req: NextRequest) {
       { expiresIn: "30d" },
     );
 
-    // 4. Return token + user data (same shape as /api/user/me)
+    // 3. Return token + user data (same shape as /api/user/me)
     return NextResponse.json({
       success: true,
       token,

@@ -120,13 +120,23 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === "google") {
         try {
           await connectDB();
-          const existing = await User.findOne({ email: user.email });
+
+          const googleId = account.providerAccountId;
+          const email = user.email?.toLowerCase();
+
+          // FIX: search by googleId first, then fall back to email
+          let existing = await User.findOne({ googleId });
+
+          if (!existing && email) {
+            existing = await User.findOne({ email });
+          }
 
           if (!existing) {
+            // Brand new user — create with googleId saved
             const newUser = await User.create({
-              email: user.email,
+              email,
               name: user.name,
-              googleId: account.providerAccountId,
+              googleId,
               xp: 0,
               level: 1,
               earnings: 0,
@@ -139,6 +149,13 @@ export const authOptions: NextAuthOptions = {
             await processReferral(newUser._id.toString(), refCode);
           } else {
             user.id = existing._id.toString();
+
+            // FIX: always save googleId if it wasn't saved before
+            // This fixes accounts that signed up via email first
+            if (!existing.googleId) {
+              existing.googleId = googleId;
+              await existing.save();
+            }
           }
         } catch (err) {
           console.error("[NextAuth] signIn Google DB error:", err);
