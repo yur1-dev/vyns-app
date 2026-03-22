@@ -125,8 +125,11 @@ function ImageCropModal({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
 
-  const PREVIEW_W = aspectRatio >= 1 ? 320 : Math.round(320 * aspectRatio);
-  const PREVIEW_H = aspectRatio <= 1 ? 320 : Math.round(320 / aspectRatio);
+  // AFTER — responsive, fits any screen
+  const MAX =
+    typeof window !== "undefined" ? Math.min(window.innerWidth - 80, 320) : 280;
+  const PREVIEW_W = aspectRatio >= 1 ? MAX : Math.round(MAX * aspectRatio);
+  const PREVIEW_H = aspectRatio <= 1 ? MAX : Math.round(MAX / aspectRatio);
 
   useEffect(() => {
     const img = new window.Image();
