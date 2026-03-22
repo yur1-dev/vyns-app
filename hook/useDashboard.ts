@@ -288,9 +288,6 @@ export function useDashboard() {
       setLoading(true);
       try {
         if (session?.user) {
-          setWallet((session.user as any).wallet ?? null);
-          setBalance(0);
-
           const p = session.user.provider ?? "credentials";
           setProvider(
             p === "google"
@@ -302,7 +299,23 @@ export function useDashboard() {
                   : "credentials",
           );
 
+          // Always read wallet from DB — session JWT is stale after link-wallet
           await fetchUserData(null, session);
+
+          // Also fetch directly to get wallet + balance right away
+          try {
+            const meRes = await fetch("/api/user/me", {
+              credentials: "include",
+            });
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              const dbWallet = (meData.user ?? meData)?.wallet ?? null;
+              if (dbWallet) {
+                setWallet(dbWallet);
+                fetchBalance(dbWallet);
+              }
+            }
+          } catch {}
           return;
         }
 

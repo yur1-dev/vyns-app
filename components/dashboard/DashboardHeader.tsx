@@ -33,12 +33,12 @@ import {
 
 import { type ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
 
+const RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
-    const rpc =
-      process.env.NEXT_PUBLIC_SOLANA_RPC ||
-      "https://api.mainnet-beta.solana.com";
-    const res = await fetch(rpc, {
+    const res = await fetch(RPC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -199,6 +199,8 @@ export default function DashboardHeader({
       ? displayUsername.slice(0, 14) + "…"
       : displayUsername;
 
+  const isDevnet = RPC_URL.includes("devnet");
+
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
     setBalLoading(true);
@@ -278,7 +280,6 @@ export default function DashboardHeader({
     }
   };
 
-  // ── Avatar render — checks uploaded avatarImage first ──────────────────────
   const renderAvatar = (size = 28) => {
     const avatarImage = (customization as any)?.avatarImage;
     if (avatarImage)
@@ -347,6 +348,12 @@ export default function DashboardHeader({
               className="object-contain opacity-90 hover:opacity-100 transition-opacity"
             />
           </Link>
+          {/* Devnet badge */}
+          {isDevnet && (
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              DEVNET
+            </span>
+          )}
         </div>
 
         {/* Right */}
@@ -502,7 +509,6 @@ export default function DashboardHeader({
 
             {dropOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
-                {/* Profile info */}
                 <div className="p-3 border-b border-white/[0.05]">
                   <div className="flex items-center gap-3">
                     <div
@@ -513,7 +519,6 @@ export default function DashboardHeader({
                         boxShadow: `0 0 12px ${themeColor}40`,
                       }}
                     >
-                      {/* Priority: uploaded avatarImage > OAuth > pixel */}
                       {(customization as any)?.avatarImage ? (
                         <img
                           src={(customization as any).avatarImage}
@@ -560,6 +565,11 @@ export default function DashboardHeader({
                             {balance.toFixed(4)}
                           </span>
                           <span className="text-xs text-white/25">SOL</span>
+                          {isDevnet && (
+                            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-amber-500/15 text-amber-400">
+                              DEV
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
                           <button
@@ -573,7 +583,7 @@ export default function DashboardHeader({
                             )}
                           </button>
                           <a
-                            href={`https://solscan.io/account/${wallet}`}
+                            href={`https://solscan.io/account/${wallet}${isDevnet ? "?cluster=devnet" : ""}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all"
