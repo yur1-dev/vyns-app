@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    // Support both auth methods — session first, wallet JWT fallback
     const session = await getServerSession(authOptions);
     const auth = !session?.user ? await verifyAuth(req) : null;
 
@@ -21,7 +20,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve buyer identifiers
     const buyerUserId = (session?.user as any)?.id ?? auth?.userId ?? null;
     const buyerWallet = (session?.user as any)?.wallet ?? auth?.wallet ?? null;
 
@@ -49,7 +47,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Self-purchase check — same type only, never cross-compare wallet vs userId
     const isSelfPurchase =
       (buyerWallet && record.walletAddress === buyerWallet) ||
       (buyerUserId &&
@@ -63,16 +60,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Transfer ownership to buyer
-    record.walletAddress = buyerWallet ?? buyerUserId;
-    record.isListed = false;
-    record.listedPrice = null;
-    if (record.stats) {
-      record.stats.ownerId = buyerUserId ?? buyerWallet;
-    }
-    await record.save();
+    // FIX 1: Use findByIdAndUpdate with $set/$unset instead of record.save()
+    // so Mongoose actually persists isListed=false and clears listedPrice.
+    // FIX 2: Use $set on stats to trigger change detection on Mixed field
+    // instead of mutating record.stats directly (which Mongoose ignores).
+    const newStats = {
+      ...(record.stats ?? {}),
+      ownerId: buyerUserId ?? buyerWallet,
+    };
 
-    // Push to buyer's User.usernames[] if they have a User doc
+    await Username.findByIdAndUpdate(record._id, {
+      $set: {
+        walletAddress: buyerWallet ?? buyerUserId,
+        isListed: false,
+        stats: newStats,
+        // Clear listedBy fields now that it's sold
+        listedById: null,
+        listedByWallet: null,
+      },
+      $unset: { listedPrice: "" }, // $unset properly removes the field
+    });
+
+    // Push to buyer's User.usernames[]
     if (buyerUserId) {
       await User.findByIdAndUpdate(buyerUserId, {
         $push: {

@@ -414,18 +414,23 @@ const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   reward: { icon: Star, color: "#f472b6" },
 };
 
-// ─── Upload helper ─────────────────────────────────────────────────────────────
+// ─── Upload helper — FIX: send JSON base64, not FormData ───────────────────────
+// The API at /api/user/upload-image expects { type, base64, contentType }
+// not a FormData body. Mobile works because it already sends base64.
+// Web was broken because it was sending FormData which req.json() can't parse.
 async function uploadImageBlob(
   blob: Blob,
   type: "avatar" | "cover",
 ): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", blob, `${type}.jpg`);
-  fd.append("type", type);
+  const arrayBuffer = await blob.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const contentType = blob.type || "image/jpeg";
+
   const res = await fetch("/api/user/upload-image", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: fd,
+    body: JSON.stringify({ type, base64, contentType }),
   });
   const data = await res.json();
   if (!data.success) throw new Error(data.error ?? "Upload failed");
@@ -470,7 +475,7 @@ export default function ProfilePage() {
   const coverOverrideRef = useRef<string | null | undefined>(undefined);
   const bioOverrideRef = useRef<string | undefined>(undefined);
 
-  // ── Derived from dash (same as DashboardHeader does it) ──
+  // ── Derived from dash ──
   const themeColor =
     THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -578,7 +583,7 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Build save payload — always uses explicit values passed in ──────────────
+  // ── Build save payload ──────────────────────────────────────────────────────
   const buildPayload = useCallback(
     (avatarImage: string | null, coverPhoto: string | null, bio: string) => ({
       theme: currentTheme,
@@ -630,11 +635,10 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingAvatar(true);
     const localPreview = URL.createObjectURL(blob);
-    setAvatarUrl(localPreview); // optimistic
+    setAvatarUrl(localPreview);
     try {
       const cdnUrl = await uploadImageBlob(blob, "avatar");
 
-      // Clean up old CDN blob
       const oldUrl = (dash.customization as any)?.avatarImage;
       if (oldUrl && oldUrl.includes("vercel-storage.com")) {
         fetch("/api/user/upload-image", {
@@ -645,7 +649,6 @@ export default function ProfilePage() {
         }).catch(() => {});
       }
 
-      // Update local state to CDN URL, then save with that exact value
       setAvatarUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
       await saveCustomization(
@@ -662,7 +665,7 @@ export default function ProfilePage() {
     } catch (err) {
       console.error("[avatar upload]", err);
       setAvatarOverride(undefined);
-      avatarOverrideRef.current = undefined; // revert
+      avatarOverrideRef.current = undefined;
     }
     setSavingAvatar(false);
   };
@@ -685,7 +688,7 @@ export default function ProfilePage() {
     setCropSrc(null);
     setSavingCover(true);
     const localPreview = URL.createObjectURL(blob);
-    setCoverUrl(localPreview); // optimistic
+    setCoverUrl(localPreview);
     try {
       const cdnUrl = await uploadImageBlob(blob, "cover");
 
@@ -863,7 +866,7 @@ export default function ProfilePage() {
                 <div className="absolute inset-0 bg-black/10" />
               )}
 
-              {/* Tier badge — top left */}
+              {/* Tier badge */}
               <div
                 className="absolute top-3 left-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide z-10"
                 style={{
@@ -876,7 +879,7 @@ export default function ProfilePage() {
                 {xpTier.label}
               </div>
 
-              {/* Cover edit button — top right, always visible */}
+              {/* Cover edit button */}
               <div className="absolute top-3 right-3 z-20">
                 {savingCover ? (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white/50">
@@ -949,7 +952,6 @@ export default function ProfilePage() {
                         />
                       )}
                     </div>
-                    {/* Camera overlay — only on hover */}
                     <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center gap-0.5 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                       <Camera className="h-5 w-5 text-white" />
                       <span className="text-[10px] text-white/90 font-medium">
@@ -983,7 +985,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Bio — inline edit like Facebook */}
+              {/* Bio */}
               <div className="mt-4 ml-0 sm:ml-1 max-w-lg">
                 {editingBio ? (
                   <div className="space-y-2">
