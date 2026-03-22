@@ -51,6 +51,12 @@ export function useDashboard() {
   );
 
   const initDone = useRef(false);
+  const walletRef = useRef<string | null>(null);
+
+  // Keep walletRef in sync so visibilitychange handler always has latest value
+  useEffect(() => {
+    walletRef.current = wallet;
+  }, [wallet]);
 
   const fetchBalance = useCallback(async (pk: string) => {
     try {
@@ -119,6 +125,12 @@ export function useDashboard() {
         const data = await userRes.json();
         const payload = data.user ?? data;
 
+        // FIX: sync wallet from server response so header updates after linking
+        if (payload.wallet && !walletRef.current) {
+          setWallet(payload.wallet);
+          fetchBalance(payload.wallet);
+        }
+
         const positions = await fetchStakingPositions();
         const stakingRewards = positions
           .filter((p: any) => p.status !== "claimed")
@@ -158,13 +170,36 @@ export function useDashboard() {
         console.error("[useDashboard] fetchUserData error:", err);
       }
     },
-    [fetchStakingPositions, fetchReferralRewards],
+    [fetchStakingPositions, fetchReferralRewards, fetchBalance],
   );
 
   const refreshUserData = useCallback(async () => {
     await fetchUserData(wallet, session);
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
+
+  // FIX: Re-sync wallet from server whenever user navigates back to this tab
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!initDone.current) return;
+      try {
+        const res = await fetch("/api/user/me", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const payload = data.user ?? data;
+        if (payload.wallet && payload.wallet !== walletRef.current) {
+          setWallet(payload.wallet);
+          fetchBalance(payload.wallet);
+        }
+      } catch {
+        // silent
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fetchBalance]);
 
   const claimReferralRewards = useCallback(async (): Promise<{
     success: boolean;
@@ -256,7 +291,6 @@ export function useDashboard() {
           setWallet((session.user as any).wallet ?? null);
           setBalance(0);
 
-          // Use the provider stored in the JWT token — reliable across all auth methods
           const p = session.user.provider ?? "credentials";
           setProvider(
             p === "google"
