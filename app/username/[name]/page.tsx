@@ -317,7 +317,6 @@ function BuyModal({
                 ))}
               </div>
 
-              {/* FIX: Show wallet warning if not connected */}
               {!walletConnected ? (
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
                   <AlertCircle className="h-3.5 w-3.5 text-amber-400/80 shrink-0 mt-0.5" />
@@ -350,7 +349,6 @@ function BuyModal({
                   Cancel
                 </button>
 
-                {/* FIX: Gate behind wallet connection */}
                 {walletConnected ? (
                   <button
                     onClick={handleBuy}
@@ -402,7 +400,6 @@ export default function UsernamePage() {
   const [copied, setCopied] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  // FIX: Track Phantom connection state
   const [phantomConnected, setPhantomConnected] = useState(false);
 
   const tier = getTier(username) as keyof typeof TIER_CONFIG;
@@ -411,7 +408,7 @@ export default function UsernamePage() {
 
   // Check if Phantom is already connected on mount
   useEffect(() => {
-    const solana = (window as any).solana;
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (solana?.isPhantom && solana.isConnected) {
       setPhantomConnected(true);
     }
@@ -459,20 +456,32 @@ export default function UsernamePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // FIX: Connect Phantom — opens phantom.app if not installed
+  // FIX: Connect Phantom + persist wallet server-side so dashboard header updates
   const handleConnectWallet = async () => {
-    const solana = (window as any).solana;
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (!solana?.isPhantom) {
       window.open("https://phantom.app/", "_blank");
       return;
     }
-    await solana.connect();
+    const resp = await solana.connect();
+    const pk = resp.publicKey.toString();
     setPhantomConnected(true);
+    // Persist to server so dashboard "Connect Wallet" button disappears on next load
+    try {
+      await fetch("/api/user/link-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ wallet: pk }),
+      });
+    } catch {
+      // Non-fatal — wallet is still connected locally for this purchase
+    }
   };
 
   const handleBuy = async (): Promise<{ success: boolean; error?: string }> => {
     // Re-check wallet still connected before proceeding
-    const solana = (window as any).solana;
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (!solana?.isPhantom || !solana.isConnected) {
       setPhantomConnected(false);
       return {
@@ -922,7 +931,17 @@ export default function UsernamePage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setShowBuy(true)}
+                    onClick={() => {
+                      // FIX: Re-check actual Phantom state at click time
+                      const solana =
+                        (window as any).phantom?.solana ??
+                        (window as any).solana;
+                      const connected = !!(
+                        solana?.isPhantom && solana.isConnected
+                      );
+                      setPhantomConnected(connected);
+                      setShowBuy(true);
+                    }}
                     className={`w-full py-3.5 rounded-2xl ${cfg.bg} border ${cfg.border} ${cfg.cls} text-sm font-bold hover:opacity-80 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2`}
                   >
                     <Tag className="h-4 w-4" />
