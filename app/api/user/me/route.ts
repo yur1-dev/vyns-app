@@ -21,11 +21,13 @@ export async function GET(req: NextRequest) {
 
     const userId = (session?.user as any)?.id ?? auth?.userId ?? null;
     const email = session?.user?.email ?? auth?.email ?? null;
-    const wallet = (session?.user as any)?.wallet ?? auth?.wallet ?? null;
+    const sessionWallet =
+      (session?.user as any)?.wallet ?? auth?.wallet ?? null;
 
     let user = userId ? await User.findById(userId).catch(() => null) : null;
     if (!user && email) user = await User.findOne({ email });
-    if (!user && wallet) user = await User.findOne({ wallet });
+    if (!user && sessionWallet)
+      user = await User.findOne({ wallet: sessionWallet });
 
     if (!user) {
       user = await User.create({
@@ -39,12 +41,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // FIX: Always use wallet from DB — session JWT is stale after link-wallet
+    const wallet = user.wallet ?? sessionWallet ?? null;
+
     const usernameRecords = await Username.find({
       $or: [
         { walletAddress: user._id.toString() },
         { "stats.ownerId": user._id.toString() },
         ...(email ? [{ walletAddress: email }] : []),
-        ...(wallet ? [{ walletAddress: wallet }] : []),
+        ...(wallet
+          ? [{ walletAddress: wallet }, { "stats.ownerId": wallet }]
+          : []),
       ],
     });
 
@@ -76,7 +83,8 @@ export async function GET(req: NextRequest) {
 
     const payload = {
       _id: userObj._id?.toString() ?? null,
-      wallet: wallet ?? userObj.wallet ?? null,
+      // FIX: DB wallet takes priority over stale session wallet
+      wallet,
       email: userObj.email ?? null,
       name: userObj.name ?? null,
       xp: userObj.xp ?? 0,
@@ -90,7 +98,6 @@ export async function GET(req: NextRequest) {
       referrals: userObj.referrals ?? 0,
       activity: [],
       isNewUser: usernameRecords.length === 0,
-      // ── Profile fields ──────────────────────────────────────────────────────
       bio: userObj.bio ?? "",
       customization: userObj.customization ?? {
         theme: "teal",

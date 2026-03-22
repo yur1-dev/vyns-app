@@ -60,10 +60,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // FIX 1: Use findByIdAndUpdate with $set/$unset instead of record.save()
-    // so Mongoose actually persists isListed=false and clears listedPrice.
-    // FIX 2: Use $set on stats to trigger change detection on Mixed field
-    // instead of mutating record.stats directly (which Mongoose ignores).
+    // Identify the seller before transferring ownership
+    const sellerUserId = record.listedById ?? record.stats?.ownerId ?? null;
+    const sellerWallet = record.listedByWallet ?? record.walletAddress ?? null;
+
     const newStats = {
       ...(record.stats ?? {}),
       ownerId: buyerUserId ?? buyerWallet,
@@ -74,12 +74,25 @@ export async function POST(req: NextRequest) {
         walletAddress: buyerWallet ?? buyerUserId,
         isListed: false,
         stats: newStats,
-        // Clear listedBy fields now that it's sold
         listedById: null,
         listedByWallet: null,
       },
-      $unset: { listedPrice: "" }, // $unset properly removes the field
+      $unset: { listedPrice: "" },
     });
+
+    // Remove username from seller's User.usernames[]
+    // Try by userId first, then fall back to wallet lookup
+    const usernameVariants = [clean, `@${clean}`];
+    if (sellerUserId) {
+      await User.findByIdAndUpdate(sellerUserId, {
+        $pull: { usernames: { name: { $in: usernameVariants } } },
+      }).catch(() => {});
+    } else if (sellerWallet) {
+      await User.findOneAndUpdate(
+        { wallet: sellerWallet },
+        { $pull: { usernames: { name: { $in: usernameVariants } } } },
+      ).catch(() => {});
+    }
 
     // Push to buyer's User.usernames[]
     if (buyerUserId) {
