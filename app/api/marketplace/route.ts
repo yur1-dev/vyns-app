@@ -46,11 +46,13 @@ export async function GET(request: NextRequest) {
       listings: listings.map((item: any) => ({
         username: item.username,
         price: item.listedPrice,
-        // FIX: Return both owner (MongoDB _id) AND ownerWallet separately
-        // so the frontend can match against both email users (_id) and
-        // wallet users (wallet address) correctly.
+        // Current owner — used for self-purchase guard
         owner: item.stats?.ownerId ?? null,
         ownerWallet: item.walletAddress ?? null,
+        // FIX: Who originally listed it — never changes after listing.
+        // Frontend uses these to show "You own this listing" correctly.
+        listedById: item.listedById ?? null,
+        listedByWallet: item.listedByWallet ?? null,
         level: item.level,
         xp: item.xp,
         isPremium: item.isPremium,

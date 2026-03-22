@@ -26,9 +26,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await connectDB();
-
-    // Try with and without @ prefix since two claim routes exist
     const lowerUsername = username.toLowerCase().replace(/^@/, "");
     const record =
       (await Username.findOne({ username: lowerUsername })) ||
@@ -41,16 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Multi-strategy ownership check
     const ownerId = record.stats?.ownerId ?? null;
     const storedWallet = record.walletAddress ?? null;
 
     const isOwner =
-      // Strategy 1: walletAddress matches auth.wallet (Phantom users)
       (auth.wallet && storedWallet === auth.wallet) ||
-      // Strategy 2: walletAddress IS the userId (email users via claim route)
       (auth.userId && storedWallet === auth.userId) ||
-      // Strategy 3: stats.ownerId matches userId
       (auth.userId && ownerId === auth.userId);
 
     if (!isOwner) {
@@ -72,6 +65,11 @@ export async function POST(req: NextRequest) {
 
     record.listedPrice = price;
     record.isListed = true;
+    // FIX: Save who is listing it right now, separately from ownership.
+    // These never change after listing — even if someone buys it later,
+    // we still know who the original lister was.
+    record.listedById = auth.userId ?? null;
+    record.listedByWallet = auth.wallet ?? null;
     await record.save();
 
     return NextResponse.json({ success: true });

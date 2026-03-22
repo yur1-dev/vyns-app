@@ -28,9 +28,12 @@ export async function GET(req: NextRequest) {
       listing: {
         username: record.username?.replace(/^@/, "") ?? clean,
         price: record.listedPrice,
-        // owner stores userId for email users — used for ownership check in UI
+        // Current owner
         owner: record.stats?.ownerId ?? record.walletAddress,
         ownerWallet: record.walletAddress,
+        // FIX: Original lister — stable, doesn't change on purchase
+        listedById: record.listedById ?? null,
+        listedByWallet: record.listedByWallet ?? null,
         level: record.level ?? 1,
         xp: record.xp ?? 0,
         isPremium: record.isPremium ?? false,

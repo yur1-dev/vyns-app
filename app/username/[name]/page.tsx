@@ -352,7 +352,7 @@ export default function UsernamePage() {
   const username = decodeURIComponent(rawName).replace(/^@/, "");
 
   const [listing, setListing] = useState<any>(null);
-  const [publicProfile, setPublicProfile] = useState<any>(null); // owner's public profile data
+  const [publicProfile, setPublicProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentWallet, setCurrentWallet] = useState<string | null>(null);
@@ -373,7 +373,6 @@ export default function UsernamePage() {
       fetch("/api/user/me", { credentials: "include" })
         .then((r) => r.json())
         .catch(() => null),
-      // Fetch the owner's public profile — create this API route if it doesn't exist yet
       fetch(`/api/user/public?username=${encodeURIComponent(username)}`)
         .then((r) => r.json())
         .catch(() => null),
@@ -393,12 +392,17 @@ export default function UsernamePage() {
       .finally(() => setLoading(false));
   }, [username]);
 
+  // FIX: Check against listedById/listedByWallet (who listed it),
+  // NOT owner/ownerWallet (who currently owns it after possible purchase).
+  // This means "Listed by you" stays correct even after someone buys it.
   const isOwner = !!(
     listing &&
-    ((currentUserId && listing.owner && currentUserId === listing.owner) ||
+    ((currentUserId &&
+      listing.listedById &&
+      currentUserId === listing.listedById) ||
       (currentWallet &&
-        listing.ownerWallet &&
-        currentWallet === listing.ownerWallet))
+        listing.listedByWallet &&
+        currentWallet === listing.listedByWallet))
   );
 
   const handleCopy = () => {
@@ -527,7 +531,7 @@ export default function UsernamePage() {
                   {xpTier.label}
                 </div>
 
-                {/* Top-right actions */}
+                {/* Top-left actions */}
                 <div className="absolute top-3 left-4 flex items-center gap-1.5">
                   <button
                     onClick={handleCopy}
@@ -584,7 +588,7 @@ export default function UsernamePage() {
                       )}
                       {isOwner && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border text-teal-400 bg-teal-500/10 border-teal-500/20">
-                          <Check className="h-2.5 w-2.5" /> Yours
+                          <Check className="h-2.5 w-2.5" /> Your listing
                         </span>
                       )}
                     </div>
@@ -599,7 +603,7 @@ export default function UsernamePage() {
                   </div>
                 </div>
 
-                {/* Bio */}
+                {/* Bio — only show if listing is not sold/owned by someone else */}
                 {bio && (
                   <p className="mt-3 text-sm text-white/45 leading-relaxed">
                     {bio}
@@ -730,7 +734,7 @@ export default function UsernamePage() {
               </div>
             )}
 
-            {/* ── RECENT ACTIVITY (public, limited) ────────────────────────── */}
+            {/* ── RECENT ACTIVITY ──────────────────────────────────────────── */}
             {activity.length > 0 && (
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -845,22 +849,22 @@ export default function UsernamePage() {
                   ))}
                 </div>
 
-                {/* Owner row */}
-                {listing?.ownerWallet && (
+                {/* Owner row — show lister's wallet, not current owner */}
+                {listing?.listedByWallet && (
                   <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-4">
                     <div className="flex items-center gap-2 text-white/30 text-xs">
                       <Shield className="h-3.5 w-3.5" />
-                      {isOwner ? "Listed by you" : "Current owner"}
+                      {isOwner ? "Listed by you" : "Listed by"}
                     </div>
                     <span className="font-mono text-xs text-white/50">
-                      {listing.ownerWallet.length > 16
-                        ? `${listing.ownerWallet.slice(0, 6)}…${listing.ownerWallet.slice(-6)}`
-                        : listing.ownerWallet}
+                      {listing.listedByWallet.length > 16
+                        ? `${listing.listedByWallet.slice(0, 6)}…${listing.listedByWallet.slice(-6)}`
+                        : listing.listedByWallet}
                     </span>
                   </div>
                 )}
 
-                {/* Buy / owner button */}
+                {/* Buy / owner CTA */}
                 {isOwner ? (
                   <div className="w-full py-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-white/30 text-sm font-medium flex items-center justify-center gap-2">
                     <Check className="h-4 w-4 text-teal-400" />

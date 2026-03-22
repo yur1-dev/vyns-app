@@ -41,7 +41,6 @@ export interface IUser extends Document {
     bio?: string;
     displayName?: string;
     socials?: {
-      // ✅ ADDED
       x?: string;
       facebook?: string;
       tiktok?: string;
@@ -91,7 +90,6 @@ const UserSchema = new Schema<IUser>(
       bio: { type: String },
       displayName: { type: String },
       socials: {
-        // ✅ ADDED
         x: { type: String, default: null },
         facebook: { type: String, default: null },
         tiktok: { type: String, default: null },
@@ -115,6 +113,11 @@ export interface IUsername extends Document {
   isListed: boolean;
   staked: boolean;
   listedPrice?: number;
+  // FIX: Track who listed it separately from current owner.
+  // walletAddress/stats.ownerId changes on purchase — listedBy never changes
+  // after listing, so "Listed by you" is always accurate.
+  listedById?: string; // userId of the lister (email users)
+  listedByWallet?: string; // wallet of the lister (wallet users)
   totalTransactions: number;
   totalVolume: number;
   totalYield: number;
@@ -139,6 +142,8 @@ const UsernameSchema = new Schema<IUsername>(
     isListed: { type: Boolean, default: false },
     staked: { type: Boolean, default: false },
     listedPrice: { type: Number },
+    listedById: { type: String, default: null },
+    listedByWallet: { type: String, default: null },
     totalTransactions: { type: Number, default: 0 },
     totalVolume: { type: Number, default: 0 },
     totalYield: { type: Number, default: 0 },
