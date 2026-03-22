@@ -19,6 +19,7 @@ import {
   Wallet,
   AlertCircle,
   ExternalLink,
+  Check,
 } from "lucide-react";
 import {
   Card,
@@ -612,6 +613,7 @@ export default function OverviewTab({
 }: Props) {
   const [claimOpen, setClaimOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [transferKey, setTransferKey] = useState(0);
 
   const QUICK_ACTIONS = [
     {
@@ -628,7 +630,10 @@ export default function OverviewTab({
       icon: Send,
       accent: "text-indigo-400",
       bg: "bg-indigo-500/10 border-indigo-500/15 hover:border-indigo-500/30 hover:bg-indigo-500/15",
-      action: () => setTransferOpen(true),
+      action: () => {
+        setTransferKey((k) => k + 1);
+        setTransferOpen(true);
+      },
     },
     {
       label: "Stake Tokens",
@@ -663,6 +668,7 @@ export default function OverviewTab({
 
       {transferOpen && (
         <TransferModal
+          key={transferKey}
           senderUsername={activeUsername ?? null}
           onClose={() => setTransferOpen(false)}
           onSuccess={() => {
