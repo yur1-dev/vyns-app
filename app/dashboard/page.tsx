@@ -12,6 +12,7 @@ import StakingTab from "@/components/dashboard/tabs/StakingTab";
 import EarningsTab from "@/components/dashboard/tabs/EarningsTab";
 import ReferralsTab from "@/components/dashboard/tabs/ReferralsTab";
 import MarketplaceTab from "@/components/dashboard/tabs/MarketplaceTab";
+import TransferTab from "@/components/dashboard/tabs/TransferTab";
 import UsernameModal from "@/components/dashboard/modals/UsernameModal";
 import ProfileCustomizeModal from "@/components/dashboard/modals/ProfileCustomizeModal";
 
@@ -24,7 +25,6 @@ function DashboardInner() {
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  // Sync active tab from URL ?tab=
   useEffect(() => {
     const tabFromUrl = (searchParams.get("tab") ?? "overview") as any;
     if (tabFromUrl !== dash.activeTab) {
@@ -32,7 +32,6 @@ function DashboardInner() {
     }
   }, [searchParams]);
 
-  // Helper: change tab AND update URL
   const changeTab = (tab: string) => {
     dash.setActiveTab(tab as any);
     router.replace(`/dashboard?tab=${tab}`, { scroll: false });
@@ -67,7 +66,6 @@ function DashboardInner() {
         onOpenProfile={() => router.push("/profile")}
       />
 
-      {/* Sidebar + main layout — profile tab removed, it lives at /profile */}
       <div className="flex flex-1 overflow-hidden">
         <DashboardSidebar
           activeTab={dash.activeTab}
@@ -95,6 +93,8 @@ function DashboardInner() {
                 onTabChange={changeTab}
                 onClaim={dash.claimUsername}
                 onClaimSuccess={dash.refreshUserData}
+                wallet={dash.wallet}
+                activeUsername={dash.activeUsername}
               />
             )}
 
@@ -178,6 +178,14 @@ function DashboardInner() {
 
             {dash.activeTab === "earnings" && (
               <EarningsTab userData={dash.userData} />
+            )}
+
+            {dash.activeTab === "transfer" && (
+              <TransferTab
+                wallet={dash.wallet}
+                activeUsername={dash.activeUsername}
+                onSendSuccess={dash.refreshUserData}
+              />
             )}
 
             {dash.activeTab === "referrals" && (

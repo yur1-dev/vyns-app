@@ -9,6 +9,7 @@ import {
   Zap,
   Users,
   ShoppingBag,
+  Send,
 } from "lucide-react";
 import type { TabId } from "@/types/dashboard";
 
@@ -17,6 +18,7 @@ const NAV = [
   { id: "usernames" as TabId, icon: Crown, label: "Usernames" },
   { id: "earnings" as TabId, icon: TrendingUp, label: "Earnings" },
   { id: "staking" as TabId, icon: Zap, label: "Staking" },
+  { id: "transfer" as TabId, icon: Send, label: "Send SOL" },
   { id: "referrals" as TabId, icon: Users, label: "Referrals" },
   { id: "marketplace" as TabId, icon: ShoppingBag, label: "Marketplace" },
 ];
@@ -40,7 +42,6 @@ export default function DashboardSidebar({
 }: Props) {
   return (
     <>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 top-14 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
@@ -48,11 +49,6 @@ export default function DashboardSidebar({
         />
       )}
 
-      {/*
-        KEY FIX: sidebar must be `sticky top-14` and `self-start` on desktop
-        so it pins to the top of the viewport and does NOT scroll with content.
-        On mobile it stays `fixed`.
-      */}
       <aside
         className={`
           fixed top-14 left-0 z-50 w-52
@@ -99,7 +95,11 @@ export default function DashboardSidebar({
                 <div className="flex items-center gap-2.5">
                   <item.icon
                     className={`h-4 w-4 shrink-0 transition-colors ${
-                      active ? "text-teal-400" : "group-hover:text-white/50"
+                      active
+                        ? item.id === "transfer"
+                          ? "text-indigo-400"
+                          : "text-teal-400"
+                        : "group-hover:text-white/50"
                     }`}
                   />
                   <span>{item.label}</span>

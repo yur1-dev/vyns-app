@@ -5,6 +5,7 @@ export type TabId =
   | "usernames"
   | "earnings"
   | "staking"
+  | "transfer"
   | "referrals"
   | "settings"
   | "marketplace"
@@ -51,7 +52,8 @@ export interface ActivityItem {
     | "received"
     | "sent"
     | "unstake"
-    | "reward";
+    | "reward"
+    | "transaction";
   description: string;
   amount: number;
   token: string;
@@ -137,8 +139,6 @@ export function getTierFromLength(length: number): UsernameTier {
 }
 
 // ─── Referral tier config ──────────────────────────────────────────────────────
-// Each tier is reached by hitting the referral count threshold.
-// Rewards are per-referral — cumulative totals are calculated in the UI.
 
 export interface ReferralTier {
   id: string;
