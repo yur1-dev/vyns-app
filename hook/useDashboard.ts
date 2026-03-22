@@ -196,9 +196,16 @@ export function useDashboard() {
         // silent
       }
     };
+    const handleManualRefresh = async () => {
+      if (!walletRef.current) return;
+      fetchBalance(walletRef.current);
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
+    document.addEventListener("vyns:refresh-balance", handleManualRefresh);
+    return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("vyns:refresh-balance", handleManualRefresh);
+    };
   }, [fetchBalance]);
 
   const claimReferralRewards = useCallback(async (): Promise<{

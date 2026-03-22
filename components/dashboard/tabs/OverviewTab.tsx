@@ -198,10 +198,12 @@ function TransferModal({
   senderUsername,
   onClose,
   onSuccess,
+  onRefreshBalance,
 }: {
   senderUsername: string | null;
   onClose: () => void;
   onSuccess: () => void;
+  onRefreshBalance?: () => void;
 }) {
   const [step, setStep] = useState<TransferStep>("input");
   const [toInput, setToInput] = useState("");
@@ -271,8 +273,11 @@ function TransferModal({
 
       const rpcUrl =
         process.env.NEXT_PUBLIC_SOLANA_RPC ||
-        "https://api.mainnet-beta.solana.com";
-      const connection = new Connection(rpcUrl, "confirmed");
+        "https://rpc.ankr.com/solana_devnet";
+      const connection = new Connection(rpcUrl, {
+        commitment: "confirmed",
+        wsEndpoint: undefined,
+      });
 
       const lamports = Math.round(amount * LAMPORTS_PER_SOL);
 
@@ -317,6 +322,7 @@ function TransferModal({
       setTxHash(signature);
       setStep("success");
       onSuccess();
+      onRefreshBalance?.();
     } catch (err: any) {
       // User rejected
       if (err.code === 4001 || err.message?.includes("User rejected")) {
@@ -370,7 +376,7 @@ function TransferModal({
             </div>
             {txHash && (
               <a
-                href={`https://solscan.io/tx/${txHash}`}
+                href={`https://solscan.io/tx/${txHash}?cluster=devnet`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
@@ -660,7 +666,11 @@ export default function OverviewTab({
           senderUsername={activeUsername ?? null}
           onClose={() => setTransferOpen(false)}
           onSuccess={() => {
-            onClaimSuccess(); // reuse to refresh activity
+            onClaimSuccess();
+          }}
+          onRefreshBalance={() => {
+            // Trigger balance refresh via useDashboard visibilitychange
+            document.dispatchEvent(new Event("vyns:refresh-balance"));
           }}
         />
       )}
@@ -851,7 +861,7 @@ export default function OverviewTab({
                     </p>
                     {item.signature && (
                       <a
-                        href={`https://solscan.io/tx/${item.signature}`}
+                        href={`https://solscan.io/tx/${item.signature}?cluster=devnet`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[10px] text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity"
