@@ -23,9 +23,8 @@ import {
   Star,
   Layers,
   Gift,
+  Wallet,
 } from "lucide-react";
-
-// ── Tier config ────────────────────────────────────────────────────────────────
 
 const TIER_CONFIG = {
   Diamond: {
@@ -107,8 +106,6 @@ const ACT_CFG: Record<string, { icon: any; color: string }> = {
   reward: { icon: Star, color: "#f472b6" },
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
 function getTier(name: string): keyof typeof TIER_CONFIG {
   const n = name.replace(/^@/, "").length;
   if (n <= 3) return "Diamond";
@@ -127,8 +124,6 @@ function getYield(tier: keyof typeof TIER_CONFIG) {
         ? 1.5
         : 0;
 }
-
-// ── PixelAvatar ────────────────────────────────────────────────────────────────
 
 import { useRef } from "react";
 
@@ -195,16 +190,21 @@ function BuyModal({
   username,
   price,
   tier,
+  walletConnected,
   onClose,
   onConfirm,
+  onConnectWallet,
 }: {
   username: string;
   price: number;
   tier: keyof typeof TIER_CONFIG;
+  walletConnected: boolean;
   onClose: () => void;
   onConfirm: () => Promise<{ success: boolean; error?: string }>;
+  onConnectWallet: () => Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const cfg = TIER_CONFIG[tier];
@@ -218,11 +218,22 @@ function BuyModal({
     setLoading(false);
   };
 
+  const handleConnect = async () => {
+    setConnecting(true);
+    setError("");
+    try {
+      await onConnectWallet();
+    } catch {
+      setError("Failed to connect wallet. Make sure Phantom is installed.");
+    }
+    setConnecting(false);
+  };
+
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-        onClick={loading ? undefined : onClose}
+        onClick={loading || connecting ? undefined : onClose}
       />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
         <div
@@ -269,6 +280,7 @@ function BuyModal({
                   </p>
                 </div>
               </div>
+
               <div
                 className={`flex items-center gap-3 p-4 rounded-2xl ${cfg.bg} border ${cfg.border}`}
               >
@@ -280,6 +292,7 @@ function BuyModal({
                   </span>
                 </div>
               </div>
+
               <div className="rounded-2xl bg-white/[0.02] border border-white/[0.05] divide-y divide-white/[0.04]">
                 {[
                   ["Price", `${price} SOL`],
@@ -303,38 +316,68 @@ function BuyModal({
                   </div>
                 ))}
               </div>
-              <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-400/80 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-400/70 leading-relaxed">
-                  Custodial purchase — records ownership in the Vyns registry.
-                  Real SOL transfers coming soon.
-                </p>
-              </div>
+
+              {/* FIX: Show wallet warning if not connected */}
+              {!walletConnected ? (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-400/80 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-400/70 leading-relaxed">
+                    Connect your Phantom wallet to complete this purchase.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-teal-500/[0.06] border border-teal-500/15">
+                  <Wallet className="h-3.5 w-3.5 text-teal-400/80 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-teal-400/70 leading-relaxed">
+                    Wallet connected. Custodial purchase — real SOL transfers
+                    coming soon.
+                  </p>
+                </div>
+              )}
+
               {error && (
                 <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
                   {error}
                 </div>
               )}
+
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={onClose}
-                  disabled={loading}
+                  disabled={loading || connecting}
                   className="flex-1 py-2.5 rounded-xl border border-white/[0.07] text-white/35 text-sm hover:text-white/60 transition-all cursor-pointer disabled:opacity-30"
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleBuy}
-                  disabled={loading}
-                  className={`flex-1 py-2.5 rounded-xl ${cfg.bg} border ${cfg.border} ${cfg.cls} text-sm font-semibold hover:opacity-80 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2`}
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Tag className="h-4 w-4" />
-                  )}
-                  Buy Now
-                </button>
+
+                {/* FIX: Gate behind wallet connection */}
+                {walletConnected ? (
+                  <button
+                    onClick={handleBuy}
+                    disabled={loading}
+                    className={`flex-1 py-2.5 rounded-xl ${cfg.bg} border ${cfg.border} ${cfg.cls} text-sm font-semibold hover:opacity-80 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2`}
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Tag className="h-4 w-4" />
+                    )}
+                    Buy Now
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleConnect}
+                    disabled={connecting}
+                    className="flex-1 py-2.5 rounded-xl bg-teal-500/15 border border-teal-500/30 text-teal-400 text-sm font-semibold hover:bg-teal-500/25 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    {connecting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    Connect Wallet
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -359,10 +402,20 @@ export default function UsernamePage() {
   const [copied, setCopied] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  // FIX: Track Phantom connection state
+  const [phantomConnected, setPhantomConnected] = useState(false);
 
   const tier = getTier(username) as keyof typeof TIER_CONFIG;
   const cfg = TIER_CONFIG[tier];
   const yieldPct = getYield(tier);
+
+  // Check if Phantom is already connected on mount
+  useEffect(() => {
+    const solana = (window as any).solana;
+    if (solana?.isPhantom && solana.isConnected) {
+      setPhantomConnected(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!username) return;
@@ -380,21 +433,16 @@ export default function UsernamePage() {
       .then(([listingData, userData, profileData]) => {
         if (listingData.listing) setListing(listingData.listing);
         else setNotFound(true);
-
         if (userData?.user) {
           setCurrentUserId(userData.user._id ?? null);
           setCurrentWallet(userData.user.wallet ?? null);
         }
-
         if (profileData?.user) setPublicProfile(profileData.user);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [username]);
 
-  // FIX: Check against listedById/listedByWallet (who listed it),
-  // NOT owner/ownerWallet (who currently owns it after possible purchase).
-  // This means "Listed by you" stays correct even after someone buys it.
   const isOwner = !!(
     listing &&
     ((currentUserId &&
@@ -411,7 +459,27 @@ export default function UsernamePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // FIX: Connect Phantom — opens phantom.app if not installed
+  const handleConnectWallet = async () => {
+    const solana = (window as any).solana;
+    if (!solana?.isPhantom) {
+      window.open("https://phantom.app/", "_blank");
+      return;
+    }
+    await solana.connect();
+    setPhantomConnected(true);
+  };
+
   const handleBuy = async (): Promise<{ success: boolean; error?: string }> => {
+    // Re-check wallet still connected before proceeding
+    const solana = (window as any).solana;
+    if (!solana?.isPhantom || !solana.isConnected) {
+      setPhantomConnected(false);
+      return {
+        success: false,
+        error: "Wallet disconnected. Please reconnect.",
+      };
+    }
     try {
       const res = await fetch("/api/marketplace/buy", {
         method: "POST",
@@ -425,7 +493,6 @@ export default function UsernamePage() {
     }
   };
 
-  // Derive public profile display values
   const themeColor =
     THEME_COLORS[publicProfile?.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -457,7 +524,6 @@ export default function UsernamePage() {
 
   return (
     <div className="min-h-screen bg-[#060b14] text-white">
-      {/* Ambient glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full blur-[120px] opacity-[0.07]"
@@ -496,9 +562,8 @@ export default function UsernamePage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* ── PUBLIC PROFILE HERO ───────────────────────────────────────── */}
+            {/* HERO */}
             <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
-              {/* Banner */}
               <div
                 className="relative h-28 overflow-hidden"
                 style={{
@@ -517,8 +582,6 @@ export default function UsernamePage() {
                   className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4"
                   style={{ background: `${themeColor}0e` }}
                 />
-
-                {/* XP rank badge */}
                 <div
                   className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold"
                   style={{
@@ -530,8 +593,6 @@ export default function UsernamePage() {
                   <Shield className="h-3 w-3" />
                   {xpTier.label}
                 </div>
-
-                {/* Top-left actions */}
                 <div className="absolute top-3 left-4 flex items-center gap-1.5">
                   <button
                     onClick={handleCopy}
@@ -554,10 +615,8 @@ export default function UsernamePage() {
                 </div>
               </div>
 
-              {/* Profile info */}
               <div className="bg-[#060b14] px-5 pb-5">
                 <div className="flex items-end gap-4 -mt-9">
-                  {/* Avatar */}
                   <div
                     className="rounded-2xl border-[3px] border-[#060b14] overflow-hidden shrink-0 z-10"
                     style={{
@@ -572,7 +631,6 @@ export default function UsernamePage() {
                       themeColor={themeColor}
                     />
                   </div>
-
                   <div className="pb-1 pt-10 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span
@@ -602,15 +660,11 @@ export default function UsernamePage() {
                     )}
                   </div>
                 </div>
-
-                {/* Bio — only show if listing is not sold/owned by someone else */}
                 {bio && (
                   <p className="mt-3 text-sm text-white/45 leading-relaxed">
                     {bio}
                   </p>
                 )}
-
-                {/* XP bar */}
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-1">
                     <span
@@ -639,7 +693,7 @@ export default function UsernamePage() {
               </div>
             </div>
 
-            {/* ── PUBLIC STATS ─────────────────────────────────────────────── */}
+            {/* STATS */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 {
@@ -685,7 +739,7 @@ export default function UsernamePage() {
               ))}
             </div>
 
-            {/* ── REGISTERED USERNAMES ─────────────────────────────────────── */}
+            {/* REGISTERED USERNAMES */}
             {usernames.length > 0 && (
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -734,7 +788,7 @@ export default function UsernamePage() {
               </div>
             )}
 
-            {/* ── RECENT ACTIVITY ──────────────────────────────────────────── */}
+            {/* RECENT ACTIVITY */}
             {activity.length > 0 && (
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -789,7 +843,7 @@ export default function UsernamePage() {
               </div>
             )}
 
-            {/* ── LISTING / BUY SECTION ────────────────────────────────────── */}
+            {/* LISTING / BUY SECTION */}
             <div
               className={`rounded-2xl border ${cfg.border} bg-white/[0.02] overflow-hidden`}
             >
@@ -803,8 +857,6 @@ export default function UsernamePage() {
                 <p className="text-[10px] uppercase tracking-widest text-white/25 font-medium mb-4">
                   Listing Details
                 </p>
-
-                {/* Stats grid */}
                 <div className="grid grid-cols-4 gap-2 mb-4">
                   {[
                     {
@@ -849,7 +901,6 @@ export default function UsernamePage() {
                   ))}
                 </div>
 
-                {/* Owner row — show lister's wallet, not current owner */}
                 {listing?.listedByWallet && (
                   <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-4">
                     <div className="flex items-center gap-2 text-white/30 text-xs">
@@ -864,7 +915,6 @@ export default function UsernamePage() {
                   </div>
                 )}
 
-                {/* Buy / owner CTA */}
                 {isOwner ? (
                   <div className="w-full py-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-white/30 text-sm font-medium flex items-center justify-center gap-2">
                     <Check className="h-4 w-4 text-teal-400" />
@@ -882,7 +932,7 @@ export default function UsernamePage() {
               </div>
             </div>
 
-            {/* ── BENEFIT CARDS ────────────────────────────────────────────── */}
+            {/* BENEFIT CARDS */}
             <div className="grid grid-cols-3 gap-3">
               {[
                 {
@@ -941,8 +991,10 @@ export default function UsernamePage() {
           username={username}
           price={listing.price}
           tier={tier}
+          walletConnected={phantomConnected}
           onClose={() => setShowBuy(false)}
           onConfirm={handleBuy}
+          onConnectWallet={handleConnectWallet}
         />
       )}
     </div>
