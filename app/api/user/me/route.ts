@@ -12,17 +12,27 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    const session = await getServerSession(authOptions);
-    const auth = !session?.user ? await verifyAuth(req) : null;
+    // FIX: Always check Bearer token first.
+    // If the request has an Authorization: Bearer header, use that — never fall
+    // back to the NextAuth session. This is what mobile uses after Google login.
+    // The old code did it the wrong way around: if a NextAuth session existed
+    // (from a previous email/password login), it ignored the Bearer token entirely
+    // and returned the wrong user.
+    const hasBearerToken = req.headers
+      .get("authorization")
+      ?.startsWith("Bearer ");
+
+    const auth = hasBearerToken ? await verifyAuth(req) : null;
+    const session = !auth ? await getServerSession(authOptions) : null;
 
     if (!auth && !session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session?.user as any)?.id ?? auth?.userId ?? null;
-    const email = session?.user?.email ?? auth?.email ?? null;
+    const userId = auth?.userId ?? (session?.user as any)?.id ?? null;
+    const email = auth?.email ?? session?.user?.email ?? null;
     const sessionWallet =
-      (session?.user as any)?.wallet ?? auth?.wallet ?? null;
+      auth?.wallet ?? (session?.user as any)?.wallet ?? null;
 
     let user = userId ? await User.findById(userId).catch(() => null) : null;
     if (!user && email) user = await User.findOne({ email });
