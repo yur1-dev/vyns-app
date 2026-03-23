@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/utils/auth";
 import connectDB from "@/lib/db/mongodb";
-import { User } from "@/models/index";
+import { User, Activity } from "@/models/index";
 import { StakingPosition as StakingPositionModel } from "@/models/staking";
 
 export async function POST(req: NextRequest) {
@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify ownership
     const ownerMatch = auth.wallet
       ? position.wallet === auth.wallet
       : position.userId?.toString() === auth.userId;
@@ -61,7 +60,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Calculate final rewards
     const daysElapsed =
       (now - new Date(position.startDate).getTime()) / 86_400_000;
     const rewards =
@@ -71,7 +69,6 @@ export async function POST(req: NextRequest) {
     position.status = "claimed";
     await position.save();
 
-    // Give user their SOL back + rewards, reduce stakedAmount
     const filter = auth.wallet ? { wallet: auth.wallet } : { _id: auth.userId };
     await User.findOneAndUpdate(filter, {
       $inc: {
@@ -79,6 +76,19 @@ export async function POST(req: NextRequest) {
         earnings: rewards,
       },
     });
+
+    // ── Notify the user their yield claim went through ──
+    const activityWallet = auth.wallet ?? auth.userId;
+    if (activityWallet) {
+      await Activity.create({
+        wallet: activityWallet,
+        type: "claim",
+        description: `Your staking is done! You claimed ${rewards.toFixed(4)} SOL in yield from your ${position.lockPeriod}-day position.`,
+        amount: rewards,
+        xpEarned: null,
+        txHash: null,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

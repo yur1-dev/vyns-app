@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import { verifyAuth } from "@/lib/utils/auth";
 import connectDB from "@/lib/db/mongodb";
-import { Username, User } from "@/models/index";
+import { Username, User, Activity, Transaction } from "@/models/index";
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,9 +60,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Identify the seller before transferring ownership
+    // Snapshot seller info before clearing it
     const sellerUserId = record.listedById ?? record.stats?.ownerId ?? null;
     const sellerWallet = record.listedByWallet ?? record.walletAddress ?? null;
+    const salePrice = record.listedPrice ?? 0;
+    const displayUsername = record.username; // e.g. "@luna"
 
     const newStats = {
       ...(record.stats ?? {}),
@@ -81,7 +83,6 @@ export async function POST(req: NextRequest) {
     });
 
     // Remove username from seller's User.usernames[]
-    // Try by userId first, then fall back to wallet lookup
     const usernameVariants = [clean, `@${clean}`];
     if (sellerUserId) {
       await User.findByIdAndUpdate(sellerUserId, {
@@ -106,6 +107,64 @@ export async function POST(req: NextRequest) {
           },
         },
       }).catch(() => {});
+    }
+
+    // ── Resolve buyer's active username for Transaction.toUsername ──
+    const buyerDoc = buyerUserId
+      ? ((await User.findById(buyerUserId)
+          .select("activeUsername")
+          .lean()) as any)
+      : null;
+    const buyerActiveUsername = buyerDoc?.activeUsername
+      ? `@${buyerDoc.activeUsername.replace("@", "")}`
+      : null;
+
+    // ── Write Transaction record (used by notifications aggregator) ──
+    const txRecord = await Transaction.create({
+      type: "purchase",
+      amount: salePrice,
+      token: "SOL",
+      // buyer
+      fromUsername: buyerActiveUsername ?? buyerWallet ?? buyerUserId,
+      fromWallet: buyerWallet ?? null,
+      // seller / listing info — notifications route uses these to match sales
+      toUsername: displayUsername,
+      toWallet: sellerWallet ?? null,
+      listedByWallet: sellerWallet ?? null,
+      listedById: sellerUserId ?? null,
+      username: displayUsername,
+      timestamp: new Date(),
+    }).catch(() => null);
+
+    const txHash = txRecord?._id?.toString() ?? null;
+
+    // ── Write Activity for BUYER ──
+    if (buyerWallet || buyerUserId) {
+      await Activity.create({
+        wallet: buyerWallet ?? buyerUserId,
+        type: "transaction",
+        description: `You purchased ${displayUsername} for ${salePrice} SOL`,
+        amount: salePrice,
+        txHash,
+      }).catch(() => {});
+    }
+
+    // ── Write Activity for SELLER ──
+    if (sellerWallet || sellerUserId) {
+      const sellerDoc = sellerUserId
+        ? ((await User.findById(sellerUserId).select("wallet").lean()) as any)
+        : null;
+      const resolvedSellerWallet = sellerDoc?.wallet ?? sellerWallet;
+
+      if (resolvedSellerWallet) {
+        await Activity.create({
+          wallet: resolvedSellerWallet,
+          type: "transaction",
+          description: `${displayUsername} was sold for ${salePrice} SOL`,
+          amount: salePrice,
+          txHash,
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json({ success: true, username: clean });
