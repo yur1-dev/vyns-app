@@ -28,12 +28,10 @@ import {
   Star,
   Activity,
   Camera,
-  ImageIcon,
   ZoomIn,
   ZoomOut,
   RotateCcw,
   Check as CheckIcon,
-  Pencil,
   Trash2,
 } from "lucide-react";
 import { useDashboard } from "@/hook/useDashboard";
@@ -125,7 +123,6 @@ function ImageCropModal({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
 
-  // AFTER — responsive, fits any screen
   const MAX =
     typeof window !== "undefined" ? Math.min(window.innerWidth - 80, 320) : 280;
   const PREVIEW_W = aspectRatio >= 1 ? MAX : Math.round(MAX * aspectRatio);
@@ -400,13 +397,17 @@ const XP_TIERS = [
   { min: 1000, label: "Architect", hex: "#2dd4bf" },
   { min: 5000, label: "Sovereign", hex: "#fbbf24" },
 ];
-const TIER_HEX: Record<string, string> = {
-  Diamond: "#22d3ee",
-  Platinum: "#a78bfa",
-  Gold: "#fbbf24",
-  Silver: "#94a3b8",
-  Bronze: "#b45309",
-};
+
+// FIX: Always recalculate tier from name length — never trust stored DB value
+function getTierFromName(name: string): { tier: string; hex: string } {
+  const n = name.replace(/^@/, "").length;
+  if (n <= 3) return { tier: "Diamond", hex: "#22d3ee" };
+  if (n <= 5) return { tier: "Platinum", hex: "#a78bfa" };
+  if (n <= 8) return { tier: "Gold", hex: "#fbbf24" };
+  if (n <= 15) return { tier: "Silver", hex: "#94a3b8" };
+  return { tier: "Bronze", hex: "#b45309" };
+}
+
 const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   claim: { icon: Crown, color: "#2dd4bf" },
   staking: { icon: Zap, color: "#a78bfa" },
@@ -417,10 +418,6 @@ const ACT_CONFIG: Record<string, { icon: any; color: string }> = {
   reward: { icon: Star, color: "#f472b6" },
 };
 
-// ─── Upload helper — FIX: send JSON base64, not FormData ───────────────────────
-// The API at /api/user/upload-image expects { type, base64, contentType }
-// not a FormData body. Mobile works because it already sends base64.
-// Web was broken because it was sending FormData which req.json() can't parse.
 async function uploadImageBlob(
   blob: Blob,
   type: "avatar" | "cover",
@@ -440,7 +437,6 @@ async function uploadImageBlob(
   return data.url as string;
 }
 
-// ─── Save customization — uses EXPLICIT values, never reads stale hook state ──
 async function saveCustomization(payload: {
   theme: string;
   petId: string;
@@ -464,7 +460,6 @@ export default function ProfilePage() {
   const dash = useDashboard();
   const [notifications] = useState<Notification[]>([]);
 
-  // ── Override state — only set during active upload, null means "use dash value" ──
   const [avatarOverride, setAvatarOverride] = useState<
     string | null | undefined
   >(undefined);
@@ -473,12 +468,10 @@ export default function ProfilePage() {
   );
   const [bioOverride, setBioOverride] = useState<string | undefined>(undefined);
 
-  // ── Stable refs for use inside async handlers ──
   const avatarOverrideRef = useRef<string | null | undefined>(undefined);
   const coverOverrideRef = useRef<string | null | undefined>(undefined);
   const bioOverrideRef = useRef<string | undefined>(undefined);
 
-  // ── Derived from dash ──
   const themeColor =
     THEME_COLORS[dash.customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed =
@@ -487,7 +480,6 @@ export default function ProfilePage() {
   const currentPetId = (dash.customization as any)?.petId ?? "none";
   const currentAvatarSeed = (dash.customization as any)?.avatarSeed ?? "";
 
-  // ── Displayed values: override takes priority, else use live dash value ──
   const currentAvatarUrl =
     avatarOverride !== undefined
       ? avatarOverride
@@ -501,7 +493,6 @@ export default function ProfilePage() {
       ? bioOverride
       : ((dash.userData as any)?.bio ?? "");
 
-  // ── Helpers to set both ref and state together ──
   const setAvatarUrl = (v: string | null) => {
     avatarOverrideRef.current = v;
     setAvatarOverride(v);
@@ -515,23 +506,19 @@ export default function ProfilePage() {
     setBioOverride(v);
   };
 
-  // Bio
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [savingBio, setSavingBio] = useState(false);
 
-  // Avatar
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropType, setCropType] = useState<"avatar" | "cover">("avatar");
   const [savingAvatar, setSavingAvatar] = useState(false);
 
-  // Cover
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [savingCover, setSavingCover] = useState(false);
   const [showCoverMenu, setShowCoverMenu] = useState(false);
 
-  // Wallet
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [balLoading, setBalLoading] = useState(false);
   const [copiedWallet, setCopiedWallet] = useState(false);
@@ -541,9 +528,6 @@ export default function ProfilePage() {
   const xpTier =
     [...XP_TIERS].reverse().find((t) => xp >= t.min) ?? XP_TIERS[0];
   const nextTier = XP_TIERS.find((t) => t.min > xp) ?? null;
-  const xpProgress = nextTier
-    ? ((xp - xpTier.min) / (nextTier.min - xpTier.min)) * 100
-    : 100;
 
   const usernames: UsernameItem[] = dash.userData.usernames ?? [];
   const activity: ActivityItem[] = dash.userData.activity ?? [];
@@ -586,7 +570,6 @@ export default function ProfilePage() {
     if (dash.wallet) fetchBalance();
   }, [dash.wallet, fetchBalance]);
 
-  // ── Build save payload ──────────────────────────────────────────────────────
   const buildPayload = useCallback(
     (avatarImage: string | null, coverPhoto: string | null, bio: string) => ({
       theme: currentTheme,
@@ -599,7 +582,6 @@ export default function ProfilePage() {
     [currentTheme, currentPetId, currentAvatarSeed],
   );
 
-  // ── Bio ──
   const saveBio = async () => {
     setSavingBio(true);
     try {
@@ -620,7 +602,6 @@ export default function ProfilePage() {
     setSavingBio(false);
   };
 
-  // ── Avatar file select ──
   const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -633,7 +614,6 @@ export default function ProfilePage() {
     e.target.value = "";
   };
 
-  // ── Avatar crop save ──
   const handleAvatarCropSave = async (blob: Blob) => {
     setCropSrc(null);
     setSavingAvatar(true);
@@ -641,7 +621,6 @@ export default function ProfilePage() {
     setAvatarUrl(localPreview);
     try {
       const cdnUrl = await uploadImageBlob(blob, "avatar");
-
       const oldUrl = (dash.customization as any)?.avatarImage;
       if (oldUrl && oldUrl.includes("vercel-storage.com")) {
         fetch("/api/user/upload-image", {
@@ -651,7 +630,6 @@ export default function ProfilePage() {
           body: JSON.stringify({ url: oldUrl }),
         }).catch(() => {});
       }
-
       setAvatarUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
       await saveCustomization(
@@ -673,7 +651,6 @@ export default function ProfilePage() {
     setSavingAvatar(false);
   };
 
-  // ── Cover file select ──
   const handleCoverFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -686,7 +663,6 @@ export default function ProfilePage() {
     e.target.value = "";
   };
 
-  // ── Cover crop save ──
   const handleCoverCropSave = async (blob: Blob) => {
     setCropSrc(null);
     setSavingCover(true);
@@ -694,7 +670,6 @@ export default function ProfilePage() {
     setCoverUrl(localPreview);
     try {
       const cdnUrl = await uploadImageBlob(blob, "cover");
-
       const oldUrl = (dash.customization as any)?.coverPhoto;
       if (oldUrl && oldUrl.includes("vercel-storage.com")) {
         fetch("/api/user/upload-image", {
@@ -704,7 +679,6 @@ export default function ProfilePage() {
           body: JSON.stringify({ url: oldUrl }),
         }).catch(() => {});
       }
-
       setCoverUrl(cdnUrl);
       URL.revokeObjectURL(localPreview);
       await saveCustomization(
@@ -724,7 +698,6 @@ export default function ProfilePage() {
     setSavingCover(false);
   };
 
-  // ── Remove cover ──
   const removeCover = async () => {
     const oldUrl = currentCoverUrl;
     setCoverUrl(null);
@@ -869,7 +842,7 @@ export default function ProfilePage() {
                 <div className="absolute inset-0 bg-black/10" />
               )}
 
-              {/* Tier badge */}
+              {/* Tier badge — always top-left, always visible */}
               <div
                 className="absolute top-3 left-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide z-10"
                 style={{
@@ -913,11 +886,11 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Profile info row */}
+            {/* FIX: Profile info row — avatar overlaps cover, name stays below */}
             <div className="bg-[#060b14] px-5 pb-5">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 sm:-mt-12">
-                {/* Avatar with camera overlay */}
-                <div className="relative shrink-0 z-10">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                {/* Avatar — pulled up to overlap cover with z-index above cover */}
+                <div className="relative shrink-0 z-10 -mt-10 sm:-mt-12">
                   <button
                     className="group relative block cursor-pointer"
                     onClick={() => avatarInputRef.current?.click()}
@@ -965,8 +938,8 @@ export default function ProfilePage() {
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#060b14]" />
                 </div>
 
-                {/* Name + actions */}
-                <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1">
+                {/* FIX: Name block — NOT pulled up, always below the cover area */}
+                <div className="flex-1 flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:pb-1 pt-2 sm:pt-0">
                   <div className="space-y-0.5">
                     <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight leading-none">
                       {dash.displayName}
@@ -1286,7 +1259,9 @@ export default function ProfilePage() {
                 {usernames.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {usernames.map((u) => {
-                      const hex = TIER_HEX[u.tier] ?? "#64748b";
+                      // FIX: Always recalculate tier from name length
+                      const name = (u as any).username ?? u.name ?? "";
+                      const { tier, hex } = getTierFromName(name);
                       return (
                         <div
                           key={u.id}
@@ -1294,13 +1269,13 @@ export default function ProfilePage() {
                           style={{ borderColor: `${hex}25` }}
                         >
                           <span className="text-xs font-mono text-white/60">
-                            @{u.name}
+                            @{name}
                           </span>
                           <span
                             className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
                             style={{ background: `${hex}18`, color: hex }}
                           >
-                            {u.tier}
+                            {tier}
                           </span>
                           {u.staked && (
                             <Zap

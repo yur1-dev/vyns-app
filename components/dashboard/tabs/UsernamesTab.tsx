@@ -194,7 +194,9 @@ function UsernameCard({
   delistingId: string | null;
 }) {
   const displayName = (u as any).username ?? u.name ?? "";
-  const tierKey = (u.tier ?? tierFromLen(displayName.length)) as UsernameTier;
+
+  // FIX: Always recalculate tier from actual name length — never trust DB value
+  const tierKey = tierFromLen(displayName.length) as UsernameTier;
   const tierCfg = TIER_CONFIG[tierKey] ?? TIER_CONFIG.Bronze;
   const pricing = TIER_PRICING[tierKey];
   const isListed = (u as any).isListed ?? false;
@@ -409,9 +411,11 @@ export default function UsernamesTab({
 
   const filtered = usernames.filter((u) => {
     const name = ((u as any).username ?? u.name ?? "").toLowerCase();
+    // FIX: Filter by recalculated tier, not stored tier
+    const recalcTier = tierFromLen(name.replace(/^@/, "").length);
     return (
       name.includes(search.toLowerCase()) &&
-      (filterTier === "All" || u.tier === filterTier)
+      (filterTier === "All" || recalcTier === filterTier)
     );
   });
 
@@ -443,9 +447,9 @@ export default function UsernamesTab({
   const activeU = activeUsername
     ? usernames.find((u) => ((u as any).username ?? u.name) === activeUsername)
     : null;
-  const activeTierKey = activeU
-    ? ((activeU.tier ??
-        tierFromLen(activeUsername?.length ?? 0)) as UsernameTier)
+  // FIX: Recalculate active username tier from length too
+  const activeTierKey = activeUsername
+    ? (tierFromLen(activeUsername.length) as UsernameTier)
     : null;
   const activeTierCfg = activeTierKey ? TIER_CONFIG[activeTierKey] : null;
   const activeYield = activeU
@@ -615,8 +619,9 @@ export default function UsernamesTab({
                   onSetActive={() => handleSetActive(u)}
                   settingActive={settingId === name}
                   onList={() => {
-                    const pricing =
-                      TIER_PRICING[u.tier ?? tierFromLen(name.length)];
+                    // FIX: Use recalculated tier for pricing too
+                    const recalcTier = tierFromLen(name.length);
+                    const pricing = TIER_PRICING[recalcTier as UsernameTier];
                     setListModal({
                       username: name,
                       price: pricing?.price ?? 0.1,

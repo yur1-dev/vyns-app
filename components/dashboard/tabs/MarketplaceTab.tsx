@@ -44,7 +44,8 @@ const TIER_CONFIG = {
   },
 } as const;
 
-function getTier(username: string) {
+// FIX: Always strip @ before measuring length, never trust stored tier
+function getTier(username: string): keyof typeof TIER_CONFIG {
   const n = username.replace(/^@/, "").length;
   if (n <= 3) return "Diamond";
   if (n <= 5) return "Platinum";
@@ -56,8 +57,8 @@ function getTier(username: string) {
 interface MarketplaceListing {
   username: string;
   price: number;
-  owner: string; // stats.ownerId (MongoDB _id string)
-  ownerWallet: string; // walletAddress field
+  owner: string;
+  ownerWallet: string;
   level: number;
   listedAt: string;
   tier?: string;
@@ -92,15 +93,17 @@ function ListingCard({
   currentWallet: string | null;
 }) {
   const clean = listing.username.replace(/^@/, "");
-  const tier = (listing.tier as keyof typeof TIER_CONFIG) ?? getTier(clean);
-  const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
+
+  // FIX: Always recalculate tier from the actual username length.
+  // Never use listing.tier from the DB — it may have been stored incorrectly.
+  const tier = getTier(clean);
+  const cfg = TIER_CONFIG[tier];
+
   const listedDate = new Date(listing.listedAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
 
-  // FIX: Use exact equality only — no fuzzy slice matching.
-  // Check both MongoDB _id AND wallet address to cover both auth types.
   const isOwner = !!(
     (currentUserId && listing.owner && currentUserId === listing.owner) ||
     (currentWallet &&
@@ -108,7 +111,6 @@ function ListingCard({
       currentWallet === listing.ownerWallet)
   );
 
-  // Display label for owner column
   const ownerDisplay = isOwner
     ? "You"
     : listing.ownerWallet
@@ -190,8 +192,6 @@ export default function MarketplaceTab() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    // FIX: Capture both _id AND wallet so ownership check works for
-    // both email/Google users (matched by _id) and wallet users (matched by wallet)
     fetch("/api/user/me", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
