@@ -29,6 +29,8 @@ import {
   Link as LinkIcon,
   WifiOff,
   User,
+  ShoppingBag,
+  ArrowDownLeft,
 } from "lucide-react";
 
 import { type ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
@@ -125,11 +127,20 @@ const THEME_COLORS: Record<string, string> = {
 
 export interface Notification {
   id: string;
-  type: "staking" | "referral" | "claim" | "system" | "reward";
+  type:
+    | "staking"
+    | "referral"
+    | "claim"
+    | "system"
+    | "reward"
+    | "transaction"
+    | "marketplace";
   title: string;
   body: string;
   time: string;
   read: boolean;
+  amount?: number | null;
+  txHash?: string | null;
   link?: string;
 }
 
@@ -150,13 +161,30 @@ interface Props {
   onOpenProfile?: () => void;
 }
 
-const NOTIF_ICONS = {
+const NOTIF_ICONS: Record<string, { icon: any; cls: string }> = {
   staking: { icon: Zap, cls: "text-violet-400 bg-violet-500/10" },
   referral: { icon: Gift, cls: "text-sky-400 bg-sky-500/10" },
   claim: { icon: Crown, cls: "text-teal-400 bg-teal-500/10" },
   reward: { icon: Zap, cls: "text-emerald-400 bg-emerald-500/10" },
   system: { icon: AlertCircle, cls: "text-white/30 bg-white/[0.05]" },
+  transaction: {
+    icon: ArrowDownLeft,
+    cls: "text-emerald-400 bg-emerald-500/10",
+  },
+  marketplace: { icon: ShoppingBag, cls: "text-teal-400 bg-teal-500/10" },
 };
+
+function timeAgo(date: string | Date): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(date).toLocaleDateString();
+}
 
 export default function DashboardHeader({
   session,
@@ -165,7 +193,7 @@ export default function DashboardHeader({
   displayName,
   activeUsername,
   customization,
-  notifications,
+  notifications: externalNotifs,
   sidebarOpen,
   onToggleSidebar,
   onMarkNotifsRead,
@@ -184,11 +212,15 @@ export default function DashboardHeader({
   const [unlinkingWallet, setUnlinkingWallet] = useState(false);
   const [linkError, setLinkError] = useState("");
 
+  // Live notifications from API
+  const [liveNotifs, setLiveNotifs] = useState<Notification[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(false);
+  // Track read state client-side (keyed by notif id)
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const notifList = Array.isArray(notifications) ? notifications : [];
-  const unread = notifList.filter((n) => !n.read).length;
   const themeColor = THEME_COLORS[customization?.theme ?? "teal"] ?? "#2dd4bf";
   const avatarSeed = customization?.avatarSeed || displayName || "vyns";
   const hasLinkedWallet = !!session && !!wallet;
@@ -198,8 +230,56 @@ export default function DashboardHeader({
     displayUsername.length > 16
       ? displayUsername.slice(0, 14) + "…"
       : displayUsername;
-
   const isDevnet = RPC_URL.includes("devnet");
+
+  // Merge live + external, dedupe by id
+  const allNotifs: Notification[] = (() => {
+    const map = new Map<string, Notification>();
+    for (const n of externalNotifs) map.set(n.id, n);
+    for (const n of liveNotifs) map.set(n.id, n);
+    return Array.from(map.values())
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .map((n) => ({ ...n, read: readIds.has(n.id) ? true : n.read }));
+  })();
+
+  const unread = allNotifs.filter((n) => !n.read).length;
+
+  // Fetch live notifications from API
+  const fetchNotifications = useCallback(async () => {
+    setNotifsLoading(true);
+    try {
+      const res = await fetch("/api/notifications", { credentials: "include" });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.notifications)) {
+        setLiveNotifs(
+          data.notifications.map((n: any) => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            body: n.body,
+            time: n.time,
+            read: false,
+            amount: n.amount ?? null,
+            txHash: n.txHash ?? null,
+          })),
+        );
+      }
+    } catch {}
+    setNotifsLoading(false);
+  }, []);
+
+  // Fetch on mount and when bell opens
+  useEffect(() => {
+    fetchNotifications();
+    // Refresh every 60s while page is open
+    const interval = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const handleMarkAllRead = useCallback(() => {
+    setReadIds(new Set(allNotifs.map((n) => n.id)));
+    onMarkNotifsRead();
+  }, [allNotifs, onMarkNotifsRead]);
 
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
@@ -348,7 +428,6 @@ export default function DashboardHeader({
               className="object-contain opacity-90 hover:opacity-100 transition-opacity"
             />
           </Link>
-          {/* Devnet badge */}
           {isDevnet && (
             <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">
               DEVNET
@@ -399,8 +478,9 @@ export default function DashboardHeader({
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => {
-                setNotifOpen((v) => !v);
-                if (!notifOpen && unread > 0) onMarkNotifsRead();
+                const opening = !notifOpen;
+                setNotifOpen(opening);
+                if (opening) fetchNotifications();
               }}
               className="relative p-2 text-white/30 hover:text-white/60 transition-colors cursor-pointer rounded-lg hover:bg-white/[0.04]"
             >
@@ -413,9 +493,14 @@ export default function DashboardHeader({
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
-                  <p className="text-sm font-semibold text-white">
-                    Notifications
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white">
+                      Notifications
+                    </p>
+                    {notifsLoading && (
+                      <Loader2 className="h-3 w-3 animate-spin text-white/20" />
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     {unread > 0 && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/15 text-teal-400">
@@ -430,8 +515,9 @@ export default function DashboardHeader({
                     </button>
                   </div>
                 </div>
+
                 <div className="max-h-80 overflow-y-auto">
-                  {notifList.length === 0 ? (
+                  {allNotifs.length === 0 ? (
                     <div className="py-10 text-center">
                       <BellIcon className="h-5 w-5 mx-auto mb-2 text-white/10" />
                       <p className="text-xs text-white/20">
@@ -439,8 +525,9 @@ export default function DashboardHeader({
                       </p>
                     </div>
                   ) : (
-                    notifList.map((n) => {
-                      const { icon: Icon, cls } = NOTIF_ICONS[n.type];
+                    allNotifs.map((n) => {
+                      const { icon: Icon, cls } =
+                        NOTIF_ICONS[n.type] ?? NOTIF_ICONS.system;
                       return (
                         <div
                           key={n.id}
@@ -458,14 +545,29 @@ export default function DashboardHeader({
                               >
                                 {n.title}
                               </p>
-                              <span className="text-[10px] text-white/20 shrink-0 flex items-center gap-0.5">
+                              <span className="text-[10px] text-white/20 shrink-0 flex items-center gap-0.5 whitespace-nowrap">
                                 <Clock className="h-2.5 w-2.5" />
-                                {n.time}
+                                {timeAgo(n.time)}
                               </span>
                             </div>
                             <p className="text-[11px] text-white/30 mt-0.5 leading-relaxed">
                               {n.body}
                             </p>
+                            {n.amount != null && (
+                              <p className="text-[11px] text-teal-400/70 mt-0.5 font-semibold">
+                                {n.amount > 0 ? `+${n.amount}` : n.amount} SOL
+                              </p>
+                            )}
+                            {n.txHash && (
+                              <a
+                                href={`https://solscan.io/tx/${n.txHash}${isDevnet ? "?cluster=devnet" : ""}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-white/20 hover:text-teal-400 transition-colors mt-0.5 inline-flex items-center gap-0.5"
+                              >
+                                View tx <ExternalLink className="h-2.5 w-2.5" />
+                              </a>
+                            )}
                           </div>
                           {!n.read && (
                             <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 mt-1" />
@@ -475,16 +577,23 @@ export default function DashboardHeader({
                     })
                   )}
                 </div>
-                {notifList.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-white/[0.05]">
+
+                {allNotifs.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center justify-between">
                     <button
                       onClick={() => {
-                        onMarkNotifsRead();
+                        handleMarkAllRead();
                         setNotifOpen(false);
                       }}
                       className="text-xs text-white/25 hover:text-teal-400 transition-colors cursor-pointer"
                     >
                       Mark all as read
+                    </button>
+                    <button
+                      onClick={fetchNotifications}
+                      className="text-xs text-white/20 hover:text-white/40 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" /> Refresh
                     </button>
                   </div>
                 )}
