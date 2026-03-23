@@ -38,6 +38,8 @@ import {
   Transaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import { useTrending } from "@/hook/useTrending";
+import { TrendingBadge } from "@/components/ui/TrendingBadge";
 
 // ── Claim Modal ───────────────────────────────────────────────────────────────
 
@@ -221,7 +223,6 @@ function TransferModal({
   const isValidAmount = !isNaN(amount) && amount > 0;
   const canConfirm = resolvedWallet && isValidAmount && !resolveError;
 
-  // Auto-resolve username as user types
   useEffect(() => {
     if (cleanTo.length < 2) {
       setResolvedWallet(null);
@@ -260,7 +261,6 @@ function TransferModal({
     setErrorMsg("");
 
     try {
-      // Get Phantom
       const solana = (window as any).phantom?.solana ?? (window as any).solana;
       if (!solana?.isPhantom) {
         throw new Error("Phantom wallet not found. Please install Phantom.");
@@ -281,33 +281,23 @@ function TransferModal({
       });
 
       const lamports = Math.round(amount * LAMPORTS_PER_SOL);
-
       const { blockhash, lastValidBlockHeight } =
         await connection.getLatestBlockhash();
 
       const tx = new Transaction({
         recentBlockhash: blockhash,
         feePayer: fromPubkey,
-      }).add(
-        SystemProgram.transfer({
-          fromPubkey,
-          toPubkey,
-          lamports,
-        }),
-      );
+      }).add(SystemProgram.transfer({ fromPubkey, toPubkey, lamports }));
 
-      // Sign via Phantom
       const signed = await solana.signTransaction(tx);
       const signature = await connection.sendRawTransaction(signed.serialize());
 
-      // Wait for confirmation
       await connection.confirmTransaction({
         signature,
         blockhash,
         lastValidBlockHeight,
       });
 
-      // Record in DB
       await fetch("/api/transfer/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -325,7 +315,6 @@ function TransferModal({
       onSuccess();
       onRefreshBalance?.();
     } catch (err: any) {
-      // User rejected
       if (err.code === 4001 || err.message?.includes("User rejected")) {
         setStep("confirm");
         return;
@@ -342,10 +331,8 @@ function TransferModal({
         onClick={step === "sending" ? undefined : onClose}
       />
       <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
-        {/* Top accent line */}
         <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.05]">
           <div className="flex items-center gap-2.5">
             <Send className="h-4 w-4 text-indigo-400" />
@@ -361,7 +348,6 @@ function TransferModal({
           )}
         </div>
 
-        {/* ── Success ── */}
         {step === "success" && (
           <div className="p-8 text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
@@ -395,7 +381,6 @@ function TransferModal({
           </div>
         )}
 
-        {/* ── Error ── */}
         {step === "error" && (
           <div className="p-6 space-y-4">
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/[0.06] border border-red-500/20">
@@ -426,7 +411,6 @@ function TransferModal({
           </div>
         )}
 
-        {/* ── Sending ── */}
         {step === "sending" && (
           <div className="p-10 text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto">
@@ -443,7 +427,6 @@ function TransferModal({
           </div>
         )}
 
-        {/* ── Confirm ── */}
         {step === "confirm" && (
           <div className="p-6 space-y-4">
             <div className="rounded-2xl bg-white/[0.02] border border-white/[0.05] divide-y divide-white/[0.04]">
@@ -465,7 +448,6 @@ function TransferModal({
                 </div>
               ))}
             </div>
-
             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
               <AlertCircle className="h-3.5 w-3.5 text-amber-400/80 shrink-0 mt-0.5" />
               <p className="text-[11px] text-amber-400/70 leading-relaxed">
@@ -473,7 +455,6 @@ function TransferModal({
                 before confirming.
               </p>
             </div>
-
             <div className="flex gap-2">
               <button
                 onClick={() => setStep("input")}
@@ -492,10 +473,8 @@ function TransferModal({
           </div>
         )}
 
-        {/* ── Input ── */}
         {step === "input" && (
           <div className="p-6 space-y-5">
-            {/* Recipient */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
                 Recipient
@@ -527,8 +506,6 @@ function TransferModal({
                   )}
                 </div>
               </div>
-
-              {/* Wallet preview */}
               {resolvedWallet && !resolveError && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/15">
                   <Wallet className="h-3 w-3 text-emerald-400 shrink-0" />
@@ -542,7 +519,6 @@ function TransferModal({
               )}
             </div>
 
-            {/* Amount */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
                 Amount
@@ -561,7 +537,6 @@ function TransferModal({
                   SOL
                 </span>
               </div>
-              {/* Quick amount buttons */}
               <div className="flex gap-2">
                 {["0.01", "0.1", "0.5", "1"].map((v) => (
                   <button
@@ -614,6 +589,9 @@ export default function OverviewTab({
   const [claimOpen, setClaimOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferKey, setTransferKey] = useState(0);
+
+  // ── Trending ──
+  const { getTrending } = useTrending();
 
   const QUICK_ACTIONS = [
     {
@@ -675,7 +653,6 @@ export default function OverviewTab({
             onClaimSuccess();
           }}
           onRefreshBalance={() => {
-            // Trigger balance refresh via useDashboard visibilitychange
             document.dispatchEvent(new Event("vyns:refresh-balance"));
           }}
         />
@@ -776,18 +753,45 @@ export default function OverviewTab({
                 const tier = (u.tier ??
                   tierFromLen(name.length)) as keyof typeof TIER_CONFIG;
                 const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
+                const trending = getTrending(name);
                 return (
                   <div
                     key={name}
-                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-colors"
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all
+                      ${
+                        trending
+                          ? "bg-white/[0.03] border-orange-500/20 hover:border-orange-500/40"
+                          : "bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]"
+                      }`}
                   >
+                    {/* Left: name + optional fire glow */}
                     <div className="flex items-center gap-2.5">
-                      <Crown className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+                      <Crown
+                        className={`h-3.5 w-3.5 shrink-0 ${trending ? "text-orange-400" : "text-teal-400"}`}
+                      />
                       <span className="text-sm font-medium text-white/80">
                         @{name}
                       </span>
+                      {trending && (
+                        <span className="text-[10px] text-orange-400/70 font-medium">
+                          🔥 {trending.keyword}
+                        </span>
+                      )}
                     </div>
-                    <Pill className={cfg.cls}>{cfg.label}</Pill>
+
+                    {/* Right: trending badge + tier pill */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {trending && (
+                        <TrendingBadge
+                          category={trending.category}
+                          keyword={trending.keyword}
+                          yieldBoost={trending.yieldBoost}
+                          expiresAt={trending.expiresAt}
+                          size="sm"
+                        />
+                      )}
+                      <Pill className={cfg.cls}>{cfg.label}</Pill>
+                    </div>
                   </div>
                 );
               })}
