@@ -750,8 +750,10 @@ export default function OverviewTab({
             <div className="space-y-2">
               {userData.usernames.slice(0, 3).map((u: any) => {
                 const name = u.name ?? u.username ?? "";
-                const tier = (u.tier ??
-                  tierFromLen(name.length)) as keyof typeof TIER_CONFIG;
+                // FIX: Always recalculate tier from name length — never trust stored DB value
+                const tier = tierFromLen(
+                  name.replace(/^@/, "").length,
+                ) as keyof typeof TIER_CONFIG;
                 const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
                 const trending = getTrending(name);
                 return (
