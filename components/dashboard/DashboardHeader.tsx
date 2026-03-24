@@ -31,12 +31,30 @@ import {
   User,
   ShoppingBag,
   ArrowDownLeft,
+  Trash2,
 } from "lucide-react";
 
 import { type ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
 
 const RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+
+const READ_IDS_KEY = "vyns:read_notif_ids";
+const DELETED_IDS_KEY = "vyns:deleted_notif_ids";
+
+function loadSet(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function saveSet(key: string, ids: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...ids]));
+  } catch {}
+}
 
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
@@ -72,9 +90,9 @@ function PixelAvatar({
     if (!canvas || !seed) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const GRID = 8;
-    canvas.width = GRID;
-    canvas.height = GRID;
+    const G = 8;
+    canvas.width = G;
+    canvas.height = G;
     let h = 0;
     for (let i = 0; i < seed.length; i++)
       h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
@@ -82,19 +100,19 @@ function PixelAvatar({
       h = (Math.imul(1664525, h) + 1013904223) | 0;
       return Math.abs(h) % n;
     };
-    const hue = rand(360);
-    const hue2 = (hue + 40 + rand(80)) % 360;
+    const hue = rand(360),
+      hue2 = (hue + 40 + rand(80)) % 360;
     ctx.fillStyle = `hsl(${hue},60%,8%)`;
-    ctx.fillRect(0, 0, GRID, GRID);
-    for (let y = 0; y < GRID; y++)
-      for (let x = 0; x < Math.ceil(GRID / 2); x++) {
+    ctx.fillRect(0, 0, G, G);
+    for (let y = 0; y < G; y++)
+      for (let x = 0; x < Math.ceil(G / 2); x++) {
         if (rand(3) !== 0) {
           ctx.fillStyle =
             rand(4) === 0
               ? themeColor
               : `hsl(${x % 2 === 0 ? hue : hue2},65%,${40 + rand(35)}%)`;
           ctx.fillRect(x, y, 1, 1);
-          ctx.fillRect(GRID - 1 - x, y, 1, 1);
+          ctx.fillRect(G - 1 - x, y, 1, 1);
         }
       }
     ctx.fillStyle = "#fff";
@@ -175,14 +193,14 @@ const NOTIF_ICONS: Record<string, { icon: any; cls: string }> = {
 };
 
 function timeAgo(date: string | Date): string {
-  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
   return new Date(date).toLocaleDateString();
 }
 
@@ -211,12 +229,38 @@ export default function DashboardHeader({
   const [linkingWallet, setLinkingWallet] = useState(false);
   const [unlinkingWallet, setUnlinkingWallet] = useState(false);
   const [linkError, setLinkError] = useState("");
-
-  // Live notifications from API
   const [liveNotifs, setLiveNotifs] = useState<Notification[]>([]);
   const [notifsLoading, setNotifsLoading] = useState(false);
-  // Track read state client-side (keyed by notif id)
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [clearingAll, setClearingAll] = useState(false);
+
+  // Persisted state — survives page refreshes
+  const [readIds, setReadIds] = useState<Set<string>>(() =>
+    loadSet(READ_IDS_KEY),
+  );
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() =>
+    loadSet(DELETED_IDS_KEY),
+  );
+
+  const updateReadIds = useCallback(
+    (updater: (p: Set<string>) => Set<string>) => {
+      setReadIds((p) => {
+        const n = updater(p);
+        saveSet(READ_IDS_KEY, n);
+        return n;
+      });
+    },
+    [],
+  );
+  const updateDeletedIds = useCallback(
+    (updater: (p: Set<string>) => Set<string>) => {
+      setDeletedIds((p) => {
+        const n = updater(p);
+        saveSet(DELETED_IDS_KEY, n);
+        return n;
+      });
+    },
+    [],
+  );
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -232,19 +276,19 @@ export default function DashboardHeader({
       : displayUsername;
   const isDevnet = RPC_URL.includes("devnet");
 
-  // Merge live + external, dedupe by id
+  // Merge, dedupe, filter deleted, apply read state
   const allNotifs: Notification[] = (() => {
     const map = new Map<string, Notification>();
     for (const n of externalNotifs) map.set(n.id, n);
     for (const n of liveNotifs) map.set(n.id, n);
     return Array.from(map.values())
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .filter((n) => !deletedIds.has(n.id))
       .map((n) => ({ ...n, read: readIds.has(n.id) ? true : n.read }));
   })();
 
   const unread = allNotifs.filter((n) => !n.read).length;
 
-  // Fetch live notifications from API
   const fetchNotifications = useCallback(async () => {
     setNotifsLoading(true);
     try {
@@ -258,7 +302,7 @@ export default function DashboardHeader({
             title: n.title,
             body: n.body,
             time: n.time,
-            read: false,
+            read: n.read ?? false,
             amount: n.amount ?? null,
             txHash: n.txHash ?? null,
           })),
@@ -268,18 +312,60 @@ export default function DashboardHeader({
     setNotifsLoading(false);
   }, []);
 
-  // Fetch on mount and when bell opens
   useEffect(() => {
     fetchNotifications();
-    // Refresh every 60s while page is open
-    const interval = setInterval(fetchNotifications, 60_000);
-    return () => clearInterval(interval);
+    const t = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(t);
   }, [fetchNotifications]);
 
-  const handleMarkAllRead = useCallback(() => {
-    setReadIds(new Set(allNotifs.map((n) => n.id)));
+  // Mark all read
+  const handleMarkAllRead = useCallback(async () => {
+    const ids = allNotifs.map((n) => n.id);
+    updateReadIds(() => new Set(ids));
     onMarkNotifsRead();
-  }, [allNotifs, onMarkNotifsRead]);
+    try {
+      await fetch("/api/notifications/read-all", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+    } catch {}
+  }, [allNotifs, onMarkNotifsRead, updateReadIds]);
+
+  // Delete one
+  const handleDeleteOne = useCallback(
+    async (id: string) => {
+      updateDeletedIds((p) => new Set([...p, id]));
+      try {
+        await fetch("/api/notifications/delete", {
+          method: "DELETE",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+      } catch {}
+    },
+    [updateDeletedIds],
+  );
+
+  // Clear all
+  const handleClearAll = useCallback(async () => {
+    if (clearingAll) return;
+    setClearingAll(true);
+    const ids = allNotifs.map((n) => n.id);
+    updateDeletedIds((p) => new Set([...p, ...ids]));
+    try {
+      await fetch("/api/notifications/delete", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true, ids }),
+      });
+    } catch {}
+    setClearingAll(false);
+    setNotifOpen(false);
+  }, [allNotifs, clearingAll, updateDeletedIds]);
 
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
@@ -297,12 +383,12 @@ export default function DashboardHeader({
   }, [wallet, refreshBalance]);
 
   useEffect(() => {
-    function handler(e: MouseEvent) {
+    const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node))
         setNotifOpen(false);
       if (dropRef.current && !dropRef.current.contains(e.target as Node))
         setDropOpen(false);
-    }
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
@@ -328,8 +414,8 @@ export default function DashboardHeader({
       const pk = resp.publicKey.toString();
       const res = await fetch("/api/user/link-wallet", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet: pk }),
       });
       const data = await res.json();
@@ -407,7 +493,7 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#060b14]/80 backdrop-blur-xl">
       <div className="px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-        {/* Left */}
+        {/* ── Left ── */}
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleSidebar}
@@ -435,7 +521,7 @@ export default function DashboardHeader({
           )}
         </div>
 
-        {/* Right */}
+        {/* ── Right ── */}
         <div className="flex items-center gap-1.5">
           {/* SOL balance */}
           {wallet && (
@@ -474,13 +560,13 @@ export default function DashboardHeader({
             </button>
           )}
 
-          {/* Bell */}
+          {/* ── Bell ── */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => {
-                const opening = !notifOpen;
-                setNotifOpen(opening);
-                if (opening) fetchNotifications();
+                const o = !notifOpen;
+                setNotifOpen(o);
+                if (o) fetchNotifications();
               }}
               className="relative p-2 text-white/30 hover:text-white/60 transition-colors cursor-pointer rounded-lg hover:bg-white/[0.04]"
             >
@@ -492,6 +578,7 @@ export default function DashboardHeader({
 
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/[0.07] bg-[#0a0f1a]/98 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden">
+                {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.05]">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-white">
@@ -516,13 +603,12 @@ export default function DashboardHeader({
                   </div>
                 </div>
 
+                {/* List */}
                 <div className="max-h-80 overflow-y-auto">
                   {allNotifs.length === 0 ? (
                     <div className="py-10 text-center">
                       <BellIcon className="h-5 w-5 mx-auto mb-2 text-white/10" />
-                      <p className="text-xs text-white/20">
-                        No notifications yet
-                      </p>
+                      <p className="text-xs text-white/20">No notifications</p>
                     </div>
                   ) : (
                     allNotifs.map((n) => {
@@ -531,7 +617,7 @@ export default function DashboardHeader({
                       return (
                         <div
                           key={n.id}
-                          className={`flex gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors ${!n.read ? "bg-white/[0.015]" : ""}`}
+                          className={`group flex gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors ${!n.read ? "bg-white/[0.015]" : ""}`}
                         >
                           <div
                             className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cls}`}
@@ -539,16 +625,26 @@ export default function DashboardHeader({
                             <Icon className="h-3.5 w-3.5" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-1">
                               <p
                                 className={`text-xs font-medium leading-tight ${n.read ? "text-white/50" : "text-white/80"}`}
                               >
                                 {n.title}
                               </p>
-                              <span className="text-[10px] text-white/20 shrink-0 flex items-center gap-0.5 whitespace-nowrap">
-                                <Clock className="h-2.5 w-2.5" />
-                                {timeAgo(n.time)}
-                              </span>
+                              <div className="flex items-center gap-1 shrink-0 ml-1">
+                                <span className="text-[10px] text-white/20 flex items-center gap-0.5 whitespace-nowrap">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  {timeAgo(n.time)}
+                                </span>
+                                {/* Per-notification delete — shows on hover */}
+                                <button
+                                  onClick={() => handleDeleteOne(n.id)}
+                                  title="Delete"
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-[11px] text-white/30 mt-0.5 leading-relaxed">
                               {n.body}
@@ -578,30 +674,44 @@ export default function DashboardHeader({
                   )}
                 </div>
 
-                {allNotifs.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        handleMarkAllRead();
-                        setNotifOpen(false);
-                      }}
-                      className="text-xs text-white/25 hover:text-teal-400 transition-colors cursor-pointer"
-                    >
-                      Mark all as read
-                    </button>
-                    <button
-                      onClick={fetchNotifications}
-                      className="text-xs text-white/20 hover:text-white/40 transition-colors cursor-pointer flex items-center gap-1"
-                    >
-                      <RefreshCw className="h-3 w-3" /> Refresh
-                    </button>
+                {/* Footer */}
+                <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    {unread > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs text-white/25 hover:text-teal-400 transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    {allNotifs.length > 0 && (
+                      <button
+                        onClick={handleClearAll}
+                        disabled={clearingAll}
+                        className="flex items-center gap-1 text-xs text-white/20 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40 whitespace-nowrap"
+                      >
+                        {clearingAll ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                )}
+                  <button
+                    onClick={fetchNotifications}
+                    className="text-xs text-white/20 hover:text-white/40 transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Refresh
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* User dropdown */}
+          {/* ── User dropdown ── */}
           <div className="relative" ref={dropRef}>
             <button
               onClick={() => setDropOpen((v) => !v)}
@@ -664,7 +774,6 @@ export default function DashboardHeader({
                     </div>
                   </div>
 
-                  {/* Wallet */}
                   {wallet ? (
                     <div className="mt-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-hidden">
                       <div className="flex items-center justify-between px-2.5 py-2">
@@ -747,7 +856,6 @@ export default function DashboardHeader({
                   </div>
                 </div>
 
-                {/* Menu */}
                 <div className="p-2 space-y-0.5">
                   <button
                     onClick={() => {

@@ -3,12 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import connectDB from "@/lib/db/mongodb";
 import { Activity, Transaction, User, Username } from "@/models";
+import NotificationState from "@/models/NotificationState";
 
 // GET /api/notifications — aggregates activity, transactions, referrals, and marketplace sales
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-
     const userId = (session?.user as any)?.id;
     if (!userId) {
       return NextResponse.json(
@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Load this user's read/deleted state from DB
+    const state = (await NotificationState.findOne({ userId }).lean()) as any;
+    const readSet = new Set<string>(state?.readIds ?? []);
+    const deletedSet = new Set<string>(state?.deletedIds ?? []);
+
     const wallet = user.wallet ?? null;
     const activeUsername = user.activeUsername
       ? `@${user.activeUsername.replace("@", "")}`
@@ -34,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const notifications: any[] = [];
 
-    // ── 1. Activity feed (stake, unstake, claim, referral, transaction) ──
+    // ── 1. Activity feed ──
     if (wallet) {
       const activities = (await Activity.find({ wallet })
         .sort({ createdAt: -1 })
@@ -87,7 +92,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 2. SOL received — transactions sent TO the user's active username ──
+    // ── 2. SOL received ──
     if (activeUsername) {
       const received = (await Transaction.find({
         toUsername: activeUsername,
@@ -112,7 +117,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 3. Marketplace sale — username you listed was purchased ──
+    // ── 3. Marketplace sales ──
     if (wallet || userId) {
       const soldTxs = (await Transaction.find({
         type: { $in: ["purchase", "marketplace_sale", "buy"] },
@@ -161,18 +166,25 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ── Sort all by time desc ──
+    // ── Sort, dedupe, apply read/deleted state ──
     notifications.sort(
       (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
     );
 
-    // ── Deduplicate by id ──
     const seen = new Set<string>();
-    const unique = notifications.filter((n) => {
-      if (seen.has(n.id)) return false;
-      seen.add(n.id);
-      return true;
-    });
+    const unique = notifications
+      .filter((n) => {
+        if (seen.has(n.id)) return false;
+        seen.add(n.id);
+        // Filter out deleted notifications
+        if (deletedSet.has(n.id)) return false;
+        return true;
+      })
+      .map((n) => ({
+        ...n,
+        // Apply server-side read state
+        read: readSet.has(n.id) ? true : n.read,
+      }));
 
     return NextResponse.json({
       success: true,
