@@ -1,15 +1,4 @@
-/**
- * VYNS UsernameDetailPage - Compact & Balanced Premium UI
- * Next.js App Router Component
- *
- * Design Philosophy:
- * - Tight, proportional spacing throughout
- * - Balanced visual hierarchy with refined typography
- * - Compact profile sidebar and listing details
- * - No oversized elements - everything fits perfectly
- * - Premium glassmorphism with subtle effects
- */
-
+// app/username/[name]/page.tsx
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
@@ -24,11 +13,13 @@ import {
   Check,
   Loader2,
   Users,
+  Calendar,
   TrendingUp,
   ShoppingCart,
   AlertCircle,
   Wallet,
   Activity,
+  ChevronRight,
 } from "lucide-react";
 import DashboardHeader, {
   Notification,
@@ -88,49 +79,85 @@ interface UsernameData {
   owner: OwnerProfile | null;
 }
 
-// ── Tier Configuration ────────────────────────────────────────────────────────
+// ── Tier config ──────────────────────────────────────────────────────────────
 
 const TIER_CONFIG: Record<
   string,
-  { cls: string; bg: string; label: string; hex: string }
+  {
+    cls: string;
+    bg: string;
+    label: string;
+    glow: string;
+    hex: string;
+    accent: string;
+    border: string;
+    pill: string;
+  }
 > = {
   Diamond: {
-    cls: "text-cyan-400",
-    bg: "from-cyan-500/10 to-cyan-900/5",
-    label: "💎 Diamond",
+    cls: "text-cyan-300",
+    bg: "from-cyan-950/60 via-[#0a0a0f] to-[#0a0a0f]",
+    label: "Diamond",
+    glow: "0 0 60px rgba(34,211,238,0.15)",
     hex: "#22d3ee",
+    accent: "bg-cyan-400",
+    border: "border-cyan-500/20",
+    pill: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",
   },
   Platinum: {
-    cls: "text-purple-300",
-    bg: "from-purple-500/10 to-purple-900/5",
-    label: "⬡ Platinum",
+    cls: "text-violet-300",
+    bg: "from-violet-950/60 via-[#0a0a0f] to-[#0a0a0f]",
+    label: "Platinum",
+    glow: "0 0 60px rgba(167,139,250,0.15)",
     hex: "#a78bfa",
+    accent: "bg-violet-400",
+    border: "border-violet-500/20",
+    pill: "bg-violet-500/10 text-violet-300 border-violet-500/30",
   },
   Gold: {
-    cls: "text-amber-400",
-    bg: "from-amber-500/10 to-amber-900/5",
-    label: "✦ Gold",
+    cls: "text-amber-300",
+    bg: "from-amber-950/60 via-[#0a0a0f] to-[#0a0a0f]",
+    label: "Gold",
+    glow: "0 0 60px rgba(251,191,36,0.12)",
     hex: "#fbbf24",
+    accent: "bg-amber-400",
+    border: "border-amber-500/20",
+    pill: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   },
   Silver: {
     cls: "text-slate-300",
-    bg: "from-slate-500/10 to-slate-900/5",
-    label: "◈ Silver",
+    bg: "from-slate-800/60 via-[#0a0a0f] to-[#0a0a0f]",
+    label: "Silver",
+    glow: "0 0 60px rgba(148,163,184,0.10)",
     hex: "#94a3b8",
+    accent: "bg-slate-400",
+    border: "border-slate-500/20",
+    pill: "bg-slate-500/10 text-slate-300 border-slate-500/30",
   },
   Bronze: {
-    cls: "text-orange-400",
-    bg: "from-orange-500/10 to-orange-900/5",
-    label: "◉ Bronze",
+    cls: "text-orange-300",
+    bg: "from-orange-950/60 via-[#0a0a0f] to-[#0a0a0f]",
+    label: "Bronze",
+    glow: "0 0 60px rgba(249,115,22,0.12)",
     hex: "#f97316",
+    accent: "bg-orange-400",
+    border: "border-orange-500/20",
+    pill: "bg-orange-500/10 text-orange-300 border-orange-500/30",
   },
 };
 
-// ── Pixel Avatar Component ────────────────────────────────────────────────────
+const TIER_ICONS: Record<string, string> = {
+  Diamond: "💎",
+  Platinum: "⬡",
+  Gold: "✦",
+  Silver: "◈",
+  Bronze: "◉",
+};
 
+// ── Pixel Avatar ──────────────────────────────────────────────────────────────
 function PixelAvatar({
   seed,
-  size = 64,
+  size = 80,
   themeColor = "#2dd4bf",
 }: {
   seed: string;
@@ -138,33 +165,25 @@ function PixelAvatar({
   themeColor?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !seed) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     const G = 8;
     canvas.width = G;
     canvas.height = G;
-
     let h = 0;
     for (let i = 0; i < seed.length; i++)
       h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
-
     const rand = (n: number) => {
       h = (Math.imul(1664525, h) + 1013904223) | 0;
       return Math.abs(h) % n;
     };
-
     const hue = rand(360);
     const hue2 = (hue + 40 + rand(80)) % 360;
-
     ctx.fillStyle = `hsl(${hue},60%,8%)`;
     ctx.fillRect(0, 0, G, G);
-
     for (let y = 0; y < G; y++)
       for (let x = 0; x < Math.ceil(G / 2); x++) {
         if (rand(3) !== 0) {
@@ -176,12 +195,10 @@ function PixelAvatar({
           ctx.fillRect(G - 1 - x, y, 1, 1);
         }
       }
-
     ctx.fillStyle = "#fff";
     ctx.fillRect(2, 2, 1, 1);
     ctx.fillRect(5, 2, 1, 1);
   }, [seed, themeColor]);
-
   return (
     <canvas
       ref={canvasRef}
@@ -195,7 +212,32 @@ function PixelAvatar({
   );
 }
 
-// ── Main Page Component ──────────────────────────────────────────────────────
+// ── Stat chip ─────────────────────────────────────────────────────────────────
+function StatChip({
+  icon: Icon,
+  value,
+  label,
+  color,
+}: {
+  icon: React.ElementType;
+  value: string | number;
+  label: string;
+  color: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:border-white/[0.1] transition-colors">
+      <Icon className={`w-4 h-4 ${color}`} />
+      <span className="text-sm font-black text-white tabular-nums">
+        {value}
+      </span>
+      <span className="text-[9px] font-bold text-white/25 uppercase tracking-[0.18em]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 
 export default function UsernameDetailPage() {
   const { name } = useParams();
@@ -209,10 +251,12 @@ export default function UsernameDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Dashboard User State
   const [user, setUser] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
+  // Buy Flow State
   const [phantomConnected, setPhantomConnected] = useState(false);
   const [buyLoading, setBuyLoading] = useState(false);
   const [buyStep, setBuyStep] = useState<
@@ -222,42 +266,38 @@ export default function UsernameDetailPage() {
 
   useEffect(() => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
-    if (solana?.isPhantom && solana.isConnected) {
-      setPhantomConnected(true);
-    }
+    if (solana?.isPhantom && solana.isConnected) setPhantomConnected(true);
   }, []);
 
   const fetchMe = useCallback(async () => {
     try {
       const res = await fetch("/api/user/me", { credentials: "include" });
       const json = await res.json();
-      if (json.success && json.user) {
-        setUser(json.user);
-      }
-    } catch (err) {
-      console.error("Failed to fetch user session", err);
-    }
+      if (json.success && json.user) setUser(json.user);
+    } catch {}
   }, []);
 
   useEffect(() => {
     if (!raw) return;
     setLoading(true);
     setNotFound(false);
-
     Promise.all([
       fetch(`/api/username/${raw}`).then((r) => r.json()),
       fetchMe(),
     ])
       .then(([json]) => {
-        if (!json.success) {
-          setNotFound(true);
-        } else {
-          setData(json);
-        }
+        if (!json.success) setNotFound(true);
+        else setData(json);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [raw, fetchMe]);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const handleConnectWallet = async () => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
@@ -278,7 +318,7 @@ export default function UsernameDetailPage() {
         });
         fetchMe();
       } catch {}
-    } catch (err) {
+    } catch {
       setBuyError("Failed to connect wallet");
     }
   };
@@ -298,7 +338,6 @@ export default function UsernameDetailPage() {
       setBuyStep("error");
       return;
     }
-
     setBuyLoading(true);
     setBuyError("");
     try {
@@ -309,9 +348,8 @@ export default function UsernameDetailPage() {
         body: JSON.stringify({ username: raw }),
       });
       const result = await res.json();
-      if (result.success) {
-        setBuyStep("success");
-      } else {
+      if (result.success) setBuyStep("success");
+      else {
         setBuyError(result.error ?? "Purchase failed");
         setBuyStep("error");
       }
@@ -322,12 +360,6 @@ export default function UsernameDetailPage() {
     setBuyLoading(false);
   };
 
-  const handleCopyUsername = () => {
-    navigator.clipboard.writeText(`@${raw}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const headerProps = {
     session: user,
     wallet: user?.wallet || null,
@@ -335,396 +367,606 @@ export default function UsernameDetailPage() {
     displayName: user?.displayName || user?.name || user?.email || "User",
     activeUsername: user?.activeUsername,
     customization: user?.customization,
-    notifications: notifications,
-    sidebarOpen: sidebarOpen,
+    notifications,
+    sidebarOpen,
     onToggleSidebar: () => setSidebarOpen(!sidebarOpen),
     onMarkNotifsRead: () =>
       setNotifications((n) => n.map((x) => ({ ...x, read: true }))),
     onOpenSettings: () => router.push("/dashboard?tab=settings"),
     onLogout: handleLogout,
-    onWalletLinked: (addr: string) => fetchMe(),
+    onWalletLinked: () => fetchMe(),
     onOpenProfile: () => router.push("/dashboard?tab=profile"),
   };
 
-  const owner = data?.owner;
-  const listing = data?.listing || { isListed: false };
-  const usernameLevel = data?.level || 0;
-  const staked = data?.staked || false;
-  const tierCfg = TIER_CONFIG[data?.tier || "Silver"] || TIER_CONFIG.Silver;
-
-  // ── Loading State ──────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f]">
+      <div className="min-h-screen bg-[#07070c]">
         {user && <DashboardHeader {...headerProps} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-4">
             <Loader2 className="w-6 h-6 text-teal-400 animate-spin" />
-            <p className="text-xs text-white/30">Loading @{raw}…</p>
+            <p className="text-xs text-white/25 tracking-widest uppercase font-bold">
+              Loading @{raw}
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Not Found State ────────────────────────────────────────────────────────
+  // ── Not found ─────────────────────────────────────────────────────────────
   if (notFound || !data) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f]">
-        {user && <DashboardHeader {...headerProps} />}
+      <div className="min-h-screen bg-[#07070c]">
+        <DashboardHeader {...headerProps} />
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="flex flex-col items-center gap-4 text-center px-4">
-            <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <AlertCircle size={24} className="text-red-400" />
+          <div className="text-center space-y-5">
+            <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6 text-white/20" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white mb-1">
-                Username Not Found
-              </h2>
-              <p className="text-xs text-white/40">@{raw} does not exist.</p>
+              <p className="text-2xl font-black text-white tracking-tight">
+                @{raw}
+              </p>
+              <p className="text-sm text-white/30 mt-1">
+                This username hasn't been registered yet
+              </p>
             </div>
-            <button
-              onClick={() => router.push("/marketplace")}
-              className="px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-black font-bold text-sm transition-all"
+            <Link
+              href="/dashboard?tab=marketplace"
+              className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 text-sm font-bold transition-colors"
             >
+              <ArrowLeft className="w-4 h-4" />
               Back to Marketplace
-            </button>
+            </Link>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Main Content ──────────────────────────────────────────────────────────
+  const {
+    owner,
+    listing,
+    tier,
+    level: usernameLevel,
+    staked,
+    claimedAt,
+  } = data;
+  const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
+  const tierIcon = TIER_ICONS[tier] ?? "◉";
+
+  const ownerDisplayName =
+    owner?.displayName ??
+    owner?.name ??
+    owner?.activeUsername?.replace(/^@/, "") ??
+    null;
+
+  const walletDisplay = (w: string) =>
+    w.length > 12 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w;
+
+  const fee = (listing.price ?? 0) * 0.025;
+  const total = (listing.price ?? 0) * 1.025;
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      {user && <DashboardHeader {...headerProps} />}
+    <div className="min-h-screen bg-[#07070c] text-white">
+      <DashboardHeader {...headerProps} />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-white/50 hover:text-teal-400 transition-colors mb-6 text-sm"
-        >
-          <ArrowLeft size={16} />
-          <span className="font-semibold">Marketplace</span>
-        </button>
+      {/* ── Ambient tier glow ── */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${tierCfg.hex}10 0%, transparent 70%)`,
+        }}
+      />
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* LEFT: Profile Card (2 cols) */}
-          <div className="lg:col-span-2 space-y-4">
-            {owner && (
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-5 space-y-4">
-                {/* Avatar & Name */}
-                <div className="flex flex-col items-center text-center">
-                  <div className="mb-3 ring-2 ring-offset-2 ring-offset-[#0a0a0f] ring-teal-500/20 rounded-full p-0.5">
-                    {owner.avatar ? (
-                      <img
-                        src={owner.avatar}
-                        alt={owner.displayName || "User"}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    ) : (
-                      <PixelAvatar
-                        seed={owner._id || "default"}
-                        size={64}
-                        themeColor={tierCfg.hex}
-                      />
-                    )}
-                  </div>
-                  <h3 className="text-base font-black text-white">
-                    {owner.displayName || owner.name || "Anonymous"}
-                  </h3>
-                  {owner.socials?.x && (
-                    <a
-                      href={`https://x.com/${owner.socials.x}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
-                    >
-                      @{owner.socials.x}
-                    </a>
-                  )}
-                  {owner.bio && (
-                    <p className="text-xs text-white/40 mt-2 line-clamp-2">
-                      {owner.bio}
-                    </p>
-                  )}
-                </div>
+      {/* ── Cover strip ── */}
+      <div className="relative h-52 sm:h-64 overflow-hidden">
+        {owner?.coverPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={owner.coverPhoto}
+            alt="cover"
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, ${tierCfg.hex}18 0%, transparent 60%)`,
+            }}
+          />
+        )}
+        {/* grid texture overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#07070c]/50 to-[#07070c]" />
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <Users className="w-3.5 h-3.5 text-teal-400 mb-1" />
-                    <span className="text-sm font-black text-white">
-                      {owner.usernames?.length ?? 0}
-                    </span>
-                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
-                      Names
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <Zap className="w-3.5 h-3.5 text-violet-400 mb-1" />
-                    <span className="text-sm font-black text-white">
-                      {owner.stakedAmount ?? 0}
-                    </span>
-                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
-                      Staked
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <TrendingUp className="w-3.5 h-3.5 text-teal-400 mb-1" />
-                    <span className="text-sm font-black text-white">
-                      {owner.earnings ?? 0}
-                    </span>
-                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
-                      SOL
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Back nav */}
+        <div className="relative z-10 px-5 pt-5">
+          <Link
+            href="/dashboard?tab=marketplace"
+            className="inline-flex items-center gap-1.5 text-white/40 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors group"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            Marketplace
+          </Link>
+        </div>
+      </div>
 
-            {/* Other Names Card */}
-            {owner && owner.usernames.length > 1 && (
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-4">
-                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.15em] mb-3">
-                  Also Owns
-                </p>
-                <div className="space-y-2">
-                  {owner.usernames
-                    .filter((u) => u.name !== raw)
-                    .slice(0, 3)
-                    .map((u) => {
-                      const cfg = TIER_CONFIG[u.tier] || TIER_CONFIG.Silver;
-                      return (
-                        <Link
-                          key={u.name}
-                          href={`/username/${u.name}`}
-                          className="flex items-center justify-between group p-2 rounded-lg hover:bg-white/[0.03] transition-all"
-                        >
-                          <span className="text-xs font-bold text-white/60 group-hover:text-teal-400 transition-colors">
-                            @{u.name}
-                          </span>
-                          <div
-                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${cfg.cls}`}
-                          >
-                            {u.tier}
-                          </div>
-                        </Link>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT: Listing Details (3 cols) */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Username Hero Card */}
-            <div
-              className={`rounded-2xl border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-6 shadow-xl relative overflow-hidden group hover:border-white/[0.15] transition-all duration-300`}
-            >
-              <div className="absolute top-0 right-0 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Crown size={80} />
-              </div>
-
-              <div className="relative z-10">
+      {/* ── Main layout ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 -mt-16 relative z-10">
+        <div className="grid lg:grid-cols-[340px_1fr] gap-5">
+          {/* ── LEFT: Profile card ──────────────────────────────────────── */}
+          <div className="space-y-4">
+            {/* Profile glass card */}
+            <div className="rounded-3xl border border-white/[0.07] bg-[#0d0d14]/80 backdrop-blur-xl overflow-hidden">
+              {/* Mini cover inside card */}
+              <div
+                className="h-20 relative"
+                style={{
+                  background: `linear-gradient(135deg, ${tierCfg.hex}22 0%, transparent 80%)`,
+                }}
+              >
                 <div
-                  className={`inline-flex px-2.5 py-1 rounded-full border border-white/20 text-[9px] font-black uppercase tracking-[0.1em] ${tierCfg.cls}`}
-                >
-                  {tierCfg.label}
-                </div>
-                <h1 className="text-4xl sm:text-5xl font-black text-white mt-3 tracking-tighter">
-                  @{raw}
-                </h1>
-                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
-                  <div className="flex items-center gap-1.5 text-white/50">
-                    <Activity size={12} className="text-teal-400" />
-                    <span className="font-semibold">{raw.length} Chars</span>
+                  className="absolute inset-0 opacity-[0.05]"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle, white 1px, transparent 1px)",
+                    backgroundSize: "16px 16px",
+                  }}
+                />
+              </div>
+
+              <div className="px-7 pb-7">
+                {/* Avatar — overlapping the mini cover */}
+                <div className="flex justify-between items-end -mt-11 mb-5">
+                  <div className="relative">
+                    <div
+                      className="w-[72px] h-[72px] rounded-2xl border-[3px] border-[#0d0d14] overflow-hidden bg-[#0d0d14]"
+                      style={{ boxShadow: tierCfg.glow }}
+                    >
+                      {owner?.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={owner.avatar}
+                          alt="avatar"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <PixelAvatar
+                          seed={owner?.activeUsername || raw}
+                          size={72}
+                          themeColor={tierCfg.hex}
+                        />
+                      )}
+                    </div>
+                    <div className="absolute -bottom-1.5 -right-1.5 bg-teal-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded-md leading-none">
+                      LV{owner?.level ?? 1}
+                    </div>
                   </div>
-                  <div className="w-0.5 h-0.5 rounded-full bg-white/10" />
-                  <div className="flex items-center gap-1.5 text-white/50">
-                    <Shield size={12} className="text-violet-400" />
-                    <span className="font-semibold">Lvl {usernameLevel}</span>
-                  </div>
-                  {staked && (
-                    <>
-                      <div className="w-0.5 h-0.5 rounded-full bg-white/10" />
-                      <div className="flex items-center gap-1.5 text-teal-400 font-semibold">
-                        <Zap size={12} />
-                        Staked
-                      </div>
-                    </>
-                  )}
+
+                  {/* Tier pill */}
+                  <span
+                    className={`text-[9px] font-black uppercase tracking-[0.18em] px-2.5 py-1.5 rounded-full border ${tierCfg.pill}`}
+                  >
+                    {tierIcon} {tierCfg.label}
+                  </span>
                 </div>
 
-                {/* Copy Button */}
-                <button
-                  onClick={handleCopyUsername}
-                  className="mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/60 hover:text-teal-400 transition-all text-xs font-semibold"
-                >
-                  {copied ? (
-                    <>
-                      <Check size={12} />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} />
-                      Copy
-                    </>
-                  )}
-                </button>
+                {/* Name */}
+                <h2 className="text-xl font-black text-white leading-tight tracking-tight">
+                  {ownerDisplayName || `@${raw}`}
+                </h2>
+                {owner?.activeUsername && (
+                  <p className="text-xs font-bold text-teal-400/80 mt-0.5">
+                    @{owner.activeUsername.replace(/^@/, "")}
+                  </p>
+                )}
+                {owner?.bio && (
+                  <p className="text-sm text-white/35 mt-3 leading-relaxed">
+                    {owner.bio}
+                  </p>
+                )}
+
+                {/* Wallet */}
+                {(owner?.wallet || listing.ownerWallet) && (
+                  <button
+                    onClick={() =>
+                      handleCopy(owner?.wallet ?? listing.ownerWallet ?? "")
+                    }
+                    className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.05] transition-all w-full group"
+                  >
+                    <Wallet className="w-3 h-3 text-white/25 shrink-0" />
+                    <span className="font-mono text-[11px] text-white/35 tracking-wider flex-1 text-left">
+                      {walletDisplay(
+                        owner?.wallet ?? listing.ownerWallet ?? "",
+                      )}
+                    </span>
+                    {copied ? (
+                      <Check className="w-3 h-3 text-teal-400" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-white/20 group-hover:text-white/50 transition-colors" />
+                    )}
+                  </button>
+                )}
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-2 mt-5">
+                  <StatChip
+                    icon={Users}
+                    value={owner?.referrals ?? 0}
+                    label="Refs"
+                    color="text-sky-400"
+                  />
+                  <StatChip
+                    icon={Zap}
+                    value={owner?.stakedAmount ?? 0}
+                    label="Staked"
+                    color="text-violet-400"
+                  />
+                  <StatChip
+                    icon={TrendingUp}
+                    value={`${owner?.earnings ?? 0}`}
+                    label="SOL"
+                    color="text-teal-400"
+                  />
+                </div>
+
+                {/* Joined */}
+                {owner?.joinedAt && (
+                  <div className="mt-5 pt-5 border-t border-white/[0.05] flex items-center gap-2 text-[11px] text-white/20 font-bold">
+                    <Calendar className="w-3 h-3" />
+                    Joined{" "}
+                    {new Date(owner.joinedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Marketplace Section */}
-            {listing.isListed ? (
-              <div
-                className={`rounded-2xl border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-6 shadow-xl hover:border-white/[0.15] transition-all duration-300`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-                    <span className="text-[9px] font-black text-teal-400 uppercase tracking-[0.1em]">
-                      Listed for Sale
-                    </span>
+            {/* Also owns */}
+            {owner &&
+              owner.usernames.filter((u) => u.name !== raw).length > 0 && (
+                <div className="rounded-3xl border border-white/[0.07] bg-[#0d0d14]/80 backdrop-blur-xl p-5">
+                  <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">
+                    Also Owns
+                  </p>
+                  <div className="space-y-1">
+                    {owner.usernames
+                      .filter((u) => u.name !== raw)
+                      .slice(0, 5)
+                      .map((u) => {
+                        const utc = TIER_CONFIG[u.tier] ?? TIER_CONFIG.Bronze;
+                        return (
+                          <Link
+                            key={u.name}
+                            href={`/username/${u.name}`}
+                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.04] transition-all group"
+                          >
+                            <span className="text-sm font-bold text-white/50 group-hover:text-white transition-colors">
+                              @{u.name}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[8px] font-black uppercase tracking-wider ${utc.cls}`}
+                              >
+                                {u.tier}
+                              </span>
+                              <ChevronRight className="w-3 h-3 text-white/15 group-hover:text-white/40 transition-colors" />
+                            </div>
+                          </Link>
+                        );
+                      })}
                   </div>
-                  {listing.listedAt && (
-                    <span className="text-[10px] font-semibold text-white/20">
-                      {new Date(listing.listedAt).toLocaleDateString()}
+                </div>
+              )}
+          </div>
+
+          {/* ── RIGHT ───────────────────────────────────────────────────── */}
+          <div className="space-y-5">
+            {/* ── Hero banner ── */}
+            <div
+              className="rounded-3xl border border-white/[0.07] bg-[#0d0d14]/80 backdrop-blur-xl overflow-hidden relative"
+              style={{ boxShadow: tierCfg.glow }}
+            >
+              {/* accent stripe */}
+              <div
+                className="absolute top-0 left-0 right-0 h-[2px]"
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${tierCfg.hex}80, transparent)`,
+                }}
+              />
+
+              <div className="p-8 sm:p-10">
+                {/* Meta row */}
+                <div className="flex flex-wrap items-center gap-2 mb-6">
+                  <span
+                    className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border ${tierCfg.pill}`}
+                  >
+                    {tierIcon} {tierCfg.label}
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] text-white/30">
+                    {raw.length} chars
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] text-white/30">
+                    Level {usernameLevel}
+                  </span>
+                  {staked && (
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 text-teal-300 flex items-center gap-1.5">
+                      <Zap className="w-2.5 h-2.5" />
+                      Staked
+                    </span>
+                  )}
+                  {claimedAt && (
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] text-white/30">
+                      Claimed{" "}
+                      {new Date(claimedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </span>
                   )}
                 </div>
 
-                <div className="mb-5">
-                  <span className="text-5xl font-black text-white tracking-tight">
-                    {listing.price}
-                  </span>
-                  <span className="text-lg font-black text-white/30 uppercase ml-2">
-                    SOL
-                  </span>
+                {/* Username */}
+                <h1
+                  className="text-6xl sm:text-8xl font-black tracking-tight leading-none"
+                  style={{ color: tierCfg.hex }}
+                >
+                  @{raw}
+                </h1>
+
+                {/* Decorative flair */}
+                <div className="absolute bottom-6 right-8 opacity-[0.04] pointer-events-none select-none">
+                  <Crown size={140} style={{ color: tierCfg.hex }} />
                 </div>
+              </div>
+            </div>
 
-                {/* Purchase States */}
-                {buyStep === "detail" && (
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    {!phantomConnected ? (
-                      <button
-                        onClick={handleConnectWallet}
-                        className="flex-1 py-3 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/40"
-                      >
-                        <Wallet size={16} />
-                        Connect Wallet
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setBuyStep("confirm")}
-                        className="flex-1 py-3 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/40"
-                      >
-                        <ShoppingCart size={16} />
-                        Purchase
-                      </button>
+            {/* ── Listing / Buy card ── */}
+            {listing.isListed ? (
+              <div className="rounded-3xl border border-white/[0.07] bg-[#0d0d14]/80 backdrop-blur-xl overflow-hidden relative">
+                {/* live indicator stripe */}
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-teal-400/60 to-transparent" />
+
+                <div className="p-8">
+                  {/* header row */}
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-50" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-400">
+                        Listed for Sale
+                      </span>
+                    </div>
+                    {listing.listedAt && (
+                      <span className="text-[10px] font-bold text-white/20">
+                        Since{" "}
+                        {new Date(listing.listedAt).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          },
+                        )}
+                      </span>
                     )}
-                    <button className="px-4 py-3 rounded-lg border border-white/[0.1] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 hover:text-white font-bold transition-all text-sm">
-                      Offer
-                    </button>
                   </div>
-                )}
 
-                {buyStep === "confirm" && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-3">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-white/40">Price</span>
-                        <span className="text-white">{listing.price} SOL</span>
+                  {/* Price */}
+                  <div className="mb-8">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2">
+                      Listed Price
+                    </p>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-7xl font-black text-white tracking-tight tabular-nums">
+                        {listing.price}
+                      </span>
+                      <span className="text-xl font-black text-white/20 uppercase">
+                        SOL
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── buy step: detail ── */}
+                  {buyStep === "detail" && (
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      {!phantomConnected ? (
+                        <button
+                          onClick={handleConnectWallet}
+                          className="flex-1 py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-sm font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                        >
+                          <Wallet size={16} />
+                          Connect Wallet to Buy
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setBuyStep("confirm")}
+                          className="flex-1 py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-sm font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                        >
+                          <ShoppingCart size={16} />
+                          Buy Now
+                        </button>
+                      )}
+                      <button className="px-6 py-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] text-white/50 hover:text-white text-sm font-black transition-all">
+                        Make Offer
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── buy step: confirm ── */}
+                  {buyStep === "confirm" && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] divide-y divide-white/[0.04] overflow-hidden">
+                        <div className="flex justify-between items-center px-5 py-4">
+                          <span className="text-sm text-white/40 font-bold">
+                            Listing Price
+                          </span>
+                          <span className="text-sm font-black text-white">
+                            {listing.price} SOL
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center px-5 py-4">
+                          <span className="text-sm text-white/40 font-bold">
+                            Network Fee (2.5%)
+                          </span>
+                          <span className="text-sm font-black text-white/50">
+                            {fee.toFixed(4)} SOL
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center px-5 py-4 bg-teal-500/[0.04]">
+                          <span className="text-sm font-black text-white">
+                            Total Due
+                          </span>
+                          <span className="text-2xl font-black text-teal-400 tabular-nums">
+                            {total.toFixed(4)} SOL
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-white/40">Fee (2.5%)</span>
-                        <span className="text-white/60">
-                          {((listing.price ?? 0) * 0.025).toFixed(4)} SOL
-                        </span>
-                      </div>
-                      <div className="pt-3 border-t border-white/[0.05] flex justify-between items-center">
-                        <span className="text-sm font-black text-white">
-                          Total
-                        </span>
-                        <span className="text-2xl font-black text-teal-400">
-                          {((listing.price ?? 0) * 1.025).toFixed(4)} SOL
-                        </span>
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setBuyStep("detail")}
+                          className="flex-1 py-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white text-sm font-black transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleBuy}
+                          disabled={buyLoading}
+                          className="flex-[2] py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-sm font-black transition-all flex items-center justify-center gap-2"
+                        >
+                          {buyLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check size={16} />
+                          )}
+                          Confirm Purchase
+                        </button>
                       </div>
                     </div>
-                    <div className="flex gap-3">
+                  )}
+
+                  {/* ── buy step: success ── */}
+                  {buyStep === "success" && (
+                    <div className="text-center py-4 space-y-5 animate-in fade-in zoom-in-95 duration-300">
+                      <div
+                        className="w-16 h-16 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto"
+                        style={{ boxShadow: "0 0 40px rgba(20,184,166,0.15)" }}
+                      >
+                        <Check size={28} className="text-teal-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-white">
+                          Purchase Successful
+                        </h3>
+                        <p className="text-sm text-white/35 mt-1">
+                          @{raw} is now yours
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => router.push("/dashboard?tab=names")}
+                        className="w-full py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black text-sm font-black transition-all"
+                      >
+                        View My Names
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── buy step: error ── */}
+                  {buyStep === "error" && (
+                    <div className="text-center py-4 space-y-5 animate-in fade-in zoom-in-95 duration-300">
+                      <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+                        <AlertCircle size={28} className="text-red-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-white">
+                          Purchase Failed
+                        </h3>
+                        <p className="text-sm text-white/35 mt-1">{buyError}</p>
+                      </div>
                       <button
                         onClick={() => setBuyStep("detail")}
-                        className="flex-1 py-2.5 rounded-lg border border-white/[0.1] bg-white/[0.02] text-white/40 font-bold hover:text-white transition-all text-sm"
+                        className="w-full py-4 rounded-2xl border border-white/[0.08] text-white text-sm font-black transition-all hover:bg-white/[0.04]"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleBuy}
-                        disabled={buyLoading}
-                        className="flex-[2] py-2.5 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-                      >
-                        {buyLoading ? (
-                          <Loader2 className="animate-spin" size={16} />
-                        ) : (
-                          <Check size={16} />
-                        )}
-                        Confirm
+                        Try Again
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {buyStep === "success" && (
-                  <div className="text-center py-4 space-y-4 animate-in fade-in zoom-in duration-500">
-                    <div className="w-14 h-14 rounded-full bg-teal-500/10 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
-                      <Check size={28} className="text-teal-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">
-                        Success!
-                      </h3>
-                      <p className="text-xs text-white/40 mt-1">
-                        @{raw} is now yours.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => router.push("/dashboard?tab=names")}
-                      className="w-full py-2.5 rounded-lg bg-teal-500 text-black font-black text-sm"
-                    >
-                      View My Names
-                    </button>
-                  </div>
-                )}
-
-                {buyStep === "error" && (
-                  <div className="text-center py-4 space-y-4 animate-in fade-in duration-300">
-                    <div className="w-14 h-14 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center mx-auto">
-                      <AlertCircle size={28} className="text-red-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">Failed</h3>
-                      <p className="text-xs text-white/40 mt-1">{buyError}</p>
-                    </div>
-                    <button
-                      onClick={() => setBuyStep("detail")}
-                      className="w-full py-2.5 rounded-lg border border-white/[0.1] text-white font-black text-sm"
-                    >
-                      Try Again
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-6 text-center">
-                <Shield size={32} className="text-white/10 mx-auto mb-2" />
-                <p className="text-sm font-black text-white/40">Not Listed</p>
-                <p className="text-xs text-white/20 mt-1">Held by owner</p>
+              /* Not listed */
+              <div className="rounded-3xl border border-white/[0.07] bg-[#0d0d14]/80 backdrop-blur-xl p-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
+                  <Shield size={20} className="text-white/15" />
+                </div>
+                <p className="text-base font-black text-white/40">
+                  Not Listed for Sale
+                </p>
+                <p className="text-sm text-white/20 mt-1">
+                  This username is held by its owner
+                </p>
               </div>
             )}
+
+            {/* ── Username metadata strip ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                {
+                  label: "Tier",
+                  value: tierCfg.label,
+                  icon: Crown,
+                  color: tierCfg.cls,
+                },
+                {
+                  label: "Characters",
+                  value: raw.length,
+                  icon: Activity,
+                  color: "text-white/50",
+                },
+                {
+                  label: "Level",
+                  value: usernameLevel,
+                  icon: Shield,
+                  color: "text-violet-400",
+                },
+                {
+                  label: "Status",
+                  value: staked
+                    ? "Staked"
+                    : listing.isListed
+                      ? "Listed"
+                      : "Held",
+                  icon: Zap,
+                  color: staked ? "text-teal-400" : "text-white/30",
+                },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-2"
+                >
+                  <Icon className={`w-4 h-4 ${color}`} />
+                  <p className="text-base font-black text-white">{value}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/20">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
