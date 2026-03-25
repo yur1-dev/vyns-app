@@ -23,6 +23,8 @@ import {
   Hash,
   Star,
   Sparkles,
+  X,
+  ZoomIn,
 } from "lucide-react";
 import DashboardHeader, {
   Notification,
@@ -230,6 +232,7 @@ export default function UsernameDetailPage() {
     "detail" | "confirm" | "success" | "error"
   >("detail");
   const [buyError, setBuyError] = useState("");
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
 
   useEffect(() => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
@@ -450,7 +453,7 @@ export default function UsernameDetailPage() {
           Marketplace
         </Link>
 
-        <div className="grid lg:grid-cols-[260px_1fr] gap-4">
+        <div className="grid lg:grid-cols-[320px_1fr] gap-4">
           {/* ── LEFT: Owner panel ─────────────────────────────────── */}
           <div className="space-y-3">
             <div
@@ -459,7 +462,7 @@ export default function UsernameDetailPage() {
             >
               {/* Cover strip */}
               <div
-                className="h-20 relative overflow-hidden"
+                className="h-32 relative overflow-hidden"
                 style={{
                   background: `linear-gradient(135deg, ${tierCfg.hex}1a 0%, ${tierCfg.hex}08 50%, transparent 100%)`,
                 }}
@@ -469,7 +472,7 @@ export default function UsernameDetailPage() {
                   <img
                     src={owner.coverPhoto}
                     alt="cover"
-                    className="absolute inset-0 w-full h-full object-cover opacity-40"
+                    className="absolute inset-0 w-full h-full object-cover opacity-50"
                   />
                 )}
                 <div
@@ -481,57 +484,67 @@ export default function UsernameDetailPage() {
                 />
               </div>
 
-              <div className="px-4 pb-4">
+              <div className="px-5 pb-5">
                 {/* Avatar */}
-                <div className="flex items-end justify-between -mt-7 mb-3">
-                  <div className="relative">
-                    <div
-                      className="w-14 h-14 rounded-full border-[3px] border-[#0a0f1a] overflow-hidden bg-[#111520]"
-                      style={{ boxShadow: `0 0 20px ${tierCfg.hex}30` }}
+                <div className="flex items-end justify-between -mt-10 mb-4">
+                  <div className="relative group/avatar">
+                    <button
+                      onClick={() => setAvatarModalOpen(true)}
+                      className="block relative"
+                      title="View full size"
                     >
-                      {owner?.avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={owner.avatar}
-                          alt="avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <PixelAvatar
-                          seed={owner?.activeUsername || raw}
-                          size={56}
-                          themeColor={tierCfg.hex}
-                        />
-                      )}
-                    </div>
+                      <div
+                        className="w-20 h-20 rounded-full border-[3px] border-[#0a0f1a] overflow-hidden bg-[#111520] transition-transform group-hover/avatar:scale-105"
+                        style={{ boxShadow: `0 0 24px ${tierCfg.hex}40` }}
+                      >
+                        {owner?.avatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={owner.avatar}
+                            alt="avatar"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <PixelAvatar
+                            seed={owner?.activeUsername || raw}
+                            size={80}
+                            themeColor={tierCfg.hex}
+                          />
+                        )}
+                      </div>
+                      {/* Zoom hint */}
+                      <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/0 group-hover/avatar:bg-black/40 transition-all">
+                        <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover/avatar:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
                     <div
-                      className="absolute -bottom-0.5 -right-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none text-black"
+                      className="absolute -bottom-1 -right-1 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none text-black"
                       style={{ background: tierCfg.hex }}
                     >
                       LV{owner?.level ?? 1}
                     </div>
                   </div>
                   <span
-                    className={`text-[9px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-full border ${tierCfg.pill}`}
+                    className={`text-[10px] font-bold uppercase tracking-[0.1em] px-2.5 py-1 rounded-full border ${tierCfg.pill}`}
                   >
                     {tierIcon} {tierCfg.label}
                   </span>
                 </div>
 
-                <div className="space-y-0.5 mb-3">
-                  <p className="text-base font-bold text-white leading-tight truncate">
+                <div className="space-y-0.5 mb-4">
+                  <p className="text-lg font-bold text-white leading-tight truncate">
                     {ownerDisplayName || `@${raw}`}
                   </p>
                   {owner?.activeUsername && (
                     <p
-                      className="text-xs font-semibold truncate"
+                      className="text-sm font-semibold truncate"
                       style={{ color: `${tierCfg.hex}90` }}
                     >
                       @{owner.activeUsername.replace(/^@/, "")}
                     </p>
                   )}
                   {owner?.bio && (
-                    <p className="text-xs text-white/30 mt-2 leading-relaxed line-clamp-2">
+                    <p className="text-xs text-white/35 mt-2 leading-relaxed line-clamp-3">
                       {owner.bio}
                     </p>
                   )}
@@ -543,24 +556,24 @@ export default function UsernameDetailPage() {
                     onClick={() =>
                       handleCopy(owner?.wallet ?? listing.ownerWallet ?? "")
                     }
-                    className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.05] transition-all w-full group"
+                    className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.05] transition-all w-full group"
                   >
-                    <Wallet className="w-3 h-3 text-white/20 shrink-0" />
-                    <span className="font-mono text-[10px] text-white/30 tracking-wide flex-1 text-left">
+                    <Wallet className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                    <span className="font-mono text-xs text-white/35 tracking-wide flex-1 text-left">
                       {walletDisplay(
                         owner?.wallet ?? listing.ownerWallet ?? "",
                       )}
                     </span>
                     {copied ? (
-                      <Check className="w-3 h-3 text-teal-400 shrink-0" />
+                      <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                     ) : (
-                      <Copy className="w-3 h-3 text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
+                      <Copy className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors shrink-0" />
                     )}
                   </button>
                 )}
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   {[
                     {
                       icon: Users,
@@ -583,13 +596,13 @@ export default function UsernameDetailPage() {
                   ].map(({ icon: Icon, val, label, color }) => (
                     <div
                       key={label}
-                      className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05]"
+                      className="flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]"
                     >
-                      <Icon className="w-3 h-3" style={{ color }} />
-                      <span className="text-xs font-black text-white tabular-nums">
+                      <Icon className="w-3.5 h-3.5" style={{ color }} />
+                      <span className="text-sm font-black text-white tabular-nums">
                         {val}
                       </span>
-                      <span className="text-[8px] font-semibold text-white/20 uppercase tracking-wider">
+                      <span className="text-[9px] font-semibold text-white/20 uppercase tracking-wider">
                         {label}
                       </span>
                     </div>
@@ -597,8 +610,8 @@ export default function UsernameDetailPage() {
                 </div>
 
                 {owner?.joinedAt && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-white/20 font-medium">
-                    <Calendar className="w-3 h-3" />
+                  <div className="flex items-center gap-1.5 text-xs text-white/25 font-medium">
+                    <Calendar className="w-3.5 h-3.5" />
                     Joined{" "}
                     {new Date(owner.joinedAt).toLocaleDateString("en-US", {
                       month: "long",
@@ -1003,6 +1016,70 @@ export default function UsernameDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Avatar lightbox modal ─────────────────────────────────────── */}
+      {avatarModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setAvatarModalOpen(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+
+          {/* Modal content */}
+          <div
+            className="relative z-10 flex flex-col items-center gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setAvatarModalOpen(false)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-all z-20"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+
+            {/* Large avatar */}
+            <div
+              className="w-64 h-64 rounded-3xl overflow-hidden border-2"
+              style={{
+                borderColor: `${tierCfg.hex}50`,
+                boxShadow: `0 0 80px ${tierCfg.hex}30, 0 0 160px ${tierCfg.hex}10`,
+              }}
+            >
+              {owner?.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={owner.avatar}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <PixelAvatar
+                  seed={owner?.activeUsername || raw}
+                  size={256}
+                  themeColor={tierCfg.hex}
+                />
+              )}
+            </div>
+
+            {/* Name below */}
+            <div className="text-center">
+              <p className="text-base font-bold text-white">
+                {ownerDisplayName || `@${raw}`}
+              </p>
+              {owner?.activeUsername && (
+                <p
+                  className="text-sm mt-0.5"
+                  style={{ color: `${tierCfg.hex}90` }}
+                >
+                  @{owner.activeUsername.replace(/^@/, "")}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
