@@ -97,7 +97,7 @@ const TIER_CONFIG: Record<
   Diamond: {
     cls: "text-cyan-300",
     label: "Diamond",
-    glow: "0 0 24px rgba(34,211,238,0.07)",
+    glow: "0 0 20px rgba(34,211,238,0.08)",
     hex: "#22d3ee",
     pill: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
     bar: "bg-cyan-400",
@@ -106,7 +106,7 @@ const TIER_CONFIG: Record<
   Platinum: {
     cls: "text-violet-300",
     label: "Platinum",
-    glow: "0 0 24px rgba(167,139,250,0.07)",
+    glow: "0 0 20px rgba(167,139,250,0.08)",
     hex: "#a78bfa",
     pill: "bg-violet-500/10 text-violet-300 border-violet-500/20",
     bar: "bg-violet-400",
@@ -115,7 +115,7 @@ const TIER_CONFIG: Record<
   Gold: {
     cls: "text-amber-300",
     label: "Gold",
-    glow: "0 0 24px rgba(251,191,36,0.07)",
+    glow: "0 0 20px rgba(251,191,36,0.08)",
     hex: "#fbbf24",
     pill: "bg-amber-500/10 text-amber-300 border-amber-500/20",
     bar: "bg-amber-400",
@@ -124,7 +124,7 @@ const TIER_CONFIG: Record<
   Silver: {
     cls: "text-slate-300",
     label: "Silver",
-    glow: "0 0 24px rgba(148,163,184,0.05)",
+    glow: "0 0 20px rgba(148,163,184,0.06)",
     hex: "#94a3b8",
     pill: "bg-slate-500/10 text-slate-300 border-slate-500/20",
     bar: "bg-slate-400",
@@ -133,7 +133,7 @@ const TIER_CONFIG: Record<
   Bronze: {
     cls: "text-orange-300",
     label: "Bronze",
-    glow: "0 0 24px rgba(249,115,22,0.07)",
+    glow: "0 0 20px rgba(249,115,22,0.08)",
     hex: "#f97316",
     pill: "bg-orange-500/10 text-orange-300 border-orange-500/20",
     bar: "bg-orange-400",
@@ -204,6 +204,31 @@ function PixelAvatar({
         borderRadius: "50%",
       }}
     />
+  );
+}
+
+// ── Stat Chip ────────────────────────────────────────────────────────────────
+function StatChip({
+  icon: Icon,
+  value,
+  label,
+  color,
+}: {
+  icon: any;
+  value: number | string;
+  label: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+      <Icon className={`w-3 h-3 ${color} shrink-0`} />
+      <span className="text-xs font-black text-white tabular-nums">
+        {value}
+      </span>
+      <span className="text-[9px] font-semibold text-white/20 uppercase tracking-wider">
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -351,9 +376,9 @@ export default function UsernameDetailPage() {
     return (
       <div className="min-h-screen bg-[#060b14]">
         {user && <DashboardHeader {...headerProps} />}
-        <div className="flex items-center justify-center h-[calc(100vh-48px)]">
+        <div className="flex items-center justify-center h-[calc(100vh-56px)]">
           <div className="flex items-center gap-2">
-            <Loader2 className="w-3.5 h-3.5 text-teal-400 animate-spin" />
+            <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
             <p className="text-[10px] text-white/20 tracking-[0.2em] uppercase font-bold">
               Loading @{raw}
             </p>
@@ -368,11 +393,11 @@ export default function UsernameDetailPage() {
     return (
       <div className="min-h-screen bg-[#060b14]">
         <DashboardHeader {...headerProps} />
-        <div className="flex items-center justify-center h-[calc(100vh-48px)]">
-          <div className="text-center space-y-2">
-            <AlertCircle className="w-6 h-6 text-white/10 mx-auto" />
+        <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+          <div className="text-center space-y-3">
+            <AlertCircle className="w-8 h-8 text-white/10 mx-auto" />
             <div>
-              <p className="text-sm font-black text-white">@{raw}</p>
+              <p className="text-base font-black text-white">@{raw}</p>
               <p className="text-xs text-white/25 mt-0.5">
                 Username not registered
               </p>
@@ -417,97 +442,100 @@ export default function UsernameDetailPage() {
     <div className="min-h-screen bg-[#060b14] text-white">
       <DashboardHeader {...headerProps} />
 
-      {/* Ambient glow */}
+      {/* Subtle ambient */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse 55% 20% at 50% 0%, ${tierCfg.hex}06 0%, transparent 60%)`,
+          background: `radial-gradient(ellipse 60% 25% at 50% 0%, ${tierCfg.hex}08 0%, transparent 60%)`,
         }}
       />
 
-      {/* Tier accent line */}
+      {/* Tier accent bar */}
       <div
         className="h-px w-full"
         style={{
-          background: `linear-gradient(90deg, transparent 0%, ${tierCfg.hex}35 50%, transparent 100%)`,
+          background: `linear-gradient(90deg, transparent 0%, ${tierCfg.hex}40 50%, transparent 100%)`,
         }}
       />
 
-      <div className="max-w-5xl mx-auto px-4 py-4">
-        {/* Back */}
+      <div className="max-w-4xl mx-auto px-4 py-5">
+        {/* Back nav */}
         <Link
           href="/dashboard?tab=marketplace"
-          className="inline-flex items-center gap-1 text-white/20 hover:text-white/50 text-[10px] font-bold uppercase tracking-widest transition-colors mb-3 group"
+          className="inline-flex items-center gap-1 text-white/25 hover:text-white/60 text-[10px] font-bold uppercase tracking-widest transition-colors mb-4 group"
         >
           <ArrowLeft className="w-2.5 h-2.5 group-hover:-translate-x-0.5 transition-transform" />
           Marketplace
         </Link>
 
-        {/* ── LAYOUT: 3-col on lg ─────────────────────────────────────── */}
-        <div className="grid lg:grid-cols-[200px_1fr_220px] gap-3">
-          {/* ── COL 1: Owner card ──────────────────────────────────────── */}
+        {/* ── MAIN LAYOUT ─────────────────────────────────────────────── */}
+        <div className="grid lg:grid-cols-[220px_1fr] gap-3">
+          {/* ── LEFT: compact owner panel ─────────────────────────────── */}
           <div className="space-y-2">
+            {/* Owner card */}
             <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden">
-              {/* Mini cover strip */}
+              {/* Slim cover */}
               <div
-                className="h-7 relative"
+                className="h-8 relative"
                 style={{
-                  background: `linear-gradient(135deg, ${tierCfg.hex}15 0%, transparent 70%)`,
+                  background: `linear-gradient(135deg, ${tierCfg.hex}18 0%, transparent 70%)`,
                 }}
               >
                 {owner?.coverPhoto && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={owner.coverPhoto}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-25"
+                    alt="cover"
+                    className="absolute inset-0 w-full h-full object-cover opacity-30"
                   />
                 )}
               </div>
 
               <div className="px-3 pb-3">
-                {/* Avatar + tier row */}
-                <div className="flex items-end justify-between -mt-4 mb-2">
+                {/* Avatar + tier */}
+                <div className="flex items-end justify-between -mt-5 mb-2">
                   <div className="relative">
                     <div
-                      className="w-9 h-9 rounded-lg border-2 border-[#0a0f1a] overflow-hidden bg-[#111520]"
+                      className="w-10 h-10 rounded-lg border-2 border-[#0a0f1a] overflow-hidden bg-[#111520]"
                       style={{ boxShadow: tierCfg.glow }}
                     >
                       {owner?.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={owner.avatar}
-                          alt=""
+                          alt="avatar"
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <PixelAvatar
                           seed={owner?.activeUsername || raw}
-                          size={36}
+                          size={40}
                           themeColor={tierCfg.hex}
                         />
                       )}
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 bg-teal-500 text-black text-[5px] font-black px-0.5 py-px rounded leading-none">
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-teal-500 text-black text-[6px] font-black px-1 py-px rounded leading-none">
                       LV{owner?.level ?? 1}
                     </div>
                   </div>
                   <span
-                    className={`text-[7px] font-black uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
+                    className={`text-[7px] font-black uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
                   >
                     {tierIcon} {tierCfg.label}
                   </span>
                 </div>
 
                 {/* Name */}
-                <p className="text-xs font-black text-white leading-tight truncate">
+                <p className="text-sm font-black text-white leading-tight truncate">
                   {ownerDisplayName || `@${raw}`}
                 </p>
                 {owner?.activeUsername && (
-                  <p className="text-[9px] font-semibold text-teal-400/60 mt-0.5 truncate">
+                  <p className="text-[10px] font-semibold text-teal-400/60 mt-0.5 truncate">
                     @{owner.activeUsername.replace(/^@/, "")}
                   </p>
                 )}
                 {owner?.bio && (
-                  <p className="text-[9px] text-white/20 mt-1.5 leading-relaxed line-clamp-2">
+                  <p className="text-[10px] text-white/25 mt-1.5 leading-relaxed line-clamp-2">
                     {owner.bio}
                   </p>
                 )}
@@ -518,63 +546,49 @@ export default function UsernameDetailPage() {
                     onClick={() =>
                       handleCopy(owner?.wallet ?? listing.ownerWallet ?? "")
                     }
-                    className="mt-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.08] transition-all w-full group"
+                    className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/[0.025] border border-white/[0.05] hover:border-white/[0.09] transition-all w-full group"
                   >
                     <Wallet className="w-2 h-2 text-white/15 shrink-0" />
-                    <span className="font-mono text-[8px] text-white/20 tracking-wide flex-1 text-left truncate">
+                    <span className="font-mono text-[9px] text-white/25 tracking-wide flex-1 text-left">
                       {walletDisplay(
                         owner?.wallet ?? listing.ownerWallet ?? "",
                       )}
                     </span>
                     {copied ? (
-                      <Check className="w-2 h-2 text-teal-400 shrink-0" />
+                      <Check className="w-2 h-2 text-teal-400" />
                     ) : (
-                      <Copy className="w-2 h-2 text-white/15 group-hover:text-white/30 transition-colors shrink-0" />
+                      <Copy className="w-2 h-2 text-white/15 group-hover:text-white/35 transition-colors" />
                     )}
                   </button>
                 )}
 
-                {/* Mini stats */}
-                <div className="mt-2 grid grid-cols-3 gap-1">
-                  {[
-                    {
-                      icon: Users,
-                      val: owner?.referrals ?? 0,
-                      label: "refs",
-                      color: "text-sky-400",
-                    },
-                    {
-                      icon: Zap,
-                      val: owner?.stakedAmount ?? 0,
-                      label: "stk",
-                      color: "text-violet-400",
-                    },
-                    {
-                      icon: TrendingUp,
-                      val: owner?.earnings ?? 0,
-                      label: "sol",
-                      color: "text-teal-400",
-                    },
-                  ].map(({ icon: Icon, val, label, color }) => (
-                    <div
-                      key={label}
-                      className="flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-white/[0.025] border border-white/[0.04]"
-                    >
-                      <Icon className={`w-2.5 h-2.5 ${color}`} />
-                      <span className="text-[10px] font-black text-white tabular-nums leading-none">
-                        {val}
-                      </span>
-                      <span className="text-[7px] font-bold text-white/20 uppercase">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
+                {/* Stats */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <StatChip
+                    icon={Users}
+                    value={owner?.referrals ?? 0}
+                    label="Refs"
+                    color="text-sky-400"
+                  />
+                  <StatChip
+                    icon={Zap}
+                    value={owner?.stakedAmount ?? 0}
+                    label="Staked"
+                    color="text-violet-400"
+                  />
+                  <StatChip
+                    icon={TrendingUp}
+                    value={owner?.earnings ?? 0}
+                    label="SOL"
+                    color="text-teal-400"
+                  />
                 </div>
 
                 {/* Joined */}
                 {owner?.joinedAt && (
-                  <div className="mt-2 flex items-center gap-1 text-[8px] text-white/15 font-semibold">
+                  <div className="mt-2 flex items-center gap-1 text-[9px] text-white/15 font-semibold">
                     <Calendar className="w-2 h-2" />
+                    Joined{" "}
                     {new Date(owner.joinedAt).toLocaleDateString("en-US", {
                       month: "short",
                       year: "numeric",
@@ -587,8 +601,8 @@ export default function UsernameDetailPage() {
             {/* Also Owns */}
             {owner &&
               owner.usernames.filter((u) => u.name !== raw).length > 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2">
-                  <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.18em] mb-1.5">
+                <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5">
+                  <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.2em] mb-1.5">
                     Also Owns
                   </p>
                   <div className="space-y-px">
@@ -601,18 +615,18 @@ export default function UsernameDetailPage() {
                           <Link
                             key={u.name}
                             href={`/username/${u.name}`}
-                            className="flex items-center justify-between px-2 py-1 rounded-lg hover:bg-white/[0.03] transition-all group"
+                            className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-all group"
                           >
-                            <span className="text-[10px] font-bold text-white/30 group-hover:text-white/60 transition-colors truncate">
+                            <span className="text-[11px] font-bold text-white/35 group-hover:text-white/70 transition-colors truncate">
                               @{u.name}
                             </span>
-                            <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
                               <span
-                                className={`text-[7px] font-black uppercase ${utc.cls}`}
+                                className={`text-[7px] font-black uppercase tracking-wide ${utc.cls}`}
                               >
                                 {u.tier}
                               </span>
-                              <ChevronRight className="w-2 h-2 text-white/10 group-hover:text-white/25" />
+                              <ChevronRight className="w-2 h-2 text-white/10 group-hover:text-white/25 transition-colors" />
                             </div>
                           </Link>
                         );
@@ -622,47 +636,47 @@ export default function UsernameDetailPage() {
               )}
           </div>
 
-          {/* ── COL 2: Main content ────────────────────────────────────── */}
-          <div className="space-y-2.5">
-            {/* Hero username card */}
+          {/* ── RIGHT: username detail ─────────────────────────────────── */}
+          <div className="space-y-3">
+            {/* Hero banner — compact */}
             <div
               className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden relative"
               style={{ boxShadow: tierCfg.glow }}
             >
-              {/* Top accent */}
+              {/* Top accent line */}
               <div
                 className="absolute top-0 left-0 right-0 h-px"
                 style={{
-                  background: `linear-gradient(90deg, transparent, ${tierCfg.hex}45, transparent)`,
+                  background: `linear-gradient(90deg, transparent, ${tierCfg.hex}50, transparent)`,
                 }}
               />
 
-              {/* Watermark */}
-              <div className="absolute bottom-1 right-3 opacity-[0.03] pointer-events-none select-none">
-                <Crown size={60} style={{ color: tierCfg.hex }} />
+              {/* BG watermark */}
+              <div className="absolute bottom-0 right-3 opacity-[0.035] pointer-events-none select-none">
+                <Crown size={72} style={{ color: tierCfg.hex }} />
               </div>
 
-              <div className="px-4 py-3.5">
-                {/* Pills */}
-                <div className="flex flex-wrap items-center gap-1 mb-2.5">
+              <div className="px-5 py-4">
+                {/* Pills row */}
+                <div className="flex flex-wrap items-center gap-1 mb-3">
                   <span
-                    className={`text-[7px] font-black uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
+                    className={`text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
                   >
                     {tierIcon} {tierCfg.label}
                   </span>
-                  <span className="text-[7px] font-black uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
+                  <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
                     {raw.length} chars
                   </span>
-                  <span className="text-[7px] font-black uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
+                  <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
                     Lv{usernameLevel}
                   </span>
                   {staked && (
-                    <span className="text-[7px] font-black uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-full border border-teal-500/20 bg-teal-500/8 text-teal-300 flex items-center gap-0.5">
+                    <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-teal-500/20 bg-teal-500/8 text-teal-300 flex items-center gap-0.5">
                       <Zap className="w-1.5 h-1.5" /> Staked
                     </span>
                   )}
                   {claimedAt && (
-                    <span className="text-[7px] font-black uppercase tracking-[0.14em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/15">
+                    <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/20">
                       {new Date(claimedAt).toLocaleDateString("en-US", {
                         month: "short",
                         year: "numeric",
@@ -671,9 +685,9 @@ export default function UsernameDetailPage() {
                   )}
                 </div>
 
-                {/* Username display */}
+                {/* Username */}
                 <h1
-                  className="text-3xl sm:text-4xl font-black tracking-tight leading-none"
+                  className="text-4xl sm:text-5xl font-black tracking-tight leading-none"
                   style={{ color: tierCfg.hex }}
                 >
                   @{raw}
@@ -682,20 +696,20 @@ export default function UsernameDetailPage() {
                 {/* Copy */}
                 <button
                   onClick={() => handleCopy(`@${raw}`)}
-                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-white/20 hover:text-white/45 font-bold transition-colors"
+                  className="mt-2.5 inline-flex items-center gap-1 text-[10px] text-white/20 hover:text-white/50 font-bold transition-colors"
                 >
                   {copied ? (
                     <Check className="w-2.5 h-2.5 text-teal-400" />
                   ) : (
                     <Copy className="w-2.5 h-2.5" />
                   )}
-                  {copied ? "Copied!" : "Copy username"}
+                  Copy username
                 </button>
               </div>
             </div>
 
-            {/* Meta chips — compact 4-col */}
-            <div className="grid grid-cols-4 gap-1.5">
+            {/* Meta chips — single row */}
+            <div className="grid grid-cols-4 gap-2">
               {[
                 {
                   label: "Tier",
@@ -707,7 +721,7 @@ export default function UsernameDetailPage() {
                   label: "Chars",
                   value: raw.length,
                   icon: Activity,
-                  color: "text-white/30",
+                  color: "text-white/35",
                 },
                 {
                   label: "Level",
@@ -732,13 +746,13 @@ export default function UsernameDetailPage() {
               ].map(({ label, value, icon: Icon, color }) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-2.5 py-2 flex flex-col gap-1"
+                  className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-3 py-2.5 flex flex-col gap-1"
                 >
-                  <Icon className={`w-2.5 h-2.5 ${color}`} />
+                  <Icon className={`w-3 h-3 ${color}`} />
                   <p className="text-sm font-black text-white leading-none">
                     {value}
                   </p>
-                  <p className="text-[7px] font-bold uppercase tracking-[0.12em] text-white/18">
+                  <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/18">
                     {label}
                   </p>
                 </div>
@@ -747,64 +761,56 @@ export default function UsernameDetailPage() {
 
             {/* Listing / Buy card */}
             {listing.isListed ? (
-              <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden relative">
-                <div
-                  className="absolute top-0 left-0 right-0 h-px"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(45,212,191,0.35), transparent)",
-                  }}
-                />
+              <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/40 to-transparent" />
 
-                <div className="p-3.5">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-2.5">
+                <div className="p-4">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-1.5">
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-60" />
                         <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-400" />
                       </span>
-                      <span className="text-[8px] font-black uppercase tracking-[0.16em] text-teal-400">
+                      <span className="text-[8px] font-black uppercase tracking-[0.18em] text-teal-400">
                         Listed for Sale
                       </span>
                     </div>
                     {listing.listedAt && (
-                      <span className="text-[8px] font-semibold text-white/15">
+                      <span className="text-[9px] font-semibold text-white/15">
                         Since{" "}
                         {new Date(listing.listedAt).toLocaleDateString(
                           "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          },
+                          { month: "short", day: "numeric", year: "numeric" },
                         )}
                       </span>
                     )}
                   </div>
 
-                  {/* Price + action — same row */}
-                  <div className="flex items-center justify-between gap-3">
+                  {/* Price + action in same row */}
+                  <div className="flex items-end justify-between gap-4">
+                    {/* Price */}
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-[0.16em] text-white/15 mb-0.5">
+                      <p className="text-[8px] font-black uppercase tracking-[0.18em] text-white/15 mb-1">
                         Price
                       </p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-white tabular-nums leading-none">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-4xl font-black text-white tabular-nums">
                           {listing.price}
                         </span>
-                        <span className="text-xs font-black text-white/20 uppercase">
+                        <span className="text-sm font-black text-white/20 uppercase">
                           SOL
                         </span>
                       </div>
                     </div>
 
+                    {/* Buttons */}
                     {buyStep === "detail" && (
                       <div className="flex gap-1.5 shrink-0">
                         {!phantomConnected ? (
                           <button
                             onClick={handleConnectWallet}
-                            className="h-8 px-3.5 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
+                            className="h-9 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
                           >
                             <Wallet size={11} />
                             Connect Wallet
@@ -812,281 +818,138 @@ export default function UsernameDetailPage() {
                         ) : (
                           <button
                             onClick={() => setBuyStep("confirm")}
-                            className="h-8 px-3.5 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
+                            className="h-9 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
                           >
                             <ShoppingCart size={11} />
                             Buy Now
                           </button>
                         )}
-                        <button className="h-8 px-3 rounded-lg border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] text-white/30 hover:text-white/60 text-[11px] font-black transition-all">
+                        <button className="h-9 px-3 rounded-lg border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] text-white/35 hover:text-white text-[11px] font-black transition-all">
                           Offer
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Success inline */}
-                    {buyStep === "success" && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20">
-                          <Check size={11} className="text-teal-400" />
-                          <div>
-                            <p className="text-[10px] font-black text-white leading-none">
-                              Purchase Successful
-                            </p>
-                            <p className="text-[8px] text-white/25">
-                              @{raw} is yours
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => router.push("/dashboard?tab=names")}
-                          className="h-8 px-3 rounded-lg bg-teal-500 hover:bg-teal-400 text-black text-[10px] font-black transition-all"
-                        >
-                          View
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Error inline */}
-                    {buyStep === "error" && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                          <AlertCircle size={11} className="text-red-400" />
-                          <div>
-                            <p className="text-[10px] font-black text-white leading-none">
-                              Failed
-                            </p>
-                            <p className="text-[8px] text-white/25 max-w-[120px] truncate">
-                              {buyError}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setBuyStep("detail")}
-                          className="h-8 px-3 rounded-lg border border-white/[0.07] text-white/30 hover:text-white text-[10px] font-black transition-all"
-                        >
-                          Retry
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Confirm step — slides in below */}
+                  {/* Confirm step */}
                   {buyStep === "confirm" && (
                     <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
                       <div className="rounded-lg bg-white/[0.02] border border-white/[0.05] divide-y divide-white/[0.04] overflow-hidden">
-                        <div className="flex justify-between items-center px-3 py-2">
-                          <span className="text-[10px] text-white/25 font-semibold">
+                        <div className="flex justify-between items-center px-3 py-2.5">
+                          <span className="text-[11px] text-white/30 font-semibold">
                             Listing Price
                           </span>
-                          <span className="text-[10px] font-black text-white">
+                          <span className="text-[11px] font-black text-white">
                             {listing.price} SOL
                           </span>
                         </div>
-                        <div className="flex justify-between items-center px-3 py-2">
-                          <span className="text-[10px] text-white/25 font-semibold">
+                        <div className="flex justify-between items-center px-3 py-2.5">
+                          <span className="text-[11px] text-white/30 font-semibold">
                             Network Fee (2.5%)
                           </span>
-                          <span className="text-[10px] font-black text-white/30">
+                          <span className="text-[11px] font-black text-white/35">
                             {fee.toFixed(4)} SOL
                           </span>
                         </div>
-                        <div className="flex justify-between items-center px-3 py-2 bg-teal-500/[0.04]">
-                          <span className="text-[10px] font-black text-white">
+                        <div className="flex justify-between items-center px-3 py-2.5 bg-teal-500/[0.04]">
+                          <span className="text-[11px] font-black text-white">
                             Total
                           </span>
-                          <span className="text-sm font-black text-teal-400 tabular-nums">
+                          <span className="text-base font-black text-teal-400 tabular-nums">
                             {total.toFixed(4)} SOL
                           </span>
                         </div>
                       </div>
+
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => setBuyStep("detail")}
-                          className="flex-1 py-2 rounded-lg border border-white/[0.07] bg-white/[0.02] text-white/25 hover:text-white/50 text-[10px] font-black transition-all"
+                          className="flex-1 py-2.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white text-[11px] font-black transition-all"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={handleBuy}
                           disabled={buyLoading}
-                          className="flex-[2] py-2 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-[10px] font-black transition-all flex items-center justify-center gap-1.5"
+                          className="flex-[2] py-2.5 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-[11px] font-black transition-all flex items-center justify-center gap-1.5"
                         >
                           {buyLoading ? (
-                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
-                            <Check size={10} />
+                            <Check size={11} />
                           )}
                           Confirm Purchase
                         </button>
                       </div>
                     </div>
                   )}
+
+                  {/* Success */}
+                  {buyStep === "success" && (
+                    <div className="mt-3 py-2 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
+                          <Check size={13} className="text-teal-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white">
+                            Purchase Successful
+                          </p>
+                          <p className="text-[9px] text-white/25">
+                            @{raw} is now yours
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => router.push("/dashboard?tab=names")}
+                        className="h-8 px-3 rounded-lg bg-teal-500 hover:bg-teal-400 text-black text-[11px] font-black transition-all"
+                      >
+                        View Names
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {buyStep === "error" && (
+                    <div className="mt-3 py-2 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                          <AlertCircle size={13} className="text-red-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white">
+                            Purchase Failed
+                          </p>
+                          <p className="text-[9px] text-white/25 max-w-[160px] truncate">
+                            {buyError}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setBuyStep("detail")}
+                        className="h-8 px-3 rounded-lg border border-white/[0.07] text-white text-[11px] font-black transition-all hover:bg-white/[0.04]"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-3.5 py-2.5 flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-lg bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shrink-0">
-                  <Shield size={11} className="text-white/12" />
+              <div className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-4 py-3 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shrink-0">
+                  <Shield size={13} className="text-white/12" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-black text-white/25">
+                  <p className="text-xs font-black text-white/25">
                     Not Listed for Sale
                   </p>
-                  <p className="text-[9px] text-white/12">
+                  <p className="text-[10px] text-white/12">
                     This username is held by its owner
                   </p>
                 </div>
               </div>
             )}
-          </div>
-
-          {/* ── COL 3: Activity / extras sidebar ──────────────────────── */}
-          <div className="space-y-2">
-            {/* Quick info panel */}
-            <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5">
-              <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.18em] mb-2">
-                Username Info
-              </p>
-              <div className="space-y-1.5">
-                {[
-                  { label: "Tier", value: tierCfg.label, color: tierCfg.hex },
-                  {
-                    label: "Length",
-                    value: `${raw.length} chars`,
-                    color: null,
-                  },
-                  { label: "Level", value: `Lv${usernameLevel}`, color: null },
-                  {
-                    label: "Staking",
-                    value: staked ? "Active" : "Inactive",
-                    color: staked ? "#2dd4bf" : null,
-                  },
-                  {
-                    label: "Claimed",
-                    value: claimedAt
-                      ? new Date(claimedAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "2-digit",
-                        })
-                      : "—",
-                    color: null,
-                  },
-                ].map(({ label, value, color }) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between py-1 border-b border-white/[0.03] last:border-0"
-                  >
-                    <span className="text-[9px] font-semibold text-white/20">
-                      {label}
-                    </span>
-                    <span
-                      className="text-[9px] font-black"
-                      style={{ color: color ?? "rgba(255,255,255,0.45)" }}
-                    >
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Listing details (if listed) */}
-            {listing.isListed && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5">
-                <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.18em] mb-2">
-                  Listing Details
-                </p>
-                <div className="space-y-1.5">
-                  {[
-                    { label: "Price", value: `${listing.price} SOL` },
-                    { label: "Fee (2.5%)", value: `${fee.toFixed(4)} SOL` },
-                    { label: "You Pay", value: `${total.toFixed(4)} SOL` },
-                  ].map(({ label, value }) => (
-                    <div
-                      key={label}
-                      className="flex items-center justify-between py-1 border-b border-white/[0.03] last:border-0"
-                    >
-                      <span className="text-[9px] font-semibold text-white/20">
-                        {label}
-                      </span>
-                      <span className="text-[9px] font-black text-white/45">
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Owner wallet link */}
-            {(owner?.wallet || listing.ownerWallet) && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5">
-                <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.18em] mb-2">
-                  Owner Wallet
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[9px] text-white/25 flex-1 truncate">
-                    {walletDisplay(owner?.wallet ?? listing.ownerWallet ?? "")}
-                  </span>
-                  <button
-                    onClick={() =>
-                      handleCopy(owner?.wallet ?? listing.ownerWallet ?? "")
-                    }
-                    className="text-white/15 hover:text-white/40 transition-colors"
-                  >
-                    {copied ? (
-                      <Check className="w-2.5 h-2.5 text-teal-400" />
-                    ) : (
-                      <Copy className="w-2.5 h-2.5" />
-                    )}
-                  </button>
-                  <a
-                    href={`https://solscan.io/account/${owner?.wallet ?? listing.ownerWallet}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white/15 hover:text-white/40 transition-colors"
-                  >
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {/* Also owns — mobile shows here too on small screens */}
-            {owner &&
-              owner.usernames.filter((u) => u.name !== raw).length > 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5 lg:hidden">
-                  <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.18em] mb-1.5">
-                    Also Owns
-                  </p>
-                  <div className="space-y-px">
-                    {owner.usernames
-                      .filter((u) => u.name !== raw)
-                      .slice(0, 4)
-                      .map((u) => {
-                        const utc = TIER_CONFIG[u.tier] ?? TIER_CONFIG.Bronze;
-                        return (
-                          <Link
-                            key={u.name}
-                            href={`/username/${u.name}`}
-                            className="flex items-center justify-between px-2 py-1 rounded-lg hover:bg-white/[0.03] transition-all group"
-                          >
-                            <span className="text-[10px] font-bold text-white/30 group-hover:text-white/60">
-                              @{u.name}
-                            </span>
-                            <span
-                              className={`text-[7px] font-black uppercase ${utc.cls}`}
-                            >
-                              {u.tier}
-                            </span>
-                          </Link>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
           </div>
         </div>
       </div>
