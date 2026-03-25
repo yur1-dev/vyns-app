@@ -17,7 +17,6 @@ import {
   ShoppingCart,
   AlertCircle,
   Wallet,
-  Activity,
   ChevronRight,
   Tag,
   Layers,
@@ -74,7 +73,7 @@ interface ListingInfo {
 interface UsernameData {
   success: boolean;
   username: string;
-  tier: string;
+  tier: string; // ignored — we recalculate from length
   length: number;
   level: number;
   staked: boolean;
@@ -85,20 +84,11 @@ interface UsernameData {
 
 // ── Tier config ──────────────────────────────────────────────────────────────
 
-const TIER_CONFIG: Record<
-  string,
-  {
-    cls: string;
-    label: string;
-    glow: string;
-    hex: string;
-    pill: string;
-    gradient: string;
-  }
-> = {
+const TIER_CONFIG = {
   Diamond: {
     cls: "text-cyan-300",
     label: "Diamond",
+    chars: "1–3",
     glow: "0 0 40px rgba(34,211,238,0.12), 0 0 80px rgba(34,211,238,0.04)",
     hex: "#22d3ee",
     pill: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
@@ -107,6 +97,7 @@ const TIER_CONFIG: Record<
   Platinum: {
     cls: "text-violet-300",
     label: "Platinum",
+    chars: "4–5",
     glow: "0 0 40px rgba(167,139,250,0.12), 0 0 80px rgba(167,139,250,0.04)",
     hex: "#a78bfa",
     pill: "bg-violet-500/10 text-violet-300 border-violet-500/20",
@@ -115,6 +106,7 @@ const TIER_CONFIG: Record<
   Gold: {
     cls: "text-amber-300",
     label: "Gold",
+    chars: "6–8",
     glow: "0 0 40px rgba(251,191,36,0.12), 0 0 80px rgba(251,191,36,0.04)",
     hex: "#fbbf24",
     pill: "bg-amber-500/10 text-amber-300 border-amber-500/20",
@@ -123,6 +115,7 @@ const TIER_CONFIG: Record<
   Silver: {
     cls: "text-slate-300",
     label: "Silver",
+    chars: "9–15",
     glow: "0 0 40px rgba(148,163,184,0.08), 0 0 80px rgba(148,163,184,0.03)",
     hex: "#94a3b8",
     pill: "bg-slate-500/10 text-slate-300 border-slate-500/20",
@@ -131,12 +124,13 @@ const TIER_CONFIG: Record<
   Bronze: {
     cls: "text-orange-300",
     label: "Bronze",
+    chars: "16+",
     glow: "0 0 40px rgba(249,115,22,0.10), 0 0 80px rgba(249,115,22,0.04)",
     hex: "#f97316",
     pill: "bg-orange-500/10 text-orange-300 border-orange-500/20",
     gradient: "from-orange-500/15 via-orange-500/5 to-transparent",
   },
-};
+} as const;
 
 const TIER_ICONS: Record<string, string> = {
   Diamond: "💎",
@@ -145,6 +139,16 @@ const TIER_ICONS: Record<string, string> = {
   Silver: "◈",
   Bronze: "◉",
 };
+
+// ── THE FIX: always derive tier from actual username length ──────────────────
+function getTier(username: string): keyof typeof TIER_CONFIG {
+  const n = username.replace(/^@/, "").length;
+  if (n <= 3) return "Diamond";
+  if (n <= 5) return "Platinum";
+  if (n <= 8) return "Gold";
+  if (n <= 15) return "Silver";
+  return "Bronze";
+}
 
 // ── Pixel Avatar ─────────────────────────────────────────────────────────────
 function PixelAvatar({
@@ -392,16 +396,13 @@ export default function UsernameDetailPage() {
     );
   }
 
-  const {
-    owner,
-    listing,
-    tier,
-    level: usernameLevel,
-    staked,
-    claimedAt,
-  } = data;
-  const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
+  const { owner, listing, level: usernameLevel, staked, claimedAt } = data;
+
+  // ✅ THE FIX: calculate tier from the actual username length, ignore data.tier
+  const tier = getTier(raw);
+  const tierCfg = TIER_CONFIG[tier];
   const tierIcon = TIER_ICONS[tier] ?? "◉";
+
   const ownerDisplayName =
     owner?.displayName ??
     owner?.name ??
@@ -411,6 +412,10 @@ export default function UsernameDetailPage() {
     w.length > 12 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w;
   const fee = (listing.price ?? 0) * 0.025;
   const total = (listing.price ?? 0) * 1.025;
+
+  // Helper: get tier for any username string (used in "Also Owns")
+  const getOwnerUsernameTier = (uname: string): keyof typeof TIER_CONFIG =>
+    getTier(uname);
 
   return (
     <div className="min-h-screen bg-[#060b14] text-white">
@@ -616,7 +621,9 @@ export default function UsernameDetailPage() {
                       .filter((u) => u.name !== raw)
                       .slice(0, 5)
                       .map((u) => {
-                        const utc = TIER_CONFIG[u.tier] ?? TIER_CONFIG.Bronze;
+                        // ✅ Also fix tier display in "Also Owns" list
+                        const uTier = getOwnerUsernameTier(u.name);
+                        const utc = TIER_CONFIG[uTier];
                         return (
                           <Link
                             key={u.name}
@@ -631,7 +638,7 @@ export default function UsernameDetailPage() {
                                 className="text-[9px] font-bold uppercase tracking-wide"
                                 style={{ color: utc.hex }}
                               >
-                                {u.tier}
+                                {utc.label}
                               </span>
                               <ChevronRight className="w-3 h-3 text-white/15 group-hover:text-white/35 transition-colors" />
                             </div>
