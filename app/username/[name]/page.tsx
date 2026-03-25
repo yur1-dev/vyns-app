@@ -1,8 +1,8 @@
 // app/username/[name]/page.tsx
 "use client";
 
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -22,7 +22,11 @@ import {
   Tag,
   ShoppingCart,
   AlertCircle,
+  Wallet,
 } from "lucide-react";
+import DashboardHeader, {
+  Notification,
+} from "@/components/dashboard/DashboardHeader";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -232,6 +236,7 @@ function CopyButton({ value }: { value: string }) {
 
 export default function UsernameDetailPage() {
   const { name } = useParams();
+  const router = useRouter();
   const raw = decodeURIComponent(name as string)
     .toLowerCase()
     .replace(/^@/, "");
@@ -240,14 +245,51 @@ export default function UsernameDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  // Dashboard User State
+  const [user, setUser] = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Buy Flow State
+  const [phantomConnected, setPhantomConnected] = useState(false);
+  const [buyLoading, setBuyLoading] = useState(false);
+  const [buyStep, setBuyStep] = useState<
+    "detail" | "confirm" | "success" | "error"
+  >("detail");
+  const [buyError, setBuyError] = useState("");
+
+  // Check Phantom wallet on mount
+  useEffect(() => {
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
+    if (solana?.isPhantom && solana.isConnected) {
+      setPhantomConnected(true);
+    }
+  }, []);
+
+  // Fetch current user (me) for DashboardHeader
+  const fetchMe = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/me", { credentials: "include" });
+      const json = await res.json();
+      if (json.success && json.user) {
+        setUser(json.user);
+      }
+    } catch (err) {
+      console.error("Failed to fetch user session", err);
+    }
+  }, []);
+
+  // Fetch username data
   useEffect(() => {
     if (!raw) return;
     setLoading(true);
     setNotFound(false);
 
-    fetch(`/api/username/${raw}`)
-      .then((r) => r.json())
-      .then((json: UsernameData) => {
+    Promise.all([
+      fetch(`/api/username/${raw}`).then((r) => r.json()),
+      fetchMe(),
+    ])
+      .then(([json]) => {
         if (!json.success) {
           setNotFound(true);
         } else {
@@ -256,15 +298,103 @@ export default function UsernameDetailPage() {
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [raw]);
+  }, [raw, fetchMe]);
+
+  const handleConnectWallet = async () => {
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
+    if (!solana?.isPhantom) {
+      window.open("https://phantom.app/", "_blank");
+      return;
+    }
+    try {
+      const resp = await solana.connect();
+      const pk = resp.publicKey.toString();
+      setPhantomConnected(true);
+      // Link wallet to backend
+      try {
+        await fetch("/api/user/link-wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ wallet: pk }),
+        });
+        fetchMe(); // Refresh user data after linking
+      } catch {
+        // Non-fatal
+      }
+    } catch (err) {
+      setBuyError("Failed to connect wallet");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/user/logout", { method: "POST" });
+      router.push("/");
+    } catch {}
+  };
+
+  const handleBuy = async () => {
+    const solana = (window as any).phantom?.solana ?? (window as any).solana;
+    if (!solana?.isPhantom || !solana.isConnected) {
+      setPhantomConnected(false);
+      setBuyError("Wallet disconnected. Please reconnect.");
+      setBuyStep("error");
+      return;
+    }
+
+    setBuyLoading(true);
+    setBuyError("");
+    try {
+      const res = await fetch("/api/marketplace/buy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username: raw }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setBuyStep("success");
+      } else {
+        setBuyError(result.error ?? "Purchase failed");
+        setBuyStep("error");
+      }
+    } catch {
+      setBuyError("Network error");
+      setBuyStep("error");
+    }
+    setBuyLoading(false);
+  };
+
+  // ── Header Props Helper ────────────────────────────────────────────────────
+  const headerProps = {
+    session: user,
+    wallet: user?.wallet || null,
+    provider: user?.provider || "email",
+    displayName: user?.displayName || user?.name || user?.email || "User",
+    activeUsername: user?.activeUsername,
+    customization: user?.customization,
+    notifications: notifications,
+    sidebarOpen: sidebarOpen,
+    onToggleSidebar: () => setSidebarOpen(!sidebarOpen),
+    onMarkNotifsRead: () =>
+      setNotifications((n) => n.map((x) => ({ ...x, read: true }))),
+    onOpenSettings: () => router.push("/dashboard?tab=settings"),
+    onLogout: handleLogout,
+    onWalletLinked: (addr: string) => fetchMe(),
+    onOpenProfile: () => router.push("/dashboard?tab=profile"),
+  };
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
-          <p className="text-sm text-white/30">Loading @{raw}…</p>
+      <div className="min-h-screen bg-[#0a0a0f]">
+        {user && <DashboardHeader {...headerProps} />}
+        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+            <p className="text-sm text-white/30">Loading @{raw}…</p>
+          </div>
         </div>
       </div>
     );
@@ -273,19 +403,22 @@ export default function UsernameDetailPage() {
   // ── Not found ─────────────────────────────────────────────────────────────
   if (notFound || !data) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-white/20 mx-auto" />
-          <p className="text-xl font-bold text-white/60">@{raw} not found</p>
-          <p className="text-sm text-white/30">
-            This username hasn't been registered yet.
-          </p>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 mt-4 text-teal-400 hover:text-teal-300 text-sm transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-          </Link>
+      <div className="min-h-screen bg-[#0a0a0f]">
+        <DashboardHeader {...headerProps} />
+        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
+          <div className="text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-white/20 mx-auto" />
+            <p className="text-xl font-bold text-white/60">@{raw} not found</p>
+            <p className="text-sm text-white/30">
+              This username hasn't been registered yet.
+            </p>
+            <Link
+              href="/dashboard?tab=marketplace"
+              className="inline-flex items-center gap-2 mt-4 text-teal-400 hover:text-teal-300 text-sm transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Marketplace
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -294,7 +427,7 @@ export default function UsernameDetailPage() {
   const { owner, listing, tier, level, staked, claimedAt } = data;
   const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
 
-  const displayName =
+  const ownerDisplayName =
     owner?.displayName ??
     owner?.name ??
     owner?.activeUsername?.replace(/^@/, "") ??
@@ -305,6 +438,9 @@ export default function UsernameDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+      {/* Dashboard Header with correctly passed props */}
+      <DashboardHeader {...headerProps} />
+
       {/* ── Cover photo / hero ─────────────────────────────────────────────── */}
       <div className="relative h-48 sm:h-64 overflow-hidden">
         {owner?.coverPhoto ? (
@@ -342,9 +478,8 @@ export default function UsernameDetailPage() {
               {/* Avatar + name */}
               <div className="flex items-center gap-4">
                 {owner ? (
-                  <OwnerAvatar owner={owner} size={64} />
+                  <OwnerAvatar owner={owner} size={72} />
                 ) : (
-                  // No owner resolved — show wallet stub
                   <div className="w-16 h-16 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
                     <Shield className="w-7 h-7 text-white/20" />
                   </div>
@@ -354,7 +489,7 @@ export default function UsernameDetailPage() {
                   {owner ? (
                     <>
                       <p className="font-bold text-white truncate text-lg leading-tight">
-                        {displayName ?? `@${raw}`}
+                        {ownerDisplayName ?? `@${raw}`}
                       </p>
                       {owner.activeUsername && (
                         <p className="text-sm text-teal-400/80 truncate">
@@ -600,15 +735,136 @@ export default function UsernameDetailPage() {
                   <span className="text-xl text-white/40 pb-1">SOL</span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-black font-bold py-3.5 rounded-xl transition-all text-sm">
-                    <ShoppingCart className="w-4 h-4" />
-                    Buy Now
-                  </button>
-                  <button className="flex items-center justify-center gap-2 border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-3.5 px-5 rounded-xl transition-all text-sm">
-                    Make Offer
-                  </button>
-                </div>
+                {/* Purchase Flow */}
+                {buyStep === "detail" && (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {!phantomConnected ? (
+                      <>
+                        <button
+                          onClick={handleConnectWallet}
+                          className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-black font-bold py-3.5 rounded-xl transition-all text-sm"
+                        >
+                          <Wallet className="w-4 h-4" />
+                          Connect Wallet
+                        </button>
+                        <button className="flex items-center justify-center gap-2 border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-3.5 px-5 rounded-xl transition-all text-sm">
+                          Make Offer
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setBuyStep("confirm")}
+                          className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-black font-bold py-3.5 rounded-xl transition-all text-sm"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          Buy Now
+                        </button>
+                        <button className="flex items-center justify-center gap-2 border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-3.5 px-5 rounded-xl transition-all text-sm">
+                          Make Offer
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Confirm Step */}
+                {buyStep === "confirm" && (
+                  <div className="space-y-4 border-t border-white/[0.05] pt-4">
+                    <div className="rounded-xl bg-white/[0.02] p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-white/40">Price</span>
+                        <span className="text-white font-semibold">
+                          {listing.price} SOL
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-white/40">
+                          Platform fee (2.5%)
+                        </span>
+                        <span className="text-white/60">
+                          {((listing.price ?? 0) * 0.025).toFixed(4)} SOL
+                        </span>
+                      </div>
+                      <div className="border-t border-white/[0.05] pt-2 flex justify-between text-sm">
+                        <span className="text-white font-semibold">Total</span>
+                        <span className="text-teal-400 font-bold">
+                          {((listing.price ?? 0) * 1.025).toFixed(4)} SOL
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setBuyStep("detail")}
+                        className="flex-1 py-2.5 rounded-xl border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white transition-all text-sm"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleBuy}
+                        disabled={buyLoading}
+                        className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl transition-all text-sm"
+                      >
+                        {buyLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-4 h-4" />
+                            Confirm Purchase
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Success Step */}
+                {buyStep === "success" && (
+                  <div className="text-center space-y-4 border-t border-white/[0.05] pt-4">
+                    <div className="w-12 h-12 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto">
+                      <Check className="w-6 h-6 text-teal-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">
+                        Purchase Complete!
+                      </p>
+                      <p className="text-sm text-white/40">
+                        @{raw} has been added to your account.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setBuyStep("detail");
+                        router.push("/dashboard?tab=names");
+                      }}
+                      className="w-full bg-teal-500 hover:bg-teal-400 text-black font-bold py-2.5 rounded-xl transition-all text-sm"
+                    >
+                      View My Names
+                    </button>
+                  </div>
+                )}
+
+                {/* Error Step */}
+                {buyStep === "error" && (
+                  <div className="text-center space-y-4 border-t border-white/[0.05] pt-4">
+                    <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+                      <AlertCircle className="w-6 h-6 text-red-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">
+                        Purchase Failed
+                      </p>
+                      <p className="text-sm text-white/40">{buyError}</p>
+                    </div>
+                    <button
+                      onClick={() => setBuyStep("detail")}
+                      className="w-full border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-2.5 rounded-xl transition-all text-sm"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
 
                 <p className="text-xs text-white/25 text-center">
                   Transaction processed on Solana · non-custodial
