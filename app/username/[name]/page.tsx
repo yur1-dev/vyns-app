@@ -1,15 +1,13 @@
 /**
- * VYNS UsernameDetailPage - Premium Username Marketplace
- * Next.js App Router Component with Hero Background & Sidebar Profile
+ * VYNS UsernameDetailPage - Compact & Balanced Premium UI
+ * Next.js App Router Component
  *
- * Design System:
- * - Dark theme with deep navy/black backgrounds (#0a0a0f)
- * - Full-width hero background image with overlay
- * - Left sidebar: Profile card with owner info and stats
- * - Right content: Username hero section with listing details
- * - Tier-based color coding: Diamond (cyan), Platinum (purple), Gold (amber), Silver (slate), Bronze (orange)
- * - Glassmorphism: backdrop blur + semi-transparent borders
- * - Premium spacing, typography, and smooth interactions
+ * Design Philosophy:
+ * - Tight, proportional spacing throughout
+ * - Balanced visual hierarchy with refined typography
+ * - Compact profile sidebar and listing details
+ * - No oversized elements - everything fits perfectly
+ * - Premium glassmorphism with subtle effects
  */
 
 "use client";
@@ -25,9 +23,7 @@ import {
   Copy,
   Check,
   Loader2,
-  ExternalLink,
   Users,
-  Calendar,
   TrendingUp,
   ShoppingCart,
   AlertCircle,
@@ -96,54 +92,37 @@ interface UsernameData {
 
 const TIER_CONFIG: Record<
   string,
-  {
-    cls: string;
-    bg: string;
-    label: string;
-    glow: string;
-    hex: string;
-    borderCls: string;
-  }
+  { cls: string; bg: string; label: string; hex: string }
 > = {
   Diamond: {
-    cls: "text-cyan-400 border-cyan-500/40",
-    bg: "from-cyan-500/20 to-cyan-900/10",
+    cls: "text-cyan-400",
+    bg: "from-cyan-500/10 to-cyan-900/5",
     label: "💎 Diamond",
-    glow: "shadow-cyan-500/20",
     hex: "#22d3ee",
-    borderCls: "border-cyan-500/30",
   },
   Platinum: {
-    cls: "text-purple-300 border-purple-500/40",
-    bg: "from-purple-500/20 to-purple-900/10",
+    cls: "text-purple-300",
+    bg: "from-purple-500/10 to-purple-900/5",
     label: "⬡ Platinum",
-    glow: "shadow-purple-500/20",
     hex: "#a78bfa",
-    borderCls: "border-purple-500/30",
   },
   Gold: {
-    cls: "text-amber-400 border-amber-500/40",
-    bg: "from-amber-500/20 to-amber-900/10",
+    cls: "text-amber-400",
+    bg: "from-amber-500/10 to-amber-900/5",
     label: "✦ Gold",
-    glow: "shadow-amber-500/20",
     hex: "#fbbf24",
-    borderCls: "border-amber-500/30",
   },
   Silver: {
-    cls: "text-slate-300 border-slate-500/40",
-    bg: "from-slate-500/20 to-slate-900/10",
+    cls: "text-slate-300",
+    bg: "from-slate-500/10 to-slate-900/5",
     label: "◈ Silver",
-    glow: "shadow-slate-500/20",
     hex: "#94a3b8",
-    borderCls: "border-slate-500/30",
   },
   Bronze: {
-    cls: "text-orange-400 border-orange-500/40",
-    bg: "from-orange-500/20 to-orange-900/10",
+    cls: "text-orange-400",
+    bg: "from-orange-500/10 to-orange-900/5",
     label: "◉ Bronze",
-    glow: "shadow-orange-500/20",
     hex: "#f97316",
-    borderCls: "border-orange-500/30",
   },
 };
 
@@ -151,7 +130,7 @@ const TIER_CONFIG: Record<
 
 function PixelAvatar({
   seed,
-  size = 80,
+  size = 64,
   themeColor = "#2dd4bf",
 }: {
   seed: string;
@@ -230,12 +209,10 @@ export default function UsernameDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Dashboard User State
   const [user, setUser] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Buy Flow State
   const [phantomConnected, setPhantomConnected] = useState(false);
   const [buyLoading, setBuyLoading] = useState(false);
   const [buyStep, setBuyStep] = useState<
@@ -243,7 +220,6 @@ export default function UsernameDetailPage() {
   >("detail");
   const [buyError, setBuyError] = useState("");
 
-  // Check Phantom wallet on mount
   useEffect(() => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (solana?.isPhantom && solana.isConnected) {
@@ -251,7 +227,6 @@ export default function UsernameDetailPage() {
     }
   }, []);
 
-  // Fetch current user (me) for DashboardHeader
   const fetchMe = useCallback(async () => {
     try {
       const res = await fetch("/api/user/me", { credentials: "include" });
@@ -264,7 +239,6 @@ export default function UsernameDetailPage() {
     }
   }, []);
 
-  // Fetch username data
   useEffect(() => {
     if (!raw) return;
     setLoading(true);
@@ -303,9 +277,7 @@ export default function UsernameDetailPage() {
           body: JSON.stringify({ wallet: pk }),
         });
         fetchMe();
-      } catch {
-        // Non-fatal
-      }
+      } catch {}
     } catch (err) {
       setBuyError("Failed to connect wallet");
     }
@@ -356,7 +328,6 @@ export default function UsernameDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Header Props Helper ────────────────────────────────────────────────────
   const headerProps = {
     session: user,
     wallet: user?.wallet || null,
@@ -375,7 +346,6 @@ export default function UsernameDetailPage() {
     onOpenProfile: () => router.push("/dashboard?tab=profile"),
   };
 
-  // Extract data for easier access
   const owner = data?.owner;
   const listing = data?.listing || { isListed: false };
   const usernameLevel = data?.level || 0;
@@ -388,14 +358,9 @@ export default function UsernameDetailPage() {
       <div className="min-h-screen bg-[#0a0a0f]">
         {user && <DashboardHeader {...headerProps} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative w-12 h-12">
-              <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full opacity-20 blur-lg animate-pulse" />
-              <Loader2 className="w-12 h-12 text-teal-400 animate-spin relative z-10" />
-            </div>
-            <p className="text-sm font-semibold text-white/40">
-              Loading @{raw}…
-            </p>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-6 h-6 text-teal-400 animate-spin" />
+            <p className="text-xs text-white/30">Loading @{raw}…</p>
           </div>
         </div>
       </div>
@@ -408,21 +373,19 @@ export default function UsernameDetailPage() {
       <div className="min-h-screen bg-[#0a0a0f]">
         {user && <DashboardHeader {...headerProps} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="flex flex-col items-center gap-6 text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <AlertCircle size={32} className="text-red-400" />
+          <div className="flex flex-col items-center gap-4 text-center px-4">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <AlertCircle size={24} className="text-red-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white mb-2">
+              <h2 className="text-lg font-black text-white mb-1">
                 Username Not Found
               </h2>
-              <p className="text-white/40 mb-6">
-                @{raw} does not exist or has been removed.
-              </p>
+              <p className="text-xs text-white/40">@{raw} does not exist.</p>
             </div>
             <button
               onClick={() => router.push("/marketplace")}
-              className="px-6 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all"
+              className="px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-black font-bold text-sm transition-all"
             >
               Back to Marketplace
             </button>
@@ -437,55 +400,39 @@ export default function UsernameDetailPage() {
     <div className="min-h-screen bg-[#0a0a0f]">
       {user && <DashboardHeader {...headerProps} />}
 
-      {/* Hero Background Section */}
-      <div className="relative h-96 bg-gradient-to-b from-slate-900 via-slate-800 to-[#0a0a0f] overflow-hidden">
-        {/* Background Overlay */}
-        {owner?.coverPhoto && (
-          <img
-            src={owner.coverPhoto}
-            alt="Cover"
-            className="absolute inset-0 w-full h-full object-cover opacity-40"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[#0a0a0f]" />
-
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Back Button */}
-        <div className="absolute top-6 left-6 z-20">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/70 hover:text-white transition-all"
-          >
-            <ArrowLeft size={18} />
-            <span className="text-sm font-semibold">Back</span>
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-white/50 hover:text-teal-400 transition-colors mb-6 text-sm"
+        >
+          <ArrowLeft size={16} />
+          <span className="font-semibold">Marketplace</span>
+        </button>
 
-      {/* Main Content Grid */}
-      <div className="relative -mt-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* LEFT: Profile Card */}
-          <div className="lg:col-span-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* LEFT: Profile Card (2 cols) */}
+          <div className="lg:col-span-2 space-y-4">
             {owner && (
-              <div className="rounded-3xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.02] backdrop-blur-2xl p-8 space-y-8 shadow-2xl hover:border-white/[0.12] transition-all duration-300">
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-5 space-y-4">
                 {/* Avatar & Name */}
                 <div className="flex flex-col items-center text-center">
-                  <div className="mb-6 ring-4 ring-offset-4 ring-offset-[#0a0a0f] ring-teal-500/30 rounded-full p-1">
+                  <div className="mb-3 ring-2 ring-offset-2 ring-offset-[#0a0a0f] ring-teal-500/20 rounded-full p-0.5">
                     {owner.avatar ? (
                       <img
                         src={owner.avatar}
                         alt={owner.displayName || "User"}
-                        className="w-24 h-24 rounded-full object-cover"
+                        className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (
                       <PixelAvatar
                         seed={owner._id || "default"}
-                        size={96}
+                        size={64}
                         themeColor={tierCfg.hex}
                       />
                     )}
                   </div>
-                  <h3 className="text-2xl font-black text-white">
+                  <h3 className="text-base font-black text-white">
                     {owner.displayName || owner.name || "Anonymous"}
                   </h3>
                   {owner.socials?.x && (
@@ -493,101 +440,74 @@ export default function UsernameDetailPage() {
                       href={`https://x.com/${owner.socials.x}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-teal-400 hover:text-teal-300 transition-colors mt-1"
+                      className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
                     >
                       @{owner.socials.x}
                     </a>
                   )}
                   {owner.bio && (
-                    <p className="text-sm text-white/50 mt-3 line-clamp-2">
+                    <p className="text-xs text-white/40 mt-2 line-clamp-2">
                       {owner.bio}
                     </p>
                   )}
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <Users className="w-5 h-5 text-teal-400 mb-2" />
-                    <span className="text-lg font-black text-white">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <Users className="w-3.5 h-3.5 text-teal-400 mb-1" />
+                    <span className="text-sm font-black text-white">
                       {owner.usernames?.length ?? 0}
                     </span>
-                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
                       Names
                     </span>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <Zap className="w-5 h-5 text-violet-400 mb-2" />
-                    <span className="text-lg font-black text-white">
+                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <Zap className="w-3.5 h-3.5 text-violet-400 mb-1" />
+                    <span className="text-sm font-black text-white">
                       {owner.stakedAmount ?? 0}
                     </span>
-                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
                       Staked
                     </span>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
-                    <TrendingUp className="w-5 h-5 text-teal-400 mb-2" />
-                    <span className="text-lg font-black text-white">
+                  <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <TrendingUp className="w-3.5 h-3.5 text-teal-400 mb-1" />
+                    <span className="text-sm font-black text-white">
                       {owner.earnings ?? 0}
                     </span>
-                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest mt-0.5">
                       SOL
                     </span>
                   </div>
                 </div>
-
-                {/* Social Links */}
-                {owner.socials &&
-                  (owner.socials.x || owner.socials.telegram) && (
-                    <div className="flex gap-3 justify-center pt-4 border-t border-white/[0.05]">
-                      {owner.socials.x && (
-                        <a
-                          href={`https://x.com/${owner.socials.x}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-10 h-10 rounded-lg bg-white/[0.05] border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-teal-400 hover:border-teal-500/30 transition-all"
-                        >
-                          𝕏
-                        </a>
-                      )}
-                      {owner.socials.telegram && (
-                        <a
-                          href={`https://t.me/${owner.socials.telegram}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-10 h-10 rounded-lg bg-white/[0.05] border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-teal-400 hover:border-teal-500/30 transition-all"
-                        >
-                          ✈
-                        </a>
-                      )}
-                    </div>
-                  )}
               </div>
             )}
 
             {/* Other Names Card */}
             {owner && owner.usernames.length > 1 && (
-              <div className="mt-8 rounded-3xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.02] backdrop-blur-2xl p-6 hover:border-white/[0.12] transition-all duration-300">
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-4">
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-4">
+                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.15em] mb-3">
                   Also Owns
                 </p>
                 <div className="space-y-2">
                   {owner.usernames
                     .filter((u) => u.name !== raw)
-                    .slice(0, 4)
+                    .slice(0, 3)
                     .map((u) => {
                       const cfg = TIER_CONFIG[u.tier] || TIER_CONFIG.Silver;
                       return (
                         <Link
                           key={u.name}
                           href={`/username/${u.name}`}
-                          className="flex items-center justify-between group p-3 rounded-xl hover:bg-white/[0.05] transition-all"
+                          className="flex items-center justify-between group p-2 rounded-lg hover:bg-white/[0.03] transition-all"
                         >
-                          <span className="text-sm font-bold text-white/60 group-hover:text-teal-400 transition-colors">
+                          <span className="text-xs font-bold text-white/60 group-hover:text-teal-400 transition-colors">
                             @{u.name}
                           </span>
                           <div
-                            className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase ${cfg.cls}`}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${cfg.cls}`}
                           >
                             {u.tier}
                           </div>
@@ -599,43 +519,40 @@ export default function UsernameDetailPage() {
             )}
           </div>
 
-          {/* RIGHT: Listing Details */}
-          <div className="lg:col-span-8 space-y-6">
+          {/* RIGHT: Listing Details (3 cols) */}
+          <div className="lg:col-span-3 space-y-4">
             {/* Username Hero Card */}
             <div
-              className={`rounded-3xl border ${tierCfg.borderCls} bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl relative overflow-hidden group hover:border-white/[0.15] transition-all duration-300`}
+              className={`rounded-2xl border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-6 shadow-xl relative overflow-hidden group hover:border-white/[0.15] transition-all duration-300`}
             >
-              <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-gradient-to-br from-teal-500/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="absolute top-8 right-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Crown size={120} />
+              <div className="absolute top-0 right-0 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Crown size={80} />
               </div>
 
               <div className="relative z-10">
                 <div
-                  className={`inline-flex px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-[0.15em] ${tierCfg.cls} bg-white/[0.02] backdrop-blur-sm`}
+                  className={`inline-flex px-2.5 py-1 rounded-full border border-white/20 text-[9px] font-black uppercase tracking-[0.1em] ${tierCfg.cls}`}
                 >
                   {tierCfg.label}
                 </div>
-                <h1 className="text-6xl sm:text-7xl font-black text-white mt-6 tracking-tighter leading-tight">
+                <h1 className="text-4xl sm:text-5xl font-black text-white mt-3 tracking-tighter">
                   @{raw}
                 </h1>
-                <div className="flex flex-wrap items-center gap-4 mt-6 text-sm">
-                  <div className="flex items-center gap-2 text-white/50">
-                    <Activity size={16} className="text-teal-400" />
-                    <span className="font-semibold">
-                      {raw.length} Characters
-                    </span>
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
+                  <div className="flex items-center gap-1.5 text-white/50">
+                    <Activity size={12} className="text-teal-400" />
+                    <span className="font-semibold">{raw.length} Chars</span>
                   </div>
-                  <div className="w-1 h-1 rounded-full bg-white/10" />
-                  <div className="flex items-center gap-2 text-white/50">
-                    <Shield size={16} className="text-violet-400" />
-                    <span className="font-semibold">Level {usernameLevel}</span>
+                  <div className="w-0.5 h-0.5 rounded-full bg-white/10" />
+                  <div className="flex items-center gap-1.5 text-white/50">
+                    <Shield size={12} className="text-violet-400" />
+                    <span className="font-semibold">Lvl {usernameLevel}</span>
                   </div>
                   {staked && (
                     <>
-                      <div className="w-1 h-1 rounded-full bg-white/10" />
-                      <div className="flex items-center gap-2 text-teal-400 font-semibold">
-                        <Zap size={16} />
+                      <div className="w-0.5 h-0.5 rounded-full bg-white/10" />
+                      <div className="flex items-center gap-1.5 text-teal-400 font-semibold">
+                        <Zap size={12} />
                         Staked
                       </div>
                     </>
@@ -645,17 +562,17 @@ export default function UsernameDetailPage() {
                 {/* Copy Button */}
                 <button
                   onClick={handleCopyUsername}
-                  className="mt-6 flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/60 hover:text-teal-400 hover:border-teal-500/30 hover:bg-white/[0.08] transition-all text-sm font-semibold"
+                  className="mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/60 hover:text-teal-400 transition-all text-xs font-semibold"
                 >
                   {copied ? (
                     <>
-                      <Check size={16} />
+                      <Check size={12} />
                       Copied!
                     </>
                   ) : (
                     <>
-                      <Copy size={16} />
-                      Copy Username
+                      <Copy size={12} />
+                      Copy
                     </>
                   )}
                 </button>
@@ -665,118 +582,118 @@ export default function UsernameDetailPage() {
             {/* Marketplace Section */}
             {listing.isListed ? (
               <div
-                className={`rounded-3xl border ${tierCfg.borderCls} bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl hover:border-white/[0.15] transition-all duration-300`}
+                className={`rounded-2xl border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-6 shadow-xl hover:border-white/[0.15] transition-all duration-300`}
               >
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-teal-400 to-cyan-400 animate-pulse shadow-lg shadow-teal-500/50" />
-                    <span className="text-[10px] font-black text-teal-400 uppercase tracking-[0.2em]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                    <span className="text-[9px] font-black text-teal-400 uppercase tracking-[0.1em]">
                       Listed for Sale
                     </span>
                   </div>
                   {listing.listedAt && (
-                    <span className="text-xs font-semibold text-white/30">
-                      Since {new Date(listing.listedAt).toLocaleDateString()}
+                    <span className="text-[10px] font-semibold text-white/20">
+                      {new Date(listing.listedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
 
-                <div className="mb-10">
-                  <span className="text-7xl sm:text-8xl font-black text-white tracking-tighter">
+                <div className="mb-5">
+                  <span className="text-5xl font-black text-white tracking-tight">
                     {listing.price}
                   </span>
-                  <span className="text-2xl font-black text-white/30 uppercase ml-3">
+                  <span className="text-lg font-black text-white/30 uppercase ml-2">
                     SOL
                   </span>
                 </div>
 
                 {/* Purchase States */}
                 {buyStep === "detail" && (
-                  <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     {!phantomConnected ? (
                       <button
                         onClick={handleConnectWallet}
-                        className="flex-1 py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105 active:scale-95"
+                        className="flex-1 py-3 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/40"
                       >
-                        <Wallet size={20} />
-                        Connect Wallet to Buy
+                        <Wallet size={16} />
+                        Connect Wallet
                       </button>
                     ) : (
                       <button
                         onClick={() => setBuyStep("confirm")}
-                        className="flex-1 py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105 active:scale-95"
+                        className="flex-1 py-3 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-teal-500/20 hover:shadow-teal-500/40"
                       >
-                        <ShoppingCart size={20} />
-                        Purchase Username
+                        <ShoppingCart size={16} />
+                        Purchase
                       </button>
                     )}
-                    <button className="px-8 py-4 rounded-xl border border-white/[0.1] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 hover:text-white font-black transition-all hover:border-white/[0.2]">
-                      Make Offer
+                    <button className="px-4 py-3 rounded-lg border border-white/[0.1] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 hover:text-white font-bold transition-all text-sm">
+                      Offer
                     </button>
                   </div>
                 )}
 
                 {buyStep === "confirm" && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="p-6 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-4">
-                      <div className="flex justify-between text-sm font-bold">
-                        <span className="text-white/40">Listing Price</span>
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-3">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-white/40">Price</span>
                         <span className="text-white">{listing.price} SOL</span>
                       </div>
-                      <div className="flex justify-between text-sm font-bold">
-                        <span className="text-white/40">
-                          Network Fee (2.5%)
-                        </span>
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-white/40">Fee (2.5%)</span>
                         <span className="text-white/60">
                           {((listing.price ?? 0) * 0.025).toFixed(4)} SOL
                         </span>
                       </div>
-                      <div className="pt-4 border-t border-white/[0.05] flex justify-between items-center">
-                        <span className="text-lg font-black text-white">
+                      <div className="pt-3 border-t border-white/[0.05] flex justify-between items-center">
+                        <span className="text-sm font-black text-white">
                           Total
                         </span>
-                        <span className="text-3xl font-black text-teal-400 tracking-tight">
+                        <span className="text-2xl font-black text-teal-400">
                           {((listing.price ?? 0) * 1.025).toFixed(4)} SOL
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex gap-3">
                       <button
                         onClick={() => setBuyStep("detail")}
-                        className="flex-1 py-3 rounded-xl border border-white/[0.1] bg-white/[0.02] text-white/40 hover:text-white font-black hover:bg-white/[0.05] transition-all"
+                        className="flex-1 py-2.5 rounded-lg border border-white/[0.1] bg-white/[0.02] text-white/40 font-bold hover:text-white transition-all text-sm"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleBuy}
                         disabled={buyLoading}
-                        className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                        className="flex-[2] py-2.5 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
                       >
                         {buyLoading ? (
-                          <Loader2 className="animate-spin" size={20} />
+                          <Loader2 className="animate-spin" size={16} />
                         ) : (
-                          <Check size={20} />
+                          <Check size={16} />
                         )}
-                        Confirm Purchase
+                        Confirm
                       </button>
                     </div>
                   </div>
                 )}
 
                 {buyStep === "success" && (
-                  <div className="text-center py-8 space-y-6 animate-in fade-in zoom-in duration-500">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500/20 to-cyan-500/20 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
-                      <Check size={40} className="text-teal-400" />
+                  <div className="text-center py-4 space-y-4 animate-in fade-in zoom-in duration-500">
+                    <div className="w-14 h-14 rounded-full bg-teal-500/10 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
+                      <Check size={28} className="text-teal-400" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black text-white">
-                        🎉 Purchase Successful!
+                      <h3 className="text-lg font-black text-white">
+                        Success!
                       </h3>
-                      <p className="text-white/40 mt-2">@{raw} is now yours.</p>
+                      <p className="text-xs text-white/40 mt-1">
+                        @{raw} is now yours.
+                      </p>
                     </div>
                     <button
                       onClick={() => router.push("/dashboard?tab=names")}
-                      className="w-full py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-black font-black hover:from-teal-400 hover:to-cyan-400 transition-all hover:scale-105 active:scale-95"
+                      className="w-full py-2.5 rounded-lg bg-teal-500 text-black font-black text-sm"
                     >
                       View My Names
                     </button>
@@ -784,19 +701,17 @@ export default function UsernameDetailPage() {
                 )}
 
                 {buyStep === "error" && (
-                  <div className="text-center py-8 space-y-6 animate-in fade-in duration-300">
-                    <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center mx-auto">
-                      <AlertCircle size={40} className="text-red-400" />
+                  <div className="text-center py-4 space-y-4 animate-in fade-in duration-300">
+                    <div className="w-14 h-14 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center mx-auto">
+                      <AlertCircle size={28} className="text-red-400" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black text-white">
-                        Purchase Failed
-                      </h3>
-                      <p className="text-white/40 mt-2">{buyError}</p>
+                      <h3 className="text-lg font-black text-white">Failed</h3>
+                      <p className="text-xs text-white/40 mt-1">{buyError}</p>
                     </div>
                     <button
                       onClick={() => setBuyStep("detail")}
-                      className="w-full py-4 rounded-xl border border-white/[0.1] bg-white/[0.02] text-white font-black hover:bg-white/[0.05] transition-all"
+                      className="w-full py-2.5 rounded-lg border border-white/[0.1] text-white font-black text-sm"
                     >
                       Try Again
                     </button>
@@ -804,16 +719,10 @@ export default function UsernameDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-12 text-center hover:border-white/[0.12] transition-all duration-300">
-                <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
-                  <Shield size={32} className="text-white/20" />
-                </div>
-                <p className="text-xl font-black text-white/40">
-                  Not Listed for Sale
-                </p>
-                <p className="text-sm text-white/20 mt-2">
-                  This username is currently held by its owner.
-                </p>
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-6 text-center">
+                <Shield size={32} className="text-white/10 mx-auto mb-2" />
+                <p className="text-sm font-black text-white/40">Not Listed</p>
+                <p className="text-xs text-white/20 mt-1">Held by owner</p>
               </div>
             )}
           </div>
