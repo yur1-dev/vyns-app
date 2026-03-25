@@ -1,4 +1,17 @@
-// app/username/[name]/page.tsx
+/**
+ * VYNS UsernameDetailPage - Premium Username Marketplace
+ * Next.js App Router Component with Hero Background & Sidebar Profile
+ *
+ * Design System:
+ * - Dark theme with deep navy/black backgrounds (#0a0a0f)
+ * - Full-width hero background image with overlay
+ * - Left sidebar: Profile card with owner info and stats
+ * - Right content: Username hero section with listing details
+ * - Tier-based color coding: Diamond (cyan), Platinum (purple), Gold (amber), Silver (slate), Bronze (orange)
+ * - Glassmorphism: backdrop blur + semi-transparent borders
+ * - Premium spacing, typography, and smooth interactions
+ */
+
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
@@ -79,11 +92,18 @@ interface UsernameData {
   owner: OwnerProfile | null;
 }
 
-// ── Tier config ──────────────────────────────────────────────────────────────
+// ── Tier Configuration ────────────────────────────────────────────────────────
 
 const TIER_CONFIG: Record<
   string,
-  { cls: string; bg: string; label: string; glow: string; hex: string }
+  {
+    cls: string;
+    bg: string;
+    label: string;
+    glow: string;
+    hex: string;
+    borderCls: string;
+  }
 > = {
   Diamond: {
     cls: "text-cyan-400 border-cyan-500/40",
@@ -91,6 +111,7 @@ const TIER_CONFIG: Record<
     label: "💎 Diamond",
     glow: "shadow-cyan-500/20",
     hex: "#22d3ee",
+    borderCls: "border-cyan-500/30",
   },
   Platinum: {
     cls: "text-purple-300 border-purple-500/40",
@@ -98,6 +119,7 @@ const TIER_CONFIG: Record<
     label: "⬡ Platinum",
     glow: "shadow-purple-500/20",
     hex: "#a78bfa",
+    borderCls: "border-purple-500/30",
   },
   Gold: {
     cls: "text-amber-400 border-amber-500/40",
@@ -105,6 +127,7 @@ const TIER_CONFIG: Record<
     label: "✦ Gold",
     glow: "shadow-amber-500/20",
     hex: "#fbbf24",
+    borderCls: "border-amber-500/30",
   },
   Silver: {
     cls: "text-slate-300 border-slate-500/40",
@@ -112,6 +135,7 @@ const TIER_CONFIG: Record<
     label: "◈ Silver",
     glow: "shadow-slate-500/20",
     hex: "#94a3b8",
+    borderCls: "border-slate-500/30",
   },
   Bronze: {
     cls: "text-orange-400 border-orange-500/40",
@@ -119,10 +143,12 @@ const TIER_CONFIG: Record<
     label: "◉ Bronze",
     glow: "shadow-orange-500/20",
     hex: "#f97316",
+    borderCls: "border-orange-500/30",
   },
 };
 
-// ── Pixel Avatar ──────────────────────────────────────────────────────────────
+// ── Pixel Avatar Component ────────────────────────────────────────────────────
+
 function PixelAvatar({
   seed,
   size = 80,
@@ -133,25 +159,33 @@ function PixelAvatar({
   themeColor?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !seed) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
     const G = 8;
     canvas.width = G;
     canvas.height = G;
+
     let h = 0;
     for (let i = 0; i < seed.length; i++)
       h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+
     const rand = (n: number) => {
       h = (Math.imul(1664525, h) + 1013904223) | 0;
       return Math.abs(h) % n;
     };
+
     const hue = rand(360);
     const hue2 = (hue + 40 + rand(80)) % 360;
+
     ctx.fillStyle = `hsl(${hue},60%,8%)`;
     ctx.fillRect(0, 0, G, G);
+
     for (let y = 0; y < G; y++)
       for (let x = 0; x < Math.ceil(G / 2); x++) {
         if (rand(3) !== 0) {
@@ -163,10 +197,12 @@ function PixelAvatar({
           ctx.fillRect(G - 1 - x, y, 1, 1);
         }
       }
+
     ctx.fillStyle = "#fff";
     ctx.fillRect(2, 2, 1, 1);
     ctx.fillRect(5, 2, 1, 1);
   }, [seed, themeColor]);
+
   return (
     <canvas
       ref={canvasRef}
@@ -180,7 +216,7 @@ function PixelAvatar({
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Main Page Component ──────────────────────────────────────────────────────
 
 export default function UsernameDetailPage() {
   const { name } = useParams();
@@ -192,6 +228,7 @@ export default function UsernameDetailPage() {
   const [data, setData] = useState<UsernameData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Dashboard User State
   const [user, setUser] = useState<any>(null);
@@ -258,7 +295,6 @@ export default function UsernameDetailPage() {
       const resp = await solana.connect();
       const pk = resp.publicKey.toString();
       setPhantomConnected(true);
-      // Link wallet to backend
       try {
         await fetch("/api/user/link-wallet", {
           method: "POST",
@@ -266,7 +302,7 @@ export default function UsernameDetailPage() {
           credentials: "include",
           body: JSON.stringify({ wallet: pk }),
         });
-        fetchMe(); // Refresh user data after linking
+        fetchMe();
       } catch {
         // Non-fatal
       }
@@ -314,6 +350,12 @@ export default function UsernameDetailPage() {
     setBuyLoading(false);
   };
 
+  const handleCopyUsername = () => {
+    navigator.clipboard.writeText(`@${raw}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   // ── Header Props Helper ────────────────────────────────────────────────────
   const headerProps = {
     session: user,
@@ -333,218 +375,225 @@ export default function UsernameDetailPage() {
     onOpenProfile: () => router.push("/dashboard?tab=profile"),
   };
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // Extract data for easier access
+  const owner = data?.owner;
+  const listing = data?.listing || { isListed: false };
+  const usernameLevel = data?.level || 0;
+  const staked = data?.staked || false;
+  const tierCfg = TIER_CONFIG[data?.tier || "Silver"] || TIER_CONFIG.Silver;
+
+  // ── Loading State ──────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f]">
         {user && <DashboardHeader {...headerProps} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
-            <p className="text-sm text-white/30">Loading @{raw}…</p>
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full opacity-20 blur-lg animate-pulse" />
+              <Loader2 className="w-12 h-12 text-teal-400 animate-spin relative z-10" />
+            </div>
+            <p className="text-sm font-semibold text-white/40">
+              Loading @{raw}…
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Not found ─────────────────────────────────────────────────────────────
+  // ── Not Found State ────────────────────────────────────────────────────────
   if (notFound || !data) {
     return (
       <div className="min-h-screen bg-[#0a0a0f]">
-        <DashboardHeader {...headerProps} />
+        {user && <DashboardHeader {...headerProps} />}
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-white/20 mx-auto" />
-            <p className="text-xl font-bold text-white/60">@{raw} not found</p>
-            <p className="text-sm text-white/30">
-              This username hasn't been registered yet.
-            </p>
-            <Link
-              href="/dashboard?tab=marketplace"
-              className="inline-flex items-center gap-2 mt-4 text-teal-400 hover:text-teal-300 text-sm transition-colors"
+          <div className="flex flex-col items-center gap-6 text-center px-4">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <AlertCircle size={32} className="text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white mb-2">
+                Username Not Found
+              </h2>
+              <p className="text-white/40 mb-6">
+                @{raw} does not exist or has been removed.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/marketplace")}
+              className="px-6 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to Marketplace
-            </Link>
+              Back to Marketplace
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  const {
-    owner,
-    listing,
-    tier,
-    level: usernameLevel,
-    staked,
-    claimedAt,
-  } = data;
-  const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
-
-  const ownerDisplayName =
-    owner?.displayName ??
-    owner?.name ??
-    owner?.activeUsername?.replace(/^@/, "") ??
-    null;
-
-  const walletDisplay = (w: string) =>
-    w.length > 12 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w;
-
+  // ── Main Content ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
-      <DashboardHeader {...headerProps} />
+    <div className="min-h-screen bg-[#0a0a0f]">
+      {user && <DashboardHeader {...headerProps} />}
 
-      {/* Hero Section with Cover Photo */}
-      <div className="relative h-64 sm:h-80 overflow-hidden">
-        {owner?.coverPhoto ? (
-          // eslint-disable-next-line @next/next/no-img-element
+      {/* Hero Background Section */}
+      <div className="relative h-96 bg-gradient-to-b from-slate-900 via-slate-800 to-[#0a0a0f] overflow-hidden">
+        {/* Background Overlay */}
+        {owner?.coverPhoto && (
           <img
             src={owner.coverPhoto}
-            alt="cover"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          <div
-            className={`absolute inset-0 bg-gradient-to-br ${tierCfg.bg} opacity-60`}
+            alt="Cover"
+            className="absolute inset-0 w-full h-full object-cover opacity-40"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[#0a0a0f]" />
 
-        <Link
-          href="/dashboard?tab=marketplace"
-          className="absolute top-5 left-5 inline-flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors z-20"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Marketplace
-        </Link>
+        {/* Back Button */}
+        <div className="absolute top-6 left-6 z-20">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/70 hover:text-white transition-all"
+          >
+            <ArrowLeft size={18} />
+            <span className="text-sm font-semibold">Back</span>
+          </button>
+        </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-20 -mt-24 relative z-10">
-        <div className="grid lg:grid-cols-12 gap-6">
-          {/* LEFT: Profile Card (Matches app/profile/page.tsx glass styling) */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="rounded-[32px] border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-8 flex flex-col items-center text-center shadow-2xl">
-              {/* Avatar Section (XP rings removed) */}
-              <div className="relative mb-6">
-                <div className="relative w-28 h-28 rounded-full border-4 border-white/[0.05] overflow-hidden bg-[#0a0a0f]">
-                  {owner?.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={owner.avatar}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <PixelAvatar
-                      seed={owner?.activeUsername || raw}
-                      size={112}
-                      themeColor={tierCfg.hex}
-                    />
+      {/* Main Content Grid */}
+      <div className="relative -mt-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* LEFT: Profile Card */}
+          <div className="lg:col-span-4">
+            {owner && (
+              <div className="rounded-3xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.02] backdrop-blur-2xl p-8 space-y-8 shadow-2xl hover:border-white/[0.12] transition-all duration-300">
+                {/* Avatar & Name */}
+                <div className="flex flex-col items-center text-center">
+                  <div className="mb-6 ring-4 ring-offset-4 ring-offset-[#0a0a0f] ring-teal-500/30 rounded-full p-1">
+                    {owner.avatar ? (
+                      <img
+                        src={owner.avatar}
+                        alt={owner.displayName || "User"}
+                        className="w-24 h-24 rounded-full object-cover"
+                      />
+                    ) : (
+                      <PixelAvatar
+                        seed={owner._id || "default"}
+                        size={96}
+                        themeColor={tierCfg.hex}
+                      />
+                    )}
+                  </div>
+                  <h3 className="text-2xl font-black text-white">
+                    {owner.displayName || owner.name || "Anonymous"}
+                  </h3>
+                  {owner.socials?.x && (
+                    <a
+                      href={`https://x.com/${owner.socials.x}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-teal-400 hover:text-teal-300 transition-colors mt-1"
+                    >
+                      @{owner.socials.x}
+                    </a>
+                  )}
+                  {owner.bio && (
+                    <p className="text-sm text-white/50 mt-3 line-clamp-2">
+                      {owner.bio}
+                    </p>
                   )}
                 </div>
-                <div className="absolute -bottom-1 -right-1 bg-teal-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-[#0a0a0f]">
-                  LVL {owner?.level ?? 1}
-                </div>
-              </div>
 
-              {/* Name & Bio */}
-              <h2 className="text-2xl font-black text-white leading-tight">
-                {ownerDisplayName || `@${raw}`}
-              </h2>
-              {owner?.activeUsername && (
-                <p className="text-teal-400 font-bold text-sm mt-1">
-                  @{owner.activeUsername.replace(/^@/, "")}
-                </p>
-              )}
-              {owner?.bio && (
-                <p className="text-sm text-white/40 mt-4 leading-relaxed px-4">
-                  {owner.bio}
-                </p>
-              )}
-
-              {/* Wallet Info */}
-              {(owner?.wallet || listing.ownerWallet) && (
-                <div className="mt-6 w-full pt-6 border-t border-white/[0.05] flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06]">
-                    <Wallet className="w-3 h-3 text-white/30" />
-                    <span className="font-mono text-[10px] text-white/40 tracking-wider">
-                      {walletDisplay(
-                        owner?.wallet ?? listing.ownerWallet ?? "",
-                      )}
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <Users className="w-5 h-5 text-teal-400 mb-2" />
+                    <span className="text-lg font-black text-white">
+                      {owner.usernames?.length ?? 0}
                     </span>
-                    <button
-                      onClick={() =>
-                        navigator.clipboard.writeText(
-                          owner?.wallet ?? listing.ownerWallet ?? "",
-                        )
-                      }
-                      className="text-white/20 hover:text-teal-400 transition-colors"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                      Names
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <Zap className="w-5 h-5 text-violet-400 mb-2" />
+                    <span className="text-lg font-black text-white">
+                      {owner.stakedAmount ?? 0}
+                    </span>
+                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                      Staked
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center hover:bg-white/[0.05] transition-all">
+                    <TrendingUp className="w-5 h-5 text-teal-400 mb-2" />
+                    <span className="text-lg font-black text-white">
+                      {owner.earnings ?? 0}
+                    </span>
+                    <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">
+                      SOL
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* Profile Stats (Referrals, Staked, Earnings) */}
-              <div className="grid grid-cols-3 gap-2 w-full mt-8">
-                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
-                  <Users className="w-4 h-4 text-sky-400 mb-1" />
-                  <span className="text-xs font-black text-white">
-                    {owner?.referrals ?? 0}
-                  </span>
-                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
-                    Refs
-                  </span>
-                </div>
-                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
-                  <Zap className="w-4 h-4 text-violet-400 mb-1" />
-                  <span className="text-xs font-black text-white">
-                    {owner?.stakedAmount ?? 0}
-                  </span>
-                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
-                    Staked
-                  </span>
-                </div>
-                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
-                  <TrendingUp className="w-4 h-4 text-teal-400 mb-1" />
-                  <span className="text-xs font-black text-white">
-                    {owner?.earnings ?? 0}
-                  </span>
-                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
-                    SOL
-                  </span>
-                </div>
+                {/* Social Links */}
+                {owner.socials &&
+                  (owner.socials.x || owner.socials.telegram) && (
+                    <div className="flex gap-3 justify-center pt-4 border-t border-white/[0.05]">
+                      {owner.socials.x && (
+                        <a
+                          href={`https://x.com/${owner.socials.x}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-10 h-10 rounded-lg bg-white/[0.05] border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-teal-400 hover:border-teal-500/30 transition-all"
+                        >
+                          𝕏
+                        </a>
+                      )}
+                      {owner.socials.telegram && (
+                        <a
+                          href={`https://t.me/${owner.socials.telegram}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-10 h-10 rounded-lg bg-white/[0.05] border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-teal-400 hover:border-teal-500/30 transition-all"
+                        >
+                          ✈
+                        </a>
+                      )}
+                    </div>
+                  )}
               </div>
-            </div>
+            )}
 
             {/* Other Names Card */}
             {owner && owner.usernames.length > 1 && (
-              <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-6">
-                <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">
+              <div className="mt-8 rounded-3xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.02] backdrop-blur-2xl p-6 hover:border-white/[0.12] transition-all duration-300">
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-4">
                   Also Owns
                 </p>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {owner.usernames
                     .filter((u) => u.name !== raw)
                     .slice(0, 4)
-                    .map((u) => (
-                      <Link
-                        key={u.name}
-                        href={`/username/${u.name}`}
-                        className="flex items-center justify-between group p-2 rounded-xl hover:bg-white/[0.03] transition-all"
-                      >
-                        <span className="text-sm font-bold text-white/60 group-hover:text-teal-400 transition-colors">
-                          @{u.name}
-                        </span>
-                        <div
-                          className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase ${TIER_CONFIG[u.tier]?.cls || ""}`}
+                    .map((u) => {
+                      const cfg = TIER_CONFIG[u.tier] || TIER_CONFIG.Silver;
+                      return (
+                        <Link
+                          key={u.name}
+                          href={`/username/${u.name}`}
+                          className="flex items-center justify-between group p-3 rounded-xl hover:bg-white/[0.05] transition-all"
                         >
-                          {u.tier}
-                        </div>
-                      </Link>
-                    ))}
+                          <span className="text-sm font-bold text-white/60 group-hover:text-teal-400 transition-colors">
+                            @{u.name}
+                          </span>
+                          <div
+                            className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase ${cfg.cls}`}
+                          >
+                            {u.tier}
+                          </div>
+                        </Link>
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -552,69 +601,92 @@ export default function UsernameDetailPage() {
 
           {/* RIGHT: Listing Details */}
           <div className="lg:col-span-8 space-y-6">
-            {/* Username Hero */}
+            {/* Username Hero Card */}
             <div
-              className={`rounded-[32px] border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl relative overflow-hidden`}
+              className={`rounded-3xl border ${tierCfg.borderCls} bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl relative overflow-hidden group hover:border-white/[0.15] transition-all duration-300`}
             >
-              <div className="absolute top-0 right-0 p-8 opacity-5">
+              <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-gradient-to-br from-teal-500/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute top-8 right-8 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Crown size={120} />
               </div>
 
               <div className="relative z-10">
                 <div
-                  className={`inline-flex px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-[0.15em] ${tierCfg.cls}`}
+                  className={`inline-flex px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-[0.15em] ${tierCfg.cls} bg-white/[0.02] backdrop-blur-sm`}
                 >
                   {tierCfg.label}
                 </div>
-                <h1 className="text-6xl sm:text-7xl font-black text-white mt-6 tracking-tighter">
+                <h1 className="text-6xl sm:text-7xl font-black text-white mt-6 tracking-tighter leading-tight">
                   @{raw}
                 </h1>
-                <div className="flex items-center gap-4 mt-6">
-                  <div className="flex items-center gap-1.5 text-sm font-bold text-white/40">
-                    <Activity size={14} className="text-teal-400" />
-                    {raw.length} Characters
+                <div className="flex flex-wrap items-center gap-4 mt-6 text-sm">
+                  <div className="flex items-center gap-2 text-white/50">
+                    <Activity size={16} className="text-teal-400" />
+                    <span className="font-semibold">
+                      {raw.length} Characters
+                    </span>
                   </div>
                   <div className="w-1 h-1 rounded-full bg-white/10" />
-                  <div className="flex items-center gap-1.5 text-sm font-bold text-white/40">
-                    <Shield size={14} className="text-violet-400" />
-                    Level {usernameLevel}
+                  <div className="flex items-center gap-2 text-white/50">
+                    <Shield size={16} className="text-violet-400" />
+                    <span className="font-semibold">Level {usernameLevel}</span>
                   </div>
                   {staked && (
                     <>
                       <div className="w-1 h-1 rounded-full bg-white/10" />
-                      <div className="flex items-center gap-1.5 text-sm font-bold text-teal-400">
-                        <Zap size={14} />
-                        Currently Staked
+                      <div className="flex items-center gap-2 text-teal-400 font-semibold">
+                        <Zap size={16} />
+                        Staked
                       </div>
                     </>
                   )}
                 </div>
+
+                {/* Copy Button */}
+                <button
+                  onClick={handleCopyUsername}
+                  className="mt-6 flex items-center gap-2 px-4 py-2 rounded-lg bg-white/[0.05] border border-white/[0.1] text-white/60 hover:text-teal-400 hover:border-teal-500/30 hover:bg-white/[0.08] transition-all text-sm font-semibold"
+                >
+                  {copied ? (
+                    <>
+                      <Check size={16} />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} />
+                      Copy Username
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
             {/* Marketplace Section */}
             {listing.isListed ? (
-              <div className="rounded-[32px] border border-teal-500/20 bg-teal-500/[0.03] p-8 shadow-xl">
+              <div
+                className={`rounded-3xl border ${tierCfg.borderCls} bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl hover:border-white/[0.15] transition-all duration-300`}
+              >
                 <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-teal-400 to-cyan-400 animate-pulse shadow-lg shadow-teal-500/50" />
                     <span className="text-[10px] font-black text-teal-400 uppercase tracking-[0.2em]">
                       Listed for Sale
                     </span>
                   </div>
                   {listing.listedAt && (
-                    <span className="text-xs font-bold text-white/20">
+                    <span className="text-xs font-semibold text-white/30">
                       Since {new Date(listing.listedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-baseline gap-3 mb-10">
-                  <span className="text-7xl font-black text-white tracking-tight">
+                <div className="mb-10">
+                  <span className="text-7xl sm:text-8xl font-black text-white tracking-tighter">
                     {listing.price}
                   </span>
-                  <span className="text-2xl font-black text-white/20 uppercase">
-                    Sol
+                  <span className="text-2xl font-black text-white/30 uppercase ml-3">
+                    SOL
                   </span>
                 </div>
 
@@ -624,7 +696,7 @@ export default function UsernameDetailPage() {
                     {!phantomConnected ? (
                       <button
                         onClick={handleConnectWallet}
-                        className="flex-1 py-5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                        className="flex-1 py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105 active:scale-95"
                       >
                         <Wallet size={20} />
                         Connect Wallet to Buy
@@ -632,13 +704,13 @@ export default function UsernameDetailPage() {
                     ) : (
                       <button
                         onClick={() => setBuyStep("confirm")}
-                        className="flex-1 py-5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                        className="flex-1 py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105 active:scale-95"
                       >
                         <ShoppingCart size={20} />
                         Purchase Username
                       </button>
                     )}
-                    <button className="px-8 py-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 font-black transition-all">
+                    <button className="px-8 py-4 rounded-xl border border-white/[0.1] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 hover:text-white font-black transition-all hover:border-white/[0.2]">
                       Make Offer
                     </button>
                   </div>
@@ -646,13 +718,13 @@ export default function UsernameDetailPage() {
 
                 {buyStep === "confirm" && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-4">
+                    <div className="p-6 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-4">
                       <div className="flex justify-between text-sm font-bold">
-                        <span className="text-white/30">Listing Price</span>
+                        <span className="text-white/40">Listing Price</span>
                         <span className="text-white">{listing.price} SOL</span>
                       </div>
                       <div className="flex justify-between text-sm font-bold">
-                        <span className="text-white/30">
+                        <span className="text-white/40">
                           Network Fee (2.5%)
                         </span>
                         <span className="text-white/60">
@@ -671,17 +743,17 @@ export default function UsernameDetailPage() {
                     <div className="flex gap-4">
                       <button
                         onClick={() => setBuyStep("detail")}
-                        className="flex-1 py-4 rounded-2xl border border-white/[0.1] bg-white/[0.02] text-white/40 font-black hover:text-white transition-all"
+                        className="flex-1 py-3 rounded-xl border border-white/[0.1] bg-white/[0.02] text-white/40 hover:text-white font-black hover:bg-white/[0.05] transition-all"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleBuy}
                         disabled={buyLoading}
-                        className="flex-[2] py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2"
+                        className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-black font-black transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
                       >
                         {buyLoading ? (
-                          <Loader2 className="animate-spin" />
+                          <Loader2 className="animate-spin" size={20} />
                         ) : (
                           <Check size={20} />
                         )}
@@ -692,19 +764,19 @@ export default function UsernameDetailPage() {
                 )}
 
                 {buyStep === "success" && (
-                  <div className="text-center py-6 space-y-6">
-                    <div className="w-20 h-20 rounded-full bg-teal-500/10 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
+                  <div className="text-center py-8 space-y-6 animate-in fade-in zoom-in duration-500">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500/20 to-cyan-500/20 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
                       <Check size={40} className="text-teal-400" />
                     </div>
                     <div>
                       <h3 className="text-2xl font-black text-white">
-                        Purchase Successful!
+                        🎉 Purchase Successful!
                       </h3>
                       <p className="text-white/40 mt-2">@{raw} is now yours.</p>
                     </div>
                     <button
                       onClick={() => router.push("/dashboard?tab=names")}
-                      className="w-full py-4 rounded-2xl bg-teal-500 text-black font-black"
+                      className="w-full py-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-black font-black hover:from-teal-400 hover:to-cyan-400 transition-all hover:scale-105 active:scale-95"
                     >
                       View My Names
                     </button>
@@ -712,7 +784,7 @@ export default function UsernameDetailPage() {
                 )}
 
                 {buyStep === "error" && (
-                  <div className="text-center py-6 space-y-6">
+                  <div className="text-center py-8 space-y-6 animate-in fade-in duration-300">
                     <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center mx-auto">
                       <AlertCircle size={40} className="text-red-400" />
                     </div>
@@ -724,7 +796,7 @@ export default function UsernameDetailPage() {
                     </div>
                     <button
                       onClick={() => setBuyStep("detail")}
-                      className="w-full py-4 rounded-2xl border border-white/[0.1] text-white font-black"
+                      className="w-full py-4 rounded-xl border border-white/[0.1] bg-white/[0.02] text-white font-black hover:bg-white/[0.05] transition-all"
                     >
                       Try Again
                     </button>
@@ -732,8 +804,10 @@ export default function UsernameDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-[32px] border border-white/[0.06] bg-white/[0.02] p-12 text-center">
-                <Shield size={48} className="text-white/10 mx-auto mb-4" />
+              <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-12 text-center hover:border-white/[0.12] transition-all duration-300">
+                <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
+                  <Shield size={32} className="text-white/20" />
+                </div>
                 <p className="text-xl font-black text-white/40">
                   Not Listed for Sale
                 </p>
