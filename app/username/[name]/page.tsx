@@ -129,12 +129,12 @@ const TIER_CONFIG: Record<
     gradient: "from-slate-500/15 via-slate-500/5 to-transparent",
   },
   Bronze: {
-    cls: "text-teal-300",
+    cls: "text-orange-300",
     label: "Bronze",
     glow: "0 0 40px rgba(249,115,22,0.10), 0 0 80px rgba(249,115,22,0.04)",
     hex: "#f97316",
-    pill: "bg-teal-500/10 text-teal-300 border-teal-500/20",
-    gradient: "from-orange-500/15 via-teal-500/5 to-transparent",
+    pill: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+    gradient: "from-orange-500/15 via-orange-500/5 to-transparent",
   },
 };
 
