@@ -4,7 +4,6 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowLeft,
   Crown,
@@ -161,7 +160,8 @@ function OwnerAvatar({
         className="rounded-full overflow-hidden ring-2 ring-white/10 flex-shrink-0"
         style={{ width: size, height: size }}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={owner.avatar}
           alt={initial}
           width={size}
@@ -308,11 +308,11 @@ export default function UsernameDetailPage() {
       {/* ── Cover photo / hero ─────────────────────────────────────────────── */}
       <div className="relative h-48 sm:h-64 overflow-hidden">
         {owner?.coverPhoto ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={owner.coverPhoto}
             alt="cover"
-            fill
-            className="object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
           <div
