@@ -11,12 +11,13 @@ import { getTierFromLength } from "@/types/dashboard";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { name: string } },
+  { params }: { params: Promise<{ name: string }> },
 ) {
   try {
     await connectDB();
 
-    const raw = decodeURIComponent(params.name).toLowerCase().replace(/^@/, "");
+    const { name } = await params;
+    const raw = decodeURIComponent(name).toLowerCase().replace(/^@/, "");
 
     // ── 1. Find the username record ──────────────────────────────────────────
     const usernameDoc = await Username.findOne({
