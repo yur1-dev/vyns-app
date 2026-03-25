@@ -20,6 +20,7 @@ import {
   Activity,
   ChevronRight,
   Tag,
+  ExternalLink,
 } from "lucide-react";
 import DashboardHeader, {
   Notification,
@@ -90,47 +91,53 @@ const TIER_CONFIG: Record<
     hex: string;
     pill: string;
     bar: string;
+    dot: string;
   }
 > = {
   Diamond: {
     cls: "text-cyan-300",
     label: "Diamond",
-    glow: "0 0 40px rgba(34,211,238,0.12)",
+    glow: "0 0 20px rgba(34,211,238,0.08)",
     hex: "#22d3ee",
-    pill: "bg-cyan-500/10 text-cyan-300 border-cyan-500/25",
+    pill: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
     bar: "bg-cyan-400",
+    dot: "bg-cyan-400",
   },
   Platinum: {
     cls: "text-violet-300",
     label: "Platinum",
-    glow: "0 0 40px rgba(167,139,250,0.12)",
+    glow: "0 0 20px rgba(167,139,250,0.08)",
     hex: "#a78bfa",
-    pill: "bg-violet-500/10 text-violet-300 border-violet-500/25",
+    pill: "bg-violet-500/10 text-violet-300 border-violet-500/20",
     bar: "bg-violet-400",
+    dot: "bg-violet-400",
   },
   Gold: {
     cls: "text-amber-300",
     label: "Gold",
-    glow: "0 0 40px rgba(251,191,36,0.10)",
+    glow: "0 0 20px rgba(251,191,36,0.08)",
     hex: "#fbbf24",
-    pill: "bg-amber-500/10 text-amber-300 border-amber-500/25",
+    pill: "bg-amber-500/10 text-amber-300 border-amber-500/20",
     bar: "bg-amber-400",
+    dot: "bg-amber-400",
   },
   Silver: {
     cls: "text-slate-300",
     label: "Silver",
-    glow: "0 0 40px rgba(148,163,184,0.08)",
+    glow: "0 0 20px rgba(148,163,184,0.06)",
     hex: "#94a3b8",
-    pill: "bg-slate-500/10 text-slate-300 border-slate-500/25",
+    pill: "bg-slate-500/10 text-slate-300 border-slate-500/20",
     bar: "bg-slate-400",
+    dot: "bg-slate-400",
   },
   Bronze: {
     cls: "text-orange-300",
     label: "Bronze",
-    glow: "0 0 40px rgba(249,115,22,0.10)",
+    glow: "0 0 20px rgba(249,115,22,0.08)",
     hex: "#f97316",
-    pill: "bg-orange-500/10 text-orange-300 border-orange-500/25",
+    pill: "bg-orange-500/10 text-orange-300 border-orange-500/20",
     bar: "bg-orange-400",
+    dot: "bg-orange-400",
   },
 };
 
@@ -145,7 +152,7 @@ const TIER_ICONS: Record<string, string> = {
 // ── Pixel Avatar ─────────────────────────────────────────────────────────────
 function PixelAvatar({
   seed,
-  size = 64,
+  size = 32,
   themeColor = "#2dd4bf",
 }: {
   seed: string;
@@ -197,6 +204,31 @@ function PixelAvatar({
         borderRadius: "50%",
       }}
     />
+  );
+}
+
+// ── Stat Chip ────────────────────────────────────────────────────────────────
+function StatChip({
+  icon: Icon,
+  value,
+  label,
+  color,
+}: {
+  icon: any;
+  value: number | string;
+  label: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+      <Icon className={`w-3 h-3 ${color} shrink-0`} />
+      <span className="text-xs font-black text-white tabular-nums">
+        {value}
+      </span>
+      <span className="text-[9px] font-semibold text-white/20 uppercase tracking-wider">
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -339,14 +371,14 @@ export default function UsernameDetailPage() {
     onOpenProfile: () => router.push("/dashboard?tab=profile"),
   };
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#07070c]">
+      <div className="min-h-screen bg-[#060b14]">
         {user && <DashboardHeader {...headerProps} />}
-        <div className="flex items-center justify-center h-[calc(100vh-60px)]">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-5 h-5 text-teal-400 animate-spin" />
+        <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
             <p className="text-[10px] text-white/20 tracking-[0.2em] uppercase font-bold">
               Loading @{raw}
             </p>
@@ -356,30 +388,26 @@ export default function UsernameDetailPage() {
     );
   }
 
-  // ── Not found ─────────────────────────────────────────────────────────────
+  // ── Not found ────────────────────────────────────────────────────────────
   if (notFound || !data) {
     return (
-      <div className="min-h-screen bg-[#07070c]">
+      <div className="min-h-screen bg-[#060b14]">
         <DashboardHeader {...headerProps} />
-        <div className="flex items-center justify-center h-[calc(100vh-60px)]">
-          <div className="text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto">
-              <AlertCircle className="w-5 h-5 text-white/15" />
-            </div>
+        <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+          <div className="text-center space-y-3">
+            <AlertCircle className="w-8 h-8 text-white/10 mx-auto" />
             <div>
-              <p className="text-xl font-black text-white tracking-tight">
-                @{raw}
-              </p>
-              <p className="text-xs text-white/25 mt-1">
-                This username hasn't been registered yet
+              <p className="text-base font-black text-white">@{raw}</p>
+              <p className="text-xs text-white/25 mt-0.5">
+                Username not registered
               </p>
             </div>
             <Link
               href="/dashboard?tab=marketplace"
-              className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs font-bold transition-colors"
+              className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 text-xs font-bold transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back to Marketplace
+              <ArrowLeft className="w-3 h-3" />
+              Marketplace
             </Link>
           </div>
         </div>
@@ -405,51 +433,52 @@ export default function UsernameDetailPage() {
     null;
 
   const walletDisplay = (w: string) =>
-    w.length > 12 ? `${w.slice(0, 6)}…${w.slice(-4)}` : w;
+    w.length > 12 ? `${w.slice(0, 5)}…${w.slice(-4)}` : w;
 
   const fee = (listing.price ?? 0) * 0.025;
   const total = (listing.price ?? 0) * 1.025;
 
   return (
-    <div className="min-h-screen bg-[#07070c] text-white">
+    <div className="min-h-screen bg-[#060b14] text-white">
       <DashboardHeader {...headerProps} />
 
-      {/* Ambient glow */}
+      {/* Subtle ambient */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse 50% 30% at 50% 0%, ${tierCfg.hex}0d 0%, transparent 70%)`,
+          background: `radial-gradient(ellipse 60% 25% at 50% 0%, ${tierCfg.hex}08 0%, transparent 60%)`,
         }}
       />
 
-      {/* Thin top accent bar */}
+      {/* Tier accent bar */}
       <div
-        className="h-[2px] w-full"
+        className="h-px w-full"
         style={{
-          background: `linear-gradient(90deg, transparent 0%, ${tierCfg.hex}50 50%, transparent 100%)`,
+          background: `linear-gradient(90deg, transparent 0%, ${tierCfg.hex}40 50%, transparent 100%)`,
         }}
       />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-5">
         {/* Back nav */}
         <Link
           href="/dashboard?tab=marketplace"
-          className="inline-flex items-center gap-1.5 text-white/30 hover:text-white/70 text-[11px] font-bold uppercase tracking-widest transition-colors mb-5 group"
+          className="inline-flex items-center gap-1 text-white/25 hover:text-white/60 text-[10px] font-bold uppercase tracking-widest transition-colors mb-4 group"
         >
-          <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+          <ArrowLeft className="w-2.5 h-2.5 group-hover:-translate-x-0.5 transition-transform" />
           Marketplace
         </Link>
 
-        <div className="grid lg:grid-cols-[280px_1fr] gap-4">
-          {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
-          <div className="space-y-3">
-            {/* Profile Card */}
-            <div className="rounded-2xl border border-white/[0.06] bg-[#0d0d14] overflow-hidden">
-              {/* Mini cover */}
+        {/* ── MAIN LAYOUT ─────────────────────────────────────────────── */}
+        <div className="grid lg:grid-cols-[220px_1fr] gap-3">
+          {/* ── LEFT: compact owner panel ─────────────────────────────── */}
+          <div className="space-y-2">
+            {/* Owner card */}
+            <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden">
+              {/* Slim cover */}
               <div
-                className="h-14 relative"
+                className="h-8 relative"
                 style={{
-                  background: `linear-gradient(135deg, ${tierCfg.hex}1a 0%, transparent 80%)`,
+                  background: `linear-gradient(135deg, ${tierCfg.hex}18 0%, transparent 70%)`,
                 }}
               >
                 {owner?.coverPhoto && (
@@ -457,17 +486,17 @@ export default function UsernameDetailPage() {
                   <img
                     src={owner.coverPhoto}
                     alt="cover"
-                    className="absolute inset-0 w-full h-full object-cover opacity-40"
+                    className="absolute inset-0 w-full h-full object-cover opacity-30"
                   />
                 )}
               </div>
 
-              <div className="px-4 pb-4">
-                {/* Avatar row */}
-                <div className="flex items-end justify-between -mt-7 mb-3">
+              <div className="px-3 pb-3">
+                {/* Avatar + tier */}
+                <div className="flex items-end justify-between -mt-5 mb-2">
                   <div className="relative">
                     <div
-                      className="w-14 h-14 rounded-xl border-2 border-[#0d0d14] overflow-hidden bg-[#111118]"
+                      className="w-10 h-10 rounded-lg border-2 border-[#0a0f1a] overflow-hidden bg-[#111520]"
                       style={{ boxShadow: tierCfg.glow }}
                     >
                       {owner?.avatar ? (
@@ -480,34 +509,33 @@ export default function UsernameDetailPage() {
                       ) : (
                         <PixelAvatar
                           seed={owner?.activeUsername || raw}
-                          size={56}
+                          size={40}
                           themeColor={tierCfg.hex}
                         />
                       )}
                     </div>
-                    <div className="absolute -bottom-1 -right-1 bg-teal-500 text-black text-[7px] font-black px-1 py-0.5 rounded leading-none">
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-teal-500 text-black text-[6px] font-black px-1 py-px rounded leading-none">
                       LV{owner?.level ?? 1}
                     </div>
                   </div>
-
                   <span
-                    className={`text-[8px] font-black uppercase tracking-[0.15em] px-2 py-1 rounded-full border ${tierCfg.pill}`}
+                    className={`text-[7px] font-black uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
                   >
                     {tierIcon} {tierCfg.label}
                   </span>
                 </div>
 
                 {/* Name */}
-                <h2 className="text-base font-black text-white leading-tight">
+                <p className="text-sm font-black text-white leading-tight truncate">
                   {ownerDisplayName || `@${raw}`}
-                </h2>
+                </p>
                 {owner?.activeUsername && (
-                  <p className="text-[11px] font-semibold text-teal-400/70 mt-0.5">
+                  <p className="text-[10px] font-semibold text-teal-400/60 mt-0.5 truncate">
                     @{owner.activeUsername.replace(/^@/, "")}
                   </p>
                 )}
                 {owner?.bio && (
-                  <p className="text-xs text-white/30 mt-2 leading-relaxed">
+                  <p className="text-[10px] text-white/25 mt-1.5 leading-relaxed line-clamp-2">
                     {owner.bio}
                   </p>
                 )}
@@ -518,63 +546,48 @@ export default function UsernameDetailPage() {
                     onClick={() =>
                       handleCopy(owner?.wallet ?? listing.ownerWallet ?? "")
                     }
-                    className="mt-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] hover:border-white/[0.1] hover:bg-white/[0.05] transition-all w-full group"
+                    className="mt-2 flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/[0.025] border border-white/[0.05] hover:border-white/[0.09] transition-all w-full group"
                   >
-                    <Wallet className="w-2.5 h-2.5 text-white/20 shrink-0" />
-                    <span className="font-mono text-[10px] text-white/30 tracking-wide flex-1 text-left">
+                    <Wallet className="w-2 h-2 text-white/15 shrink-0" />
+                    <span className="font-mono text-[9px] text-white/25 tracking-wide flex-1 text-left">
                       {walletDisplay(
                         owner?.wallet ?? listing.ownerWallet ?? "",
                       )}
                     </span>
                     {copied ? (
-                      <Check className="w-2.5 h-2.5 text-teal-400" />
+                      <Check className="w-2 h-2 text-teal-400" />
                     ) : (
-                      <Copy className="w-2.5 h-2.5 text-white/15 group-hover:text-white/40 transition-colors" />
+                      <Copy className="w-2 h-2 text-white/15 group-hover:text-white/35 transition-colors" />
                     )}
                   </button>
                 )}
 
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-1.5 mt-3">
-                  {[
-                    {
-                      icon: Users,
-                      value: owner?.referrals ?? 0,
-                      label: "Refs",
-                      color: "text-sky-400",
-                    },
-                    {
-                      icon: Zap,
-                      value: owner?.stakedAmount ?? 0,
-                      label: "Staked",
-                      color: "text-violet-400",
-                    },
-                    {
-                      icon: TrendingUp,
-                      value: owner?.earnings ?? 0,
-                      label: "SOL",
-                      color: "text-teal-400",
-                    },
-                  ].map(({ icon: Icon, value, label, color }) => (
-                    <div
-                      key={label}
-                      className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-white/[0.025] border border-white/[0.04]"
-                    >
-                      <Icon className={`w-3 h-3 ${color}`} />
-                      <span className="text-xs font-black text-white tabular-nums">
-                        {value}
-                      </span>
-                      <span className="text-[8px] font-bold text-white/20 uppercase tracking-wider">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
+                {/* Stats */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <StatChip
+                    icon={Users}
+                    value={owner?.referrals ?? 0}
+                    label="Refs"
+                    color="text-sky-400"
+                  />
+                  <StatChip
+                    icon={Zap}
+                    value={owner?.stakedAmount ?? 0}
+                    label="Staked"
+                    color="text-violet-400"
+                  />
+                  <StatChip
+                    icon={TrendingUp}
+                    value={owner?.earnings ?? 0}
+                    label="SOL"
+                    color="text-teal-400"
+                  />
                 </div>
 
                 {/* Joined */}
                 {owner?.joinedAt && (
-                  <div className="mt-3 pt-3 border-t border-white/[0.04] flex items-center gap-1.5 text-[10px] text-white/20 font-semibold">
-                    <Calendar className="w-2.5 h-2.5" />
+                  <div className="mt-2 flex items-center gap-1 text-[9px] text-white/15 font-semibold">
+                    <Calendar className="w-2 h-2" />
                     Joined{" "}
                     {new Date(owner.joinedAt).toLocaleDateString("en-US", {
                       month: "short",
@@ -588,11 +601,11 @@ export default function UsernameDetailPage() {
             {/* Also Owns */}
             {owner &&
               owner.usernames.filter((u) => u.name !== raw).length > 0 && (
-                <div className="rounded-2xl border border-white/[0.06] bg-[#0d0d14] p-3.5">
-                  <p className="text-[8px] font-black text-white/15 uppercase tracking-[0.2em] mb-2.5">
+                <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] px-3 py-2.5">
+                  <p className="text-[7px] font-black text-white/15 uppercase tracking-[0.2em] mb-1.5">
                     Also Owns
                   </p>
-                  <div className="space-y-0.5">
+                  <div className="space-y-px">
                     {owner.usernames
                       .filter((u) => u.name !== raw)
                       .slice(0, 5)
@@ -602,18 +615,18 @@ export default function UsernameDetailPage() {
                           <Link
                             key={u.name}
                             href={`/username/${u.name}`}
-                            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-white/[0.04] transition-all group"
+                            className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-all group"
                           >
-                            <span className="text-xs font-bold text-white/40 group-hover:text-white/80 transition-colors">
+                            <span className="text-[11px] font-bold text-white/35 group-hover:text-white/70 transition-colors truncate">
                               @{u.name}
                             </span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
                               <span
-                                className={`text-[8px] font-black uppercase tracking-wider ${utc.cls}`}
+                                className={`text-[7px] font-black uppercase tracking-wide ${utc.cls}`}
                               >
                                 {u.tier}
                               </span>
-                              <ChevronRight className="w-2.5 h-2.5 text-white/10 group-hover:text-white/30 transition-colors" />
+                              <ChevronRight className="w-2 h-2 text-white/10 group-hover:text-white/25 transition-colors" />
                             </div>
                           </Link>
                         );
@@ -623,49 +636,47 @@ export default function UsernameDetailPage() {
               )}
           </div>
 
-          {/* ── RIGHT COLUMN ─────────────────────────────────────────────── */}
-          <div className="space-y-4">
-            {/* Hero username banner */}
+          {/* ── RIGHT: username detail ─────────────────────────────────── */}
+          <div className="space-y-3">
+            {/* Hero banner — compact */}
             <div
-              className="rounded-2xl border border-white/[0.06] bg-[#0d0d14] overflow-hidden relative"
+              className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden relative"
               style={{ boxShadow: tierCfg.glow }}
             >
-              {/* Top accent */}
+              {/* Top accent line */}
               <div
                 className="absolute top-0 left-0 right-0 h-px"
                 style={{
-                  background: `linear-gradient(90deg, transparent, ${tierCfg.hex}60, transparent)`,
+                  background: `linear-gradient(90deg, transparent, ${tierCfg.hex}50, transparent)`,
                 }}
               />
 
-              {/* Decorative crown */}
-              <div className="absolute bottom-2 right-4 opacity-[0.04] pointer-events-none select-none">
-                <Crown size={100} style={{ color: tierCfg.hex }} />
+              {/* BG watermark */}
+              <div className="absolute bottom-0 right-3 opacity-[0.035] pointer-events-none select-none">
+                <Crown size={72} style={{ color: tierCfg.hex }} />
               </div>
 
-              <div className="px-6 py-5">
-                {/* Tags row */}
-                <div className="flex flex-wrap items-center gap-1.5 mb-4">
+              <div className="px-5 py-4">
+                {/* Pills row */}
+                <div className="flex flex-wrap items-center gap-1 mb-3">
                   <span
-                    className={`text-[8px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full border ${tierCfg.pill}`}
+                    className={`text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border ${tierCfg.pill}`}
                   >
                     {tierIcon} {tierCfg.label}
                   </span>
-                  <span className="text-[8px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
+                  <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
                     {raw.length} chars
                   </span>
-                  <span className="text-[8px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
-                    Level {usernameLevel}
+                  <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
+                    Lv{usernameLevel}
                   </span>
                   {staked && (
-                    <span className="text-[8px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-teal-500/25 bg-teal-500/8 text-teal-300 flex items-center gap-1">
-                      <Zap className="w-2 h-2" />
-                      Staked
+                    <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-teal-500/20 bg-teal-500/8 text-teal-300 flex items-center gap-0.5">
+                      <Zap className="w-1.5 h-1.5" /> Staked
                     </span>
                   )}
                   {claimedAt && (
-                    <span className="text-[8px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/25">
-                      Claimed{" "}
+                    <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-white/20">
                       {new Date(claimedAt).toLocaleDateString("en-US", {
                         month: "short",
                         year: "numeric",
@@ -674,30 +685,30 @@ export default function UsernameDetailPage() {
                   )}
                 </div>
 
-                {/* Big username */}
+                {/* Username */}
                 <h1
-                  className="text-5xl sm:text-7xl font-black tracking-tight leading-none"
+                  className="text-4xl sm:text-5xl font-black tracking-tight leading-none"
                   style={{ color: tierCfg.hex }}
                 >
                   @{raw}
                 </h1>
 
-                {/* Copy username */}
+                {/* Copy */}
                 <button
                   onClick={() => handleCopy(`@${raw}`)}
-                  className="mt-4 inline-flex items-center gap-1.5 text-[11px] text-white/25 hover:text-white/60 font-bold transition-colors"
+                  className="mt-2.5 inline-flex items-center gap-1 text-[10px] text-white/20 hover:text-white/50 font-bold transition-colors"
                 >
                   {copied ? (
-                    <Check className="w-3 h-3 text-teal-400" />
+                    <Check className="w-2.5 h-2.5 text-teal-400" />
                   ) : (
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-2.5 h-2.5" />
                   )}
                   Copy username
                 </button>
               </div>
             </div>
 
-            {/* Meta chips */}
+            {/* Meta chips — single row */}
             <div className="grid grid-cols-4 gap-2">
               {[
                 {
@@ -707,10 +718,10 @@ export default function UsernameDetailPage() {
                   color: tierCfg.cls,
                 },
                 {
-                  label: "Characters",
+                  label: "Chars",
                   value: raw.length,
                   icon: Activity,
-                  color: "text-white/40",
+                  color: "text-white/35",
                 },
                 {
                   label: "Level",
@@ -730,18 +741,18 @@ export default function UsernameDetailPage() {
                     ? "text-teal-400"
                     : listing.isListed
                       ? "text-amber-400"
-                      : "text-white/25",
+                      : "text-white/20",
                 },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-white/[0.05] bg-[#0d0d14] px-3 py-3 flex flex-col gap-1.5"
+                  className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-3 py-2.5 flex flex-col gap-1"
                 >
                   <Icon className={`w-3 h-3 ${color}`} />
                   <p className="text-sm font-black text-white leading-none">
                     {value}
                   </p>
-                  <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-white/18">
+                  <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/18">
                     {label}
                   </p>
                 </div>
@@ -750,18 +761,18 @@ export default function UsernameDetailPage() {
 
             {/* Listing / Buy card */}
             {listing.isListed ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0d0d14] overflow-hidden relative">
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/50 to-transparent" />
+              <div className="rounded-xl border border-white/[0.06] bg-[#0a0f1a] overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/40 to-transparent" />
 
-                <div className="p-5">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2">
+                <div className="p-4">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-60" />
                         <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-400" />
                       </span>
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400">
+                      <span className="text-[8px] font-black uppercase tracking-[0.18em] text-teal-400">
                         Listed for Sale
                       </span>
                     </div>
@@ -770,102 +781,102 @@ export default function UsernameDetailPage() {
                         Since{" "}
                         {new Date(listing.listedAt).toLocaleDateString(
                           "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          },
+                          { month: "short", day: "numeric", year: "numeric" },
                         )}
                       </span>
                     )}
                   </div>
 
-                  {/* Price */}
-                  <div className="mb-5">
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/15 mb-1.5">
-                      Listed Price
-                    </p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-5xl font-black text-white tracking-tight tabular-nums">
-                        {listing.price}
-                      </span>
-                      <span className="text-base font-black text-white/20 uppercase">
-                        SOL
-                      </span>
+                  {/* Price + action in same row */}
+                  <div className="flex items-end justify-between gap-4">
+                    {/* Price */}
+                    <div>
+                      <p className="text-[8px] font-black uppercase tracking-[0.18em] text-white/15 mb-1">
+                        Price
+                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-4xl font-black text-white tabular-nums">
+                          {listing.price}
+                        </span>
+                        <span className="text-sm font-black text-white/20 uppercase">
+                          SOL
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Buttons */}
+                    {buyStep === "detail" && (
+                      <div className="flex gap-1.5 shrink-0">
+                        {!phantomConnected ? (
+                          <button
+                            onClick={handleConnectWallet}
+                            className="h-9 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
+                          >
+                            <Wallet size={11} />
+                            Connect Wallet
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setBuyStep("confirm")}
+                            className="h-9 px-4 rounded-lg bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-[11px] font-black transition-all flex items-center gap-1.5 shadow-lg shadow-teal-500/15"
+                          >
+                            <ShoppingCart size={11} />
+                            Buy Now
+                          </button>
+                        )}
+                        <button className="h-9 px-3 rounded-lg border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] text-white/35 hover:text-white text-[11px] font-black transition-all">
+                          Offer
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Buy steps */}
-                  {buyStep === "detail" && (
-                    <div className="flex gap-2">
-                      {!phantomConnected ? (
-                        <button
-                          onClick={handleConnectWallet}
-                          className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-teal-500/15"
-                        >
-                          <Wallet size={13} />
-                          Connect Wallet to Buy
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setBuyStep("confirm")}
-                          className="flex-1 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-black text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-teal-500/15"
-                        >
-                          <ShoppingCart size={13} />
-                          Buy Now
-                        </button>
-                      )}
-                      <button className="px-4 py-3 rounded-xl border border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04] text-white/40 hover:text-white text-xs font-black transition-all">
-                        Make Offer
-                      </button>
-                    </div>
-                  )}
-
+                  {/* Confirm step */}
                   {buyStep === "confirm" && (
-                    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                      <div className="rounded-xl bg-white/[0.025] border border-white/[0.05] divide-y divide-white/[0.04] overflow-hidden">
-                        <div className="flex justify-between items-center px-4 py-3">
-                          <span className="text-xs text-white/35 font-semibold">
+                    <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <div className="rounded-lg bg-white/[0.02] border border-white/[0.05] divide-y divide-white/[0.04] overflow-hidden">
+                        <div className="flex justify-between items-center px-3 py-2.5">
+                          <span className="text-[11px] text-white/30 font-semibold">
                             Listing Price
                           </span>
-                          <span className="text-xs font-black text-white">
+                          <span className="text-[11px] font-black text-white">
                             {listing.price} SOL
                           </span>
                         </div>
-                        <div className="flex justify-between items-center px-4 py-3">
-                          <span className="text-xs text-white/35 font-semibold">
+                        <div className="flex justify-between items-center px-3 py-2.5">
+                          <span className="text-[11px] text-white/30 font-semibold">
                             Network Fee (2.5%)
                           </span>
-                          <span className="text-xs font-black text-white/40">
+                          <span className="text-[11px] font-black text-white/35">
                             {fee.toFixed(4)} SOL
                           </span>
                         </div>
-                        <div className="flex justify-between items-center px-4 py-3 bg-teal-500/[0.04]">
-                          <span className="text-xs font-black text-white">
-                            Total Due
+                        <div className="flex justify-between items-center px-3 py-2.5 bg-teal-500/[0.04]">
+                          <span className="text-[11px] font-black text-white">
+                            Total
                           </span>
-                          <span className="text-lg font-black text-teal-400 tabular-nums">
+                          <span className="text-base font-black text-teal-400 tabular-nums">
                             {total.toFixed(4)} SOL
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         <button
                           onClick={() => setBuyStep("detail")}
-                          className="flex-1 py-3 rounded-xl border border-white/[0.07] bg-white/[0.02] text-white/35 hover:text-white text-xs font-black transition-all"
+                          className="flex-1 py-2.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-white/30 hover:text-white text-[11px] font-black transition-all"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={handleBuy}
                           disabled={buyLoading}
-                          className="flex-[2] py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-xs font-black transition-all flex items-center justify-center gap-1.5"
+                          className="flex-[2] py-2.5 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-[11px] font-black transition-all flex items-center justify-center gap-1.5"
                         >
                           {buyLoading ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
-                            <Check size={13} />
+                            <Check size={11} />
                           )}
                           Confirm Purchase
                         </button>
@@ -873,65 +884,70 @@ export default function UsernameDetailPage() {
                     </div>
                   )}
 
+                  {/* Success */}
                   {buyStep === "success" && (
-                    <div className="text-center py-3 space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                      <div
-                        className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto"
-                        style={{ boxShadow: "0 0 30px rgba(20,184,166,0.12)" }}
-                      >
-                        <Check size={20} className="text-teal-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-black text-white">
-                          Purchase Successful
-                        </h3>
-                        <p className="text-xs text-white/30 mt-0.5">
-                          @{raw} is now yours
-                        </p>
+                    <div className="mt-3 py-2 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center">
+                          <Check size={13} className="text-teal-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white">
+                            Purchase Successful
+                          </p>
+                          <p className="text-[9px] text-white/25">
+                            @{raw} is now yours
+                          </p>
+                        </div>
                       </div>
                       <button
                         onClick={() => router.push("/dashboard?tab=names")}
-                        className="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-black text-xs font-black transition-all"
+                        className="h-8 px-3 rounded-lg bg-teal-500 hover:bg-teal-400 text-black text-[11px] font-black transition-all"
                       >
-                        View My Names
+                        View Names
                       </button>
                     </div>
                   )}
 
+                  {/* Error */}
                   {buyStep === "error" && (
-                    <div className="text-center py-3 space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                      <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-                        <AlertCircle size={20} className="text-red-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-black text-white">
-                          Purchase Failed
-                        </h3>
-                        <p className="text-xs text-white/30 mt-0.5">
-                          {buyError}
-                        </p>
+                    <div className="mt-3 py-2 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                          <AlertCircle size={13} className="text-red-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-white">
+                            Purchase Failed
+                          </p>
+                          <p className="text-[9px] text-white/25 max-w-[160px] truncate">
+                            {buyError}
+                          </p>
+                        </div>
                       </div>
                       <button
                         onClick={() => setBuyStep("detail")}
-                        className="w-full py-3 rounded-xl border border-white/[0.07] text-white text-xs font-black transition-all hover:bg-white/[0.04]"
+                        className="h-8 px-3 rounded-lg border border-white/[0.07] text-white text-[11px] font-black transition-all hover:bg-white/[0.04]"
                       >
-                        Try Again
+                        Retry
                       </button>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/[0.06] bg-[#0d0d14] p-6 text-center">
-                <div className="w-10 h-10 rounded-xl bg-white/[0.025] border border-white/[0.05] flex items-center justify-center mx-auto mb-3">
-                  <Shield size={16} className="text-white/12" />
+              <div className="rounded-xl border border-white/[0.05] bg-[#0a0f1a] px-4 py-3 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shrink-0">
+                  <Shield size={13} className="text-white/12" />
                 </div>
-                <p className="text-sm font-black text-white/30">
-                  Not Listed for Sale
-                </p>
-                <p className="text-[11px] text-white/15 mt-0.5">
-                  This username is held by its owner
-                </p>
+                <div>
+                  <p className="text-xs font-black text-white/25">
+                    Not Listed for Sale
+                  </p>
+                  <p className="text-[10px] text-white/12">
+                    This username is held by its owner
+                  </p>
+                </div>
               </div>
             )}
           </div>
