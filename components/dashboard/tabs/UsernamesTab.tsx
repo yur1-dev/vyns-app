@@ -15,6 +15,7 @@ import {
   Tag,
   X,
   DollarSign,
+  Share2,
 } from "lucide-react";
 import {
   Card,
@@ -26,6 +27,9 @@ import {
 } from "@/components/dashboard/ui";
 import { TIER_PRICING } from "@/types/dashboard";
 import type { UsernameItem, UsernameTier, TabId } from "@/types/dashboard";
+
+// ── Correct base URL for the app ─────────────────────────────────────────────
+const APP_BASE = "https://vyns-app.vercel.app";
 
 interface Props {
   usernames: UsernameItem[];
@@ -193,9 +197,9 @@ function UsernameCard({
   listingId: string | null;
   delistingId: string | null;
 }) {
+  const [copied, setCopied] = useState(false);
   const displayName = (u as any).username ?? u.name ?? "";
 
-  // FIX: Always recalculate tier from actual name length — never trust DB value
   const tierKey = tierFromLen(displayName.length) as UsernameTier;
   const tierCfg = TIER_CONFIG[tierKey] ?? TIER_CONFIG.Bronze;
   const pricing = TIER_PRICING[tierKey];
@@ -222,6 +226,15 @@ function UsernameCard({
 
   const isListingThis = listingId === displayName;
   const isDelistingThis = delistingId === displayName;
+
+  // FIXED: correct URL pointing to the actual username listing page
+  const profileUrl = `${APP_BASE}/username/${encodeURIComponent(displayName)}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(profileUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <Card
@@ -251,14 +264,30 @@ function UsernameCard({
             </Pill>
           )}
         </div>
-        <a
-          href={`https://vyns.io/${displayName}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="p-1.5 rounded-lg text-white/15 hover:text-white/60 hover:bg-white/[0.05] opacity-0 group-hover:opacity-100 transition-all"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+
+        {/* FIXED: two action icons — copy link + open in new tab, both pointing to correct URL */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          <button
+            onClick={handleCopy}
+            title="Copy marketplace link"
+            className="p-1.5 rounded-lg text-white/15 hover:text-white/60 hover:bg-white/[0.05] transition-all"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-teal-400" />
+            ) : (
+              <Share2 className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View on marketplace"
+            className="p-1.5 rounded-lg text-white/15 hover:text-white/60 hover:bg-white/[0.05] transition-all"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
 
       {/* Username */}
@@ -366,12 +395,21 @@ function UsernameCard({
       {isListed && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/[0.06] border border-amber-500/15 -mt-1">
           <DollarSign className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-400/80">
+          <p className="text-xs text-amber-400/80 flex-1">
             Listed on marketplace for{" "}
             <span className="font-semibold">
               {(u as any).listedPrice ?? pricing?.price} SOL
             </span>
           </p>
+          {/* FIXED: direct link to the listing page */}
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5 shrink-0"
+          >
+            View <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       )}
     </Card>
@@ -411,7 +449,6 @@ export default function UsernamesTab({
 
   const filtered = usernames.filter((u) => {
     const name = ((u as any).username ?? u.name ?? "").toLowerCase();
-    // FIX: Filter by recalculated tier, not stored tier
     const recalcTier = tierFromLen(name.replace(/^@/, "").length);
     return (
       name.includes(search.toLowerCase()) &&
@@ -447,7 +484,6 @@ export default function UsernamesTab({
   const activeU = activeUsername
     ? usernames.find((u) => ((u as any).username ?? u.name) === activeUsername)
     : null;
-  // FIX: Recalculate active username tier from length too
   const activeTierKey = activeUsername
     ? (tierFromLen(activeUsername.length) as UsernameTier)
     : null;
@@ -619,7 +655,6 @@ export default function UsernamesTab({
                   onSetActive={() => handleSetActive(u)}
                   settingActive={settingId === name}
                   onList={() => {
-                    // FIX: Use recalculated tier for pricing too
                     const recalcTier = tierFromLen(name.length);
                     const pricing = TIER_PRICING[recalcTier as UsernameTier];
                     setListModal({

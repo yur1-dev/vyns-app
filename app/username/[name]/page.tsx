@@ -399,6 +399,7 @@ export default function UsernamePage() {
   const [currentWallet, setCurrentWallet] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showBuy, setShowBuy] = useState(false);
+  // FIXED: notFound only fires if both listing AND profile are missing
   const [notFound, setNotFound] = useState(false);
   const [phantomConnected, setPhantomConnected] = useState(false);
 
@@ -406,7 +407,6 @@ export default function UsernamePage() {
   const cfg = TIER_CONFIG[tier];
   const yieldPct = getYield(tier);
 
-  // Check if Phantom is already connected on mount
   useEffect(() => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (solana?.isPhantom && solana.isConnected) {
@@ -416,25 +416,43 @@ export default function UsernamePage() {
 
   useEffect(() => {
     if (!username) return;
+
     Promise.all([
-      fetch(
-        `/api/marketplace/listing?username=${encodeURIComponent(username)}`,
-      ).then((r) => r.json()),
+      // 1. Listing data (may or may not exist)
+      fetch(`/api/marketplace/listing?username=${encodeURIComponent(username)}`)
+        .then((r) => r.json())
+        .catch(() => null),
+
+      // 2. Current logged-in user
       fetch("/api/user/me", { credentials: "include" })
         .then((r) => r.json())
         .catch(() => null),
+
+      // FIXED: fetch public profile by the username in the URL, not by owner wallet.
+      // This correctly returns the owner's profile details regardless of listing state.
       fetch(`/api/user/public?username=${encodeURIComponent(username)}`)
         .then((r) => r.json())
         .catch(() => null),
     ])
       .then(([listingData, userData, profileData]) => {
-        if (listingData.listing) setListing(listingData.listing);
-        else setNotFound(true);
+        // Listing is optional — page still loads without it
+        if (listingData?.listing) {
+          setListing(listingData.listing);
+        }
+
         if (userData?.user) {
           setCurrentUserId(userData.user._id ?? null);
           setCurrentWallet(userData.user.wallet ?? null);
         }
-        if (profileData?.user) setPublicProfile(profileData.user);
+
+        if (profileData?.user) {
+          setPublicProfile(profileData.user);
+        }
+
+        // FIXED: only show not-found if there's genuinely nothing — no listing AND no profile
+        if (!listingData?.listing && !profileData?.user) {
+          setNotFound(true);
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -451,12 +469,13 @@ export default function UsernamePage() {
   );
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`https://vyns.io/${username}`);
+    navigator.clipboard.writeText(
+      `https://vyns-app.vercel.app/username/${username}`,
+    );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // FIX: Connect Phantom + persist wallet server-side so dashboard header updates
   const handleConnectWallet = async () => {
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (!solana?.isPhantom) {
@@ -466,7 +485,6 @@ export default function UsernamePage() {
     const resp = await solana.connect();
     const pk = resp.publicKey.toString();
     setPhantomConnected(true);
-    // Persist to server so dashboard "Connect Wallet" button disappears on next load
     try {
       await fetch("/api/user/link-wallet", {
         method: "POST",
@@ -475,12 +493,11 @@ export default function UsernamePage() {
         body: JSON.stringify({ wallet: pk }),
       });
     } catch {
-      // Non-fatal — wallet is still connected locally for this purchase
+      // Non-fatal
     }
   };
 
   const handleBuy = async (): Promise<{ success: boolean; error?: string }> => {
-    // Re-check wallet still connected before proceeding
     const solana = (window as any).phantom?.solana ?? (window as any).solana;
     if (!solana?.isPhantom || !solana.isConnected) {
       setPhantomConnected(false);
@@ -517,7 +534,8 @@ export default function UsernamePage() {
   const xpProgress = nextTier
     ? ((xp - xpTier.min) / (nextTier.min - xpTier.min)) * 100
     : 100;
-  const usernames = publicProfile?.usernames ?? [];
+  // FIXED: pull owner's usernames from their public profile, not the listing object
+  const ownerUsernames = publicProfile?.usernames ?? [];
   const activity = publicProfile?.activity ?? [];
   const referralCount = publicProfile?.referrals ?? 0;
   const totalEarnings = publicProfile?.earnings?.allTime ?? 0;
@@ -550,6 +568,7 @@ export default function UsernamePage() {
         </Link>
 
         {notFound ? (
+          // FIXED: more helpful not-found — username exists but just isn't listed
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-10 text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto">
               <Tag className="h-5 w-5 text-white/15" />
@@ -559,7 +578,7 @@ export default function UsernamePage() {
                 @{username}
               </p>
               <p className="text-sm text-white/30">
-                This username isn't listed for sale.
+                This username doesn&apos;t exist or isn&apos;t listed for sale.
               </p>
             </div>
             <Link
@@ -614,7 +633,7 @@ export default function UsernamePage() {
                     )}
                   </button>
                   <a
-                    href={`https://vyns.io/${username}`}
+                    href={`https://vyns-app.vercel.app/username/${username}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-xl border border-white/[0.07] bg-black/20 text-white/25 hover:text-white/60 hover:border-white/[0.12] transition-all backdrop-blur-sm"
@@ -702,13 +721,13 @@ export default function UsernamePage() {
               </div>
             </div>
 
-            {/* STATS */}
+            {/* STATS — pulled from owner's public profile */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 {
                   icon: Crown,
                   label: "Usernames",
-                  value: usernames.length,
+                  value: ownerUsernames.length || "—",
                   accent: themeColor,
                 },
                 {
@@ -748,8 +767,8 @@ export default function UsernamePage() {
               ))}
             </div>
 
-            {/* REGISTERED USERNAMES */}
-            {usernames.length > 0 && (
+            {/* REGISTERED USERNAMES — from owner's public profile */}
+            {ownerUsernames.length > 0 && (
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Layers
@@ -763,11 +782,11 @@ export default function UsernamePage() {
                     className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                     style={{ background: `${themeColor}15`, color: themeColor }}
                   >
-                    {usernames.length}
+                    {ownerUsernames.length}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {usernames.map((u: any) => {
+                  {ownerUsernames.map((u: any) => {
                     const hex = TIER_HEX[u.tier] ?? "#64748b";
                     return (
                       <div
@@ -852,104 +871,115 @@ export default function UsernamePage() {
               </div>
             )}
 
-            {/* LISTING / BUY SECTION */}
-            <div
-              className={`rounded-2xl border ${cfg.border} bg-white/[0.02] overflow-hidden`}
-            >
+            {/* LISTING / BUY SECTION — only shown if there's an active listing */}
+            {listing ? (
               <div
-                className="h-px w-full"
-                style={{
-                  background: `linear-gradient(90deg, transparent 0%, ${cfg.glow}80 50%, transparent 100%)`,
-                }}
-              />
-              <div className="p-5">
-                <p className="text-[10px] uppercase tracking-widest text-white/25 font-medium mb-4">
-                  Listing Details
-                </p>
-                <div className="grid grid-cols-4 gap-2 mb-4">
-                  {[
-                    {
-                      label: "Price",
-                      value: `${listing?.price ?? "—"}`,
-                      sub: "SOL",
-                      accent: "text-white",
-                    },
-                    {
-                      label: "Length",
-                      value: `${username.length}`,
-                      sub: "chars",
-                      accent: "text-white/60",
-                    },
-                    {
-                      label: "Yield",
-                      value: yieldPct > 0 ? `${yieldPct}%` : "—",
-                      sub: "APY",
-                      accent: "text-teal-400",
-                    },
-                    {
-                      label: "Level",
-                      value: `${listing?.level ?? 1}`,
-                      sub: "lvl",
-                      accent: "text-white/60",
-                    },
-                  ].map(({ label, value, sub, accent }) => (
-                    <div
-                      key={label}
-                      className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05] text-center"
-                    >
-                      <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1">
-                        {label}
-                      </p>
-                      <p
-                        className={`text-lg font-bold tabular-nums leading-none ${accent}`}
+                className={`rounded-2xl border ${cfg.border} bg-white/[0.02] overflow-hidden`}
+              >
+                <div
+                  className="h-px w-full"
+                  style={{
+                    background: `linear-gradient(90deg, transparent 0%, ${cfg.glow}80 50%, transparent 100%)`,
+                  }}
+                />
+                <div className="p-5">
+                  <p className="text-[10px] uppercase tracking-widest text-white/25 font-medium mb-4">
+                    Listing Details
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {[
+                      {
+                        label: "Price",
+                        value: `${listing?.price ?? "—"}`,
+                        sub: "SOL",
+                        accent: "text-white",
+                      },
+                      {
+                        label: "Length",
+                        value: `${username.length}`,
+                        sub: "chars",
+                        accent: "text-white/60",
+                      },
+                      {
+                        label: "Yield",
+                        value: yieldPct > 0 ? `${yieldPct}%` : "—",
+                        sub: "APY",
+                        accent: "text-teal-400",
+                      },
+                      {
+                        label: "Level",
+                        value: `${listing?.level ?? 1}`,
+                        sub: "lvl",
+                        accent: "text-white/60",
+                      },
+                    ].map(({ label, value, sub, accent }) => (
+                      <div
+                        key={label}
+                        className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05] text-center"
                       >
-                        {value}
-                      </p>
-                      <p className="text-[10px] text-white/20 mt-0.5">{sub}</p>
+                        <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1">
+                          {label}
+                        </p>
+                        <p
+                          className={`text-lg font-bold tabular-nums leading-none ${accent}`}
+                        >
+                          {value}
+                        </p>
+                        <p className="text-[10px] text-white/20 mt-0.5">
+                          {sub}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {listing?.listedByWallet && (
+                    <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-4">
+                      <div className="flex items-center gap-2 text-white/30 text-xs">
+                        <Shield className="h-3.5 w-3.5" />
+                        {isOwner ? "Listed by you" : "Listed by"}
+                      </div>
+                      <span className="font-mono text-xs text-white/50">
+                        {listing.listedByWallet.length > 16
+                          ? `${listing.listedByWallet.slice(0, 6)}…${listing.listedByWallet.slice(-6)}`
+                          : listing.listedByWallet}
+                      </span>
                     </div>
-                  ))}
+                  )}
+
+                  {isOwner ? (
+                    <div className="w-full py-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-white/30 text-sm font-medium flex items-center justify-center gap-2">
+                      <Check className="h-4 w-4 text-teal-400" />
+                      This is your listing — go to Usernames tab to delist
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const solana =
+                          (window as any).phantom?.solana ??
+                          (window as any).solana;
+                        const connected = !!(
+                          solana?.isPhantom && solana.isConnected
+                        );
+                        setPhantomConnected(connected);
+                        setShowBuy(true);
+                      }}
+                      className={`w-full py-3.5 rounded-2xl ${cfg.bg} border ${cfg.border} ${cfg.cls} text-sm font-bold hover:opacity-80 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2`}
+                    >
+                      <Tag className="h-4 w-4" />
+                      Buy @{username} — {listing?.price} SOL
+                    </button>
+                  )}
                 </div>
-
-                {listing?.listedByWallet && (
-                  <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] mb-4">
-                    <div className="flex items-center gap-2 text-white/30 text-xs">
-                      <Shield className="h-3.5 w-3.5" />
-                      {isOwner ? "Listed by you" : "Listed by"}
-                    </div>
-                    <span className="font-mono text-xs text-white/50">
-                      {listing.listedByWallet.length > 16
-                        ? `${listing.listedByWallet.slice(0, 6)}…${listing.listedByWallet.slice(-6)}`
-                        : listing.listedByWallet}
-                    </span>
-                  </div>
-                )}
-
-                {isOwner ? (
-                  <div className="w-full py-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-white/30 text-sm font-medium flex items-center justify-center gap-2">
-                    <Check className="h-4 w-4 text-teal-400" />
-                    This is your listing — go to Usernames tab to delist
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      // FIX: Re-check actual Phantom state at click time
-                      const solana =
-                        (window as any).phantom?.solana ??
-                        (window as any).solana;
-                      const connected = !!(
-                        solana?.isPhantom && solana.isConnected
-                      );
-                      setPhantomConnected(connected);
-                      setShowBuy(true);
-                    }}
-                    className={`w-full py-3.5 rounded-2xl ${cfg.bg} border ${cfg.border} ${cfg.cls} text-sm font-bold hover:opacity-80 active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2`}
-                  >
-                    <Tag className="h-4 w-4" />
-                    Buy @{username} — {listing?.price} SOL
-                  </button>
-                )}
               </div>
-            </div>
+            ) : (
+              // Username exists and has a public profile but is NOT listed for sale
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 text-center space-y-2">
+                <Tag className="h-5 w-5 mx-auto text-white/15" />
+                <p className="text-sm text-white/30">
+                  @{username} is not currently listed for sale.
+                </p>
+              </div>
+            )}
 
             {/* BENEFIT CARDS */}
             <div className="grid grid-cols-3 gap-3">
