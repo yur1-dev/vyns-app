@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,16 +13,13 @@ import {
   Check,
   Loader2,
   ExternalLink,
-  Star,
   Users,
-  Twitter,
-  Globe,
   Calendar,
   TrendingUp,
-  Tag,
   ShoppingCart,
   AlertCircle,
   Wallet,
+  Activity,
 } from "lucide-react";
 import DashboardHeader, {
   Notification,
@@ -86,149 +83,100 @@ interface UsernameData {
 
 const TIER_CONFIG: Record<
   string,
-  { cls: string; bg: string; label: string; glow: string }
+  { cls: string; bg: string; label: string; glow: string; hex: string }
 > = {
   Diamond: {
     cls: "text-cyan-400 border-cyan-500/40",
     bg: "from-cyan-500/20 to-cyan-900/10",
     label: "💎 Diamond",
     glow: "shadow-cyan-500/20",
+    hex: "#22d3ee",
   },
   Platinum: {
     cls: "text-purple-300 border-purple-500/40",
     bg: "from-purple-500/20 to-purple-900/10",
     label: "⬡ Platinum",
     glow: "shadow-purple-500/20",
+    hex: "#a78bfa",
   },
   Gold: {
     cls: "text-amber-400 border-amber-500/40",
     bg: "from-amber-500/20 to-amber-900/10",
     label: "✦ Gold",
     glow: "shadow-amber-500/20",
+    hex: "#fbbf24",
   },
   Silver: {
     cls: "text-slate-300 border-slate-500/40",
     bg: "from-slate-500/20 to-slate-900/10",
     label: "◈ Silver",
     glow: "shadow-slate-500/20",
+    hex: "#94a3b8",
   },
   Bronze: {
     cls: "text-orange-400 border-orange-500/40",
     bg: "from-orange-500/20 to-orange-900/10",
     label: "◉ Bronze",
     glow: "shadow-orange-500/20",
+    hex: "#f97316",
   },
 };
 
-// ── XP bar ───────────────────────────────────────────────────────────────────
-function XpBar({ xp, level }: { xp: number; level: number }) {
-  const xpForNext = level * 500;
-  const pct = Math.min((xp / xpForNext) * 100, 100);
-  return (
-    <div>
-      <div className="flex justify-between text-xs text-white/40 mb-1.5">
-        <span>Level {level}</span>
-        <span>
-          {xp.toLocaleString()} / {xpForNext.toLocaleString()} XP
-        </span>
-      </div>
-      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-teal-500 to-indigo-500 transition-all duration-700"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── Owner avatar ─────────────────────────────────────────────────────────────
-function OwnerAvatar({
-  owner,
-  size = 72,
+// ── Pixel Avatar ──────────────────────────────────────────────────────────────
+function PixelAvatar({
+  seed,
+  size = 80,
+  themeColor = "#2dd4bf",
 }: {
-  owner: OwnerProfile;
+  seed: string;
   size?: number;
+  themeColor?: string;
 }) {
-  const [imgError, setImgError] = useState(false);
-  const initial = (owner.activeUsername ??
-    owner.displayName ??
-    owner.name ??
-    "?")[0]
-    .toUpperCase()
-    .replace("@", "");
-
-  if (owner.avatar && !imgError) {
-    return (
-      <div
-        className="rounded-full overflow-hidden ring-2 ring-white/10 flex-shrink-0"
-        style={{ width: size, height: size }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={owner.avatar}
-          alt={initial}
-          width={size}
-          height={size}
-          className="object-cover w-full h-full"
-          onError={() => setImgError(true)}
-        />
-      </div>
-    );
-  }
-
-  // Fallback: styled initial
-  const colours = [
-    "from-teal-500 to-cyan-600",
-    "from-indigo-500 to-purple-600",
-    "from-amber-500 to-orange-600",
-    "from-pink-500 to-rose-600",
-    "from-emerald-500 to-teal-600",
-  ];
-  const colour = colours[initial.charCodeAt(0) % colours.length];
-
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !seed) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const G = 8;
+    canvas.width = G;
+    canvas.height = G;
+    let h = 0;
+    for (let i = 0; i < seed.length; i++)
+      h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+    const rand = (n: number) => {
+      h = (Math.imul(1664525, h) + 1013904223) | 0;
+      return Math.abs(h) % n;
+    };
+    const hue = rand(360);
+    const hue2 = (hue + 40 + rand(80)) % 360;
+    ctx.fillStyle = `hsl(${hue},60%,8%)`;
+    ctx.fillRect(0, 0, G, G);
+    for (let y = 0; y < G; y++)
+      for (let x = 0; x < Math.ceil(G / 2); x++) {
+        if (rand(3) !== 0) {
+          ctx.fillStyle =
+            rand(4) === 0
+              ? themeColor
+              : `hsl(${x % 2 === 0 ? hue : hue2},65%,${40 + rand(35)}%)`;
+          ctx.fillRect(x, y, 1, 1);
+          ctx.fillRect(G - 1 - x, y, 1, 1);
+        }
+      }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(2, 2, 1, 1);
+    ctx.fillRect(5, 2, 1, 1);
+  }, [seed, themeColor]);
   return (
-    <div
-      className={`rounded-full bg-gradient-to-br ${colour} flex items-center justify-center ring-2 ring-white/10 flex-shrink-0`}
-      style={{ width: size, height: size }}
-    >
-      <span className="font-bold text-white" style={{ fontSize: size * 0.38 }}>
-        {initial}
-      </span>
-    </div>
-  );
-}
-
-// ── Tier pill ────────────────────────────────────────────────────────────────
-function TierPill({ tier }: { tier: string }) {
-  const cfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.cls}`}
-    >
-      {cfg.label}
-    </span>
-  );
-}
-
-// ── Copy button ──────────────────────────────────────────────────────────────
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    <canvas
+      ref={canvasRef}
+      style={{
+        width: size,
+        height: size,
+        imageRendering: "pixelated",
+        borderRadius: "50%",
       }}
-      className="text-white/30 hover:text-teal-400 transition-colors"
-    >
-      {copied ? (
-        <Check className="w-3.5 h-3.5 text-teal-400" />
-      ) : (
-        <Copy className="w-3.5 h-3.5" />
-      )}
-    </button>
+    />
   );
 }
 
@@ -424,7 +372,14 @@ export default function UsernameDetailPage() {
     );
   }
 
-  const { owner, listing, tier, level, staked, claimedAt } = data;
+  const {
+    owner,
+    listing,
+    tier,
+    level: usernameLevel,
+    staked,
+    claimedAt,
+  } = data;
   const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.Bronze;
 
   const ownerDisplayName =
@@ -438,11 +393,10 @@ export default function UsernameDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
-      {/* Dashboard Header with correctly passed props */}
       <DashboardHeader {...headerProps} />
 
-      {/* ── Cover photo / hero ─────────────────────────────────────────────── */}
-      <div className="relative h-48 sm:h-64 overflow-hidden">
+      {/* Hero Section with Cover Photo */}
+      <div className="relative h-64 sm:h-80 overflow-hidden">
         {owner?.coverPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -455,193 +409,139 @@ export default function UsernameDetailPage() {
             className={`absolute inset-0 bg-gradient-to-br ${tierCfg.bg} opacity-60`}
           />
         )}
-        {/* dark overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/40 to-transparent" />
 
-        {/* back button */}
         <Link
           href="/dashboard?tab=marketplace"
-          className="absolute top-5 left-5 inline-flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors"
+          className="absolute top-5 left-5 inline-flex items-center gap-2 text-white/60 hover:text-white text-sm transition-colors z-20"
         >
           <ArrowLeft className="w-4 h-4" />
           Marketplace
         </Link>
       </div>
 
-      {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-20 -mt-16 relative z-10">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* ── LEFT COLUMN ──────────────────────────────────────────────── */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Owner card */}
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6 space-y-5">
-              {/* Avatar + name */}
-              <div className="flex items-center gap-4">
-                {owner ? (
-                  <OwnerAvatar owner={owner} size={72} />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-7 h-7 text-white/20" />
-                  </div>
-                )}
-
-                <div className="min-w-0">
-                  {owner ? (
-                    <>
-                      <p className="font-bold text-white truncate text-lg leading-tight">
-                        {ownerDisplayName ?? `@${raw}`}
-                      </p>
-                      {owner.activeUsername && (
-                        <p className="text-sm text-teal-400/80 truncate">
-                          @{owner.activeUsername.replace(/^@/, "")}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-medium text-white/40 bg-white/[0.05] px-2 py-0.5 rounded-full">
-                          Level {owner.level}
-                        </span>
-                        <span className="text-xs text-white/25">
-                          {owner.xp.toLocaleString()} XP
-                        </span>
-                      </div>
-                    </>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-20 -mt-24 relative z-10">
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* LEFT: Profile Card (Matches app/profile/page.tsx glass styling) */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="rounded-[32px] border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-8 flex flex-col items-center text-center shadow-2xl">
+              {/* Avatar Section (XP rings removed) */}
+              <div className="relative mb-6">
+                <div className="relative w-28 h-28 rounded-full border-4 border-white/[0.05] overflow-hidden bg-[#0a0a0f]">
+                  {owner?.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={owner.avatar}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <>
-                      <p className="font-bold text-white text-lg">Unknown</p>
-                      <p className="text-xs text-white/30">
-                        Owner info not available
-                      </p>
-                    </>
+                    <PixelAvatar
+                      seed={owner?.activeUsername || raw}
+                      size={112}
+                      themeColor={tierCfg.hex}
+                    />
                   )}
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-teal-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-[#0a0a0f]">
+                  LVL {owner?.level ?? 1}
                 </div>
               </div>
 
-              {/* Bio */}
+              {/* Name & Bio */}
+              <h2 className="text-2xl font-black text-white leading-tight">
+                {ownerDisplayName || `@${raw}`}
+              </h2>
+              {owner?.activeUsername && (
+                <p className="text-teal-400 font-bold text-sm mt-1">
+                  @{owner.activeUsername.replace(/^@/, "")}
+                </p>
+              )}
               {owner?.bio && (
-                <p className="text-sm text-white/50 leading-relaxed border-t border-white/[0.05] pt-4">
+                <p className="text-sm text-white/40 mt-4 leading-relaxed px-4">
                   {owner.bio}
                 </p>
               )}
 
-              {/* XP bar */}
-              {owner && <XpBar xp={owner.xp} level={owner.level} />}
-
-              {/* Wallet */}
+              {/* Wallet Info */}
               {(owner?.wallet || listing.ownerWallet) && (
-                <div className="border-t border-white/[0.05] pt-4">
-                  <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1.5">
-                    Wallet
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-white/50 truncate">
+                <div className="mt-6 w-full pt-6 border-t border-white/[0.05] flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06]">
+                    <Wallet className="w-3 h-3 text-white/30" />
+                    <span className="font-mono text-[10px] text-white/40 tracking-wider">
                       {walletDisplay(
                         owner?.wallet ?? listing.ownerWallet ?? "",
                       )}
                     </span>
-                    <CopyButton
-                      value={owner?.wallet ?? listing.ownerWallet ?? ""}
-                    />
-                    <a
-                      href={`https://solscan.io/account/${owner?.wallet ?? listing.ownerWallet}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white/30 hover:text-teal-400 transition-colors"
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          owner?.wallet ?? listing.ownerWallet ?? "",
+                        )
+                      }
+                      className="text-white/20 hover:text-teal-400 transition-colors"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                      <Copy className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Stats row */}
-              {owner && (
-                <div className="grid grid-cols-3 gap-3 border-t border-white/[0.05] pt-4 text-center">
-                  <div>
-                    <p className="text-base font-bold text-white">
-                      {owner.usernames.length}
-                    </p>
-                    <p className="text-[10px] text-white/30 mt-0.5">Names</p>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-white">
-                      {owner.stakedAmount ?? 0}
-                    </p>
-                    <p className="text-[10px] text-white/30 mt-0.5">Staked</p>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-white">
-                      {owner.referrals ?? 0}
-                    </p>
-                    <p className="text-[10px] text-white/30 mt-0.5">Refs</p>
-                  </div>
+              {/* Profile Stats (Referrals, Staked, Earnings) */}
+              <div className="grid grid-cols-3 gap-2 w-full mt-8">
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
+                  <Users className="w-4 h-4 text-sky-400 mb-1" />
+                  <span className="text-xs font-black text-white">
+                    {owner?.referrals ?? 0}
+                  </span>
+                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
+                    Refs
+                  </span>
                 </div>
-              )}
-
-              {/* Socials */}
-              {owner?.socials && Object.values(owner.socials).some(Boolean) && (
-                <div className="flex items-center gap-3 border-t border-white/[0.05] pt-4">
-                  {owner.socials.x && (
-                    <a
-                      href={`https://x.com/${owner.socials.x}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white/30 hover:text-teal-400 transition-colors"
-                    >
-                      <Twitter className="w-4 h-4" />
-                    </a>
-                  )}
-                  {owner.socials.telegram && (
-                    <a
-                      href={`https://t.me/${owner.socials.telegram}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white/30 hover:text-teal-400 transition-colors"
-                    >
-                      <Globe className="w-4 h-4" />
-                    </a>
-                  )}
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
+                  <Zap className="w-4 h-4 text-violet-400 mb-1" />
+                  <span className="text-xs font-black text-white">
+                    {owner?.stakedAmount ?? 0}
+                  </span>
+                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
+                    Staked
+                  </span>
                 </div>
-              )}
-
-              {/* Joined date */}
-              {owner?.joinedAt && (
-                <div className="flex items-center gap-2 text-xs text-white/25 border-t border-white/[0.05] pt-3">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Joined{" "}
-                  {new Date(owner.joinedAt).toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })}
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
+                  <TrendingUp className="w-4 h-4 text-teal-400 mb-1" />
+                  <span className="text-xs font-black text-white">
+                    {owner?.earnings ?? 0}
+                  </span>
+                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">
+                    SOL
+                  </span>
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Other names owned by same person */}
+            {/* Other Names Card */}
             {owner && owner.usernames.length > 1 && (
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
-                <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">
-                  Also owns
+              <div className="rounded-3xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-xl p-6">
+                <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">
+                  Also Owns
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {owner.usernames
                     .filter((u) => u.name !== raw)
-                    .slice(0, 5)
+                    .slice(0, 4)
                     .map((u) => (
                       <Link
                         key={u.name}
                         href={`/username/${u.name}`}
-                        className="flex items-center justify-between group"
+                        className="flex items-center justify-between group p-2 rounded-xl hover:bg-white/[0.03] transition-all"
                       >
-                        <span className="text-sm text-white/60 group-hover:text-teal-400 transition-colors font-mono">
+                        <span className="text-sm font-bold text-white/60 group-hover:text-teal-400 transition-colors">
                           @{u.name}
                         </span>
-                        <div className="flex items-center gap-2">
-                          {u.isListed && u.listedPrice != null && (
-                            <span className="text-xs text-white/30">
-                              {u.listedPrice} SOL
-                            </span>
-                          )}
-                          <TierPill tier={u.tier} />
+                        <div
+                          className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase ${TIER_CONFIG[u.tier]?.cls || ""}`}
+                        >
+                          {u.tier}
                         </div>
                       </Link>
                     ))}
@@ -650,261 +550,198 @@ export default function UsernameDetailPage() {
             )}
           </div>
 
-          {/* ── RIGHT COLUMN ─────────────────────────────────────────────── */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Username hero card */}
+          {/* RIGHT: Listing Details */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Username Hero */}
             <div
-              className={`rounded-2xl border border-white/[0.08] bg-gradient-to-br ${tierCfg.bg} p-8 shadow-xl ${tierCfg.glow}`}
+              className={`rounded-[32px] border border-white/[0.1] bg-gradient-to-br ${tierCfg.bg} p-10 shadow-2xl relative overflow-hidden`}
             >
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <TierPill tier={tier} />
-                  <h1 className="text-5xl font-extrabold text-white mt-3 tracking-tight">
-                    @{raw}
-                  </h1>
-                  <p className="text-sm text-white/40 mt-2">
-                    {raw.length} chars · Level {level}
-                    {staked && (
-                      <span className="ml-3 inline-flex items-center gap-1 text-teal-400">
-                        <Zap className="w-3.5 h-3.5" />
-                        Staked
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `https://vyns-app.vercel.app/username/${raw}`,
-                      );
-                    }}
-                    className="p-2 rounded-xl border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white transition-all"
-                    title="Copy link"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <a
-                    href={`https://vyns-app.vercel.app/username/${raw}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-xl border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white transition-all"
-                    title="Open in new tab"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <Crown size={120} />
               </div>
 
-              {/* Claimed date */}
-              {claimedAt && (
-                <div className="flex items-center gap-2 text-xs text-white/30">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Registered{" "}
-                  {new Date(claimedAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+              <div className="relative z-10">
+                <div
+                  className={`inline-flex px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-[0.15em] ${tierCfg.cls}`}
+                >
+                  {tierCfg.label}
                 </div>
-              )}
+                <h1 className="text-6xl sm:text-7xl font-black text-white mt-6 tracking-tighter">
+                  @{raw}
+                </h1>
+                <div className="flex items-center gap-4 mt-6">
+                  <div className="flex items-center gap-1.5 text-sm font-bold text-white/40">
+                    <Activity size={14} className="text-teal-400" />
+                    {raw.length} Characters
+                  </div>
+                  <div className="w-1 h-1 rounded-full bg-white/10" />
+                  <div className="flex items-center gap-1.5 text-sm font-bold text-white/40">
+                    <Shield size={14} className="text-violet-400" />
+                    Level {usernameLevel}
+                  </div>
+                  {staked && (
+                    <>
+                      <div className="w-1 h-1 rounded-full bg-white/10" />
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-teal-400">
+                        <Zap size={14} />
+                        Currently Staked
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* ── BUY / LISTING SECTION ───────────────────────────────────── */}
+            {/* Marketplace Section */}
             {listing.isListed ? (
-              <div className="rounded-2xl border border-teal-500/25 bg-teal-500/[0.04] p-6 space-y-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white/60 uppercase tracking-widest">
-                    For Sale
-                  </p>
+              <div className="rounded-[32px] border border-teal-500/20 bg-teal-500/[0.03] p-8 shadow-xl">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-teal-400 uppercase tracking-[0.2em]">
+                      Listed for Sale
+                    </span>
+                  </div>
                   {listing.listedAt && (
-                    <span className="text-xs text-white/25">
-                      Listed{" "}
-                      {new Date(listing.listedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
+                    <span className="text-xs font-bold text-white/20">
+                      Since {new Date(listing.listedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-end gap-2">
-                  <span className="text-5xl font-extrabold text-white tabular-nums">
-                    {listing.price ?? "—"}
+                <div className="flex items-baseline gap-3 mb-10">
+                  <span className="text-7xl font-black text-white tracking-tight">
+                    {listing.price}
                   </span>
-                  <span className="text-xl text-white/40 pb-1">SOL</span>
+                  <span className="text-2xl font-black text-white/20 uppercase">
+                    Sol
+                  </span>
                 </div>
 
-                {/* Purchase Flow */}
+                {/* Purchase States */}
                 {buyStep === "detail" && (
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     {!phantomConnected ? (
-                      <>
-                        <button
-                          onClick={handleConnectWallet}
-                          className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-black font-bold py-3.5 rounded-xl transition-all text-sm"
-                        >
-                          <Wallet className="w-4 h-4" />
-                          Connect Wallet
-                        </button>
-                        <button className="flex items-center justify-center gap-2 border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-3.5 px-5 rounded-xl transition-all text-sm">
-                          Make Offer
-                        </button>
-                      </>
+                      <button
+                        onClick={handleConnectWallet}
+                        className="flex-1 py-5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                      >
+                        <Wallet size={20} />
+                        Connect Wallet to Buy
+                      </button>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => setBuyStep("confirm")}
-                          className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 text-black font-bold py-3.5 rounded-xl transition-all text-sm"
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                          Buy Now
-                        </button>
-                        <button className="flex items-center justify-center gap-2 border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-3.5 px-5 rounded-xl transition-all text-sm">
-                          Make Offer
-                        </button>
-                      </>
+                      <button
+                        onClick={() => setBuyStep("confirm")}
+                        className="flex-1 py-5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20"
+                      >
+                        <ShoppingCart size={20} />
+                        Purchase Username
+                      </button>
                     )}
+                    <button className="px-8 py-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] text-white/60 font-black transition-all">
+                      Make Offer
+                    </button>
                   </div>
                 )}
 
-                {/* Confirm Step */}
                 {buyStep === "confirm" && (
-                  <div className="space-y-4 border-t border-white/[0.05] pt-4">
-                    <div className="rounded-xl bg-white/[0.02] p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-white/40">Price</span>
-                        <span className="text-white font-semibold">
-                          {listing.price} SOL
-                        </span>
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-4">
+                      <div className="flex justify-between text-sm font-bold">
+                        <span className="text-white/30">Listing Price</span>
+                        <span className="text-white">{listing.price} SOL</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-white/40">
-                          Platform fee (2.5%)
+                      <div className="flex justify-between text-sm font-bold">
+                        <span className="text-white/30">
+                          Network Fee (2.5%)
                         </span>
                         <span className="text-white/60">
                           {((listing.price ?? 0) * 0.025).toFixed(4)} SOL
                         </span>
                       </div>
-                      <div className="border-t border-white/[0.05] pt-2 flex justify-between text-sm">
-                        <span className="text-white font-semibold">Total</span>
-                        <span className="text-teal-400 font-bold">
+                      <div className="pt-4 border-t border-white/[0.05] flex justify-between items-center">
+                        <span className="text-lg font-black text-white">
+                          Total
+                        </span>
+                        <span className="text-3xl font-black text-teal-400 tracking-tight">
                           {((listing.price ?? 0) * 1.025).toFixed(4)} SOL
                         </span>
                       </div>
                     </div>
-
-                    <div className="flex gap-2">
+                    <div className="flex gap-4">
                       <button
                         onClick={() => setBuyStep("detail")}
-                        className="flex-1 py-2.5 rounded-xl border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white transition-all text-sm"
+                        className="flex-1 py-4 rounded-2xl border border-white/[0.1] bg-white/[0.02] text-white/40 font-black hover:text-white transition-all"
                       >
-                        Back
+                        Cancel
                       </button>
                       <button
                         onClick={handleBuy}
                         disabled={buyLoading}
-                        className="flex-1 flex items-center justify-center gap-2 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl transition-all text-sm"
+                        className="flex-[2] py-4 rounded-2xl bg-teal-500 hover:bg-teal-400 text-black font-black transition-all flex items-center justify-center gap-2"
                       >
                         {buyLoading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="animate-spin" />
                         ) : (
-                          <>
-                            <ShoppingCart className="w-4 h-4" />
-                            Confirm Purchase
-                          </>
+                          <Check size={20} />
                         )}
+                        Confirm Purchase
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Success Step */}
                 {buyStep === "success" && (
-                  <div className="text-center space-y-4 border-t border-white/[0.05] pt-4">
-                    <div className="w-12 h-12 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto">
-                      <Check className="w-6 h-6 text-teal-400" />
+                  <div className="text-center py-6 space-y-6">
+                    <div className="w-20 h-20 rounded-full bg-teal-500/10 border-2 border-teal-500/30 flex items-center justify-center mx-auto">
+                      <Check size={40} className="text-teal-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-white">
-                        Purchase Complete!
-                      </p>
-                      <p className="text-sm text-white/40">
-                        @{raw} has been added to your account.
-                      </p>
+                      <h3 className="text-2xl font-black text-white">
+                        Purchase Successful!
+                      </h3>
+                      <p className="text-white/40 mt-2">@{raw} is now yours.</p>
                     </div>
                     <button
-                      onClick={() => {
-                        setBuyStep("detail");
-                        router.push("/dashboard?tab=names");
-                      }}
-                      className="w-full bg-teal-500 hover:bg-teal-400 text-black font-bold py-2.5 rounded-xl transition-all text-sm"
+                      onClick={() => router.push("/dashboard?tab=names")}
+                      className="w-full py-4 rounded-2xl bg-teal-500 text-black font-black"
                     >
                       View My Names
                     </button>
                   </div>
                 )}
 
-                {/* Error Step */}
                 {buyStep === "error" && (
-                  <div className="text-center space-y-4 border-t border-white/[0.05] pt-4">
-                    <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-                      <AlertCircle className="w-6 h-6 text-red-400" />
+                  <div className="text-center py-6 space-y-6">
+                    <div className="w-20 h-20 rounded-full bg-red-500/10 border-2 border-red-500/30 flex items-center justify-center mx-auto">
+                      <AlertCircle size={40} className="text-red-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-white">
+                      <h3 className="text-2xl font-black text-white">
                         Purchase Failed
-                      </p>
-                      <p className="text-sm text-white/40">{buyError}</p>
+                      </h3>
+                      <p className="text-white/40 mt-2">{buyError}</p>
                     </div>
                     <button
                       onClick={() => setBuyStep("detail")}
-                      className="w-full border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white py-2.5 rounded-xl transition-all text-sm"
+                      className="w-full py-4 rounded-2xl border border-white/[0.1] text-white font-black"
                     >
                       Try Again
                     </button>
                   </div>
                 )}
-
-                <p className="text-xs text-white/25 text-center">
-                  Transaction processed on Solana · non-custodial
-                </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 text-center space-y-2">
-                <Shield className="w-8 h-8 text-white/15 mx-auto" />
-                <p className="text-sm font-medium text-white/40">
-                  Not listed for sale
+              <div className="rounded-[32px] border border-white/[0.06] bg-white/[0.02] p-12 text-center">
+                <Shield size={48} className="text-white/10 mx-auto mb-4" />
+                <p className="text-xl font-black text-white/40">
+                  Not Listed for Sale
                 </p>
-                <p className="text-xs text-white/25">
-                  This username is owned but not currently available to
-                  purchase.
+                <p className="text-sm text-white/20 mt-2">
+                  This username is currently held by its owner.
                 </p>
               </div>
             )}
-
-            {/* ── USERNAME DETAILS GRID ──────────────────────────────────── */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 space-y-1">
-                <p className="text-[10px] text-white/30 uppercase tracking-widest">
-                  Tier
-                </p>
-                <TierPill tier={tier} />
-                <p className="text-xs text-white/25 pt-1">
-                  {raw.length}-character username
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 space-y-1">
-                <p className="text-[10px] text-white/30 uppercase tracking-widest">
-                  Level
-                </p>
-                <p className="text-2xl font-bold text-white">{level}</p>
-                <p className="text-xs text-white/25">
-                  {staked ? "Currently staked" : "Not staked"}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
