@@ -23,8 +23,6 @@ export async function POST(req: NextRequest) {
     const buyerUserId = (session?.user as any)?.id ?? auth?.userId ?? null;
     const buyerWallet = (session?.user as any)?.wallet ?? auth?.wallet ?? null;
 
-    // ── Resolve buyer's wallet from DB if not in session/token ───────────────
-    // This prevents walletAddress being set to a userId on the Username doc.
     let resolvedBuyerWallet = buyerWallet;
     if (!resolvedBuyerWallet && buyerUserId) {
       const buyerDoc = (await User.findById(buyerUserId)
@@ -78,20 +76,16 @@ export async function POST(req: NextRequest) {
 
     const newStats = {
       ...(record.stats ?? {}),
-      ownerId: buyerUserId, // always use userId as canonical owner
-      isEmailUser: !resolvedBuyerWallet, // track if buyer has no wallet
+      ownerId: buyerUserId,
+      isEmailUser: !resolvedBuyerWallet,
     };
 
     await Username.findByIdAndUpdate(record._id, {
       $set: {
-        // ── FIXED: walletAddress is only ever a real wallet.
-        // For email/Google buyers with no wallet, fall back to their userId
-        // (same schema-required fallback as claim) but ownerId in stats
-        // is the canonical key all ownership checks use.
         walletAddress: resolvedBuyerWallet ?? buyerUserId,
         isListed: false,
         stats: newStats,
-        listedById: buyerUserId, // update to new owner so delist works
+        listedById: buyerUserId,
         listedByWallet: resolvedBuyerWallet ?? null,
       },
       $unset: { listedPrice: "" },
@@ -130,7 +124,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Remove username from seller's User.usernames[]
+    // ── Remove username from seller's usernames[] ─────────────────────────────
     const usernameVariants = [clean, `@${clean}`];
     if (sellerUserId) {
       await User.findByIdAndUpdate(sellerUserId, {
@@ -143,7 +137,28 @@ export async function POST(req: NextRequest) {
       ).catch(() => {});
     }
 
-    // Push to buyer's User.usernames[]
+    // ── FIX: Clear seller's activeUsername if it matches the sold username ────
+    // Without this, the sold username keeps showing in the seller's UI
+    // even after the sale completes and it's removed from their inventory.
+    const soldClean = clean; // already lowercased, no @ prefix
+    const activeUsernameClearQuery = {
+      $or: [{ activeUsername: soldClean }, { activeUsername: `@${soldClean}` }],
+    };
+
+    if (sellerUserId) {
+      await User.findOneAndUpdate(
+        { _id: sellerUserId, ...activeUsernameClearQuery },
+        { $unset: { activeUsername: "" } },
+      ).catch(() => {});
+    } else if (sellerWallet) {
+      await User.findOneAndUpdate(
+        { wallet: sellerWallet, ...activeUsernameClearQuery },
+        { $unset: { activeUsername: "" } },
+      ).catch(() => {});
+    }
+    // ── END FIX ───────────────────────────────────────────────────────────────
+
+    // ── Push to buyer's usernames[] ───────────────────────────────────────────
     if (buyerUserId) {
       await User.findByIdAndUpdate(buyerUserId, {
         $push: {
