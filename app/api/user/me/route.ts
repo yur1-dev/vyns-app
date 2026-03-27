@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth/authOptions";
 import connectDB from "@/lib/db/mongodb";
-import { User, Username } from "@/models";
+import { User, Username, Activity } from "@/models";
 import { verifyAuth } from "@/lib/utils/auth";
 import { nanoid } from "nanoid";
 import { getTierFromLength } from "@/types/dashboard";
@@ -84,12 +84,39 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // ── Fetch recent activity ─────────────────────────────────────────────────
+    // Look up by wallet OR userId so both auth types get their activity.
+    const activityKeys = [
+      user._id.toString(),
+      ...(wallet ? [wallet] : []),
+      ...(email ? [email] : []),
+    ];
+
+    const activityRecords = await Activity.find({
+      wallet: { $in: activityKeys },
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    const activity = activityRecords.map((a: any) => ({
+      id: a._id.toString(),
+      type: a.type,
+      description: a.description,
+      amount: a.amount ?? 0,
+      token: "SOL",
+      txHash: a.txHash ?? null,
+      date: new Date(a.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    }));
+    // ─────────────────────────────────────────────────────────────────────────
+
     const userObj = user.toObject();
 
-    // ── Per-source earnings breakdown ────────────────────────────────────────
-    // marketplaceEarnings and stakingEarnings are new fields — old users will
-    // have undefined, so we default to 0. referralEarnings already existed.
-    // allTime = earnings (the running total, always the source of truth).
     const marketplaceEarnings = userObj.marketplaceEarnings ?? 0;
     const stakingEarnings = userObj.stakingEarnings ?? 0;
     const referralEarnings = userObj.referralEarnings ?? 0;
@@ -111,15 +138,15 @@ export async function GET(req: NextRequest) {
         week: 0,
         month: 0,
         allTime,
-        marketplace: marketplaceEarnings, // ── NEW
-        staking: stakingEarnings, // ── NEW
-        referral: referralEarnings, // ── already existed, now explicit
+        marketplace: marketplaceEarnings,
+        staking: stakingEarnings,
+        referral: referralEarnings,
       },
       stakingPositions: [],
       referrals: userObj.referrals ?? 0,
       referralEarnings,
-      stakingRewards: stakingEarnings, // kept for backwards compat with useDashboard
-      activity: [],
+      stakingRewards: stakingEarnings,
+      activity, // ← now populated
       isNewUser: usernameRecords.length === 0,
       bio: userObj.bio ?? "",
       claimedVyns: userObj.claimedVyns ?? 0,

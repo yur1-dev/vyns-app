@@ -6,6 +6,8 @@ import { verifyAuth } from "@/lib/utils/auth";
 import connectDB from "@/lib/db/mongodb";
 import { Username, User, Activity, Transaction } from "@/models/index";
 
+const PLATFORM_FEE_PCT = 0.025; // 2.5%
+
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -68,11 +70,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Snapshot seller info before clearing it
+    // Snapshot seller info before clearing
     const sellerUserId = record.listedById ?? record.stats?.ownerId ?? null;
     const sellerWallet = record.listedByWallet ?? record.walletAddress ?? null;
-    const salePrice = record.listedPrice ?? 0;
+    const listPrice = record.listedPrice ?? 0;
     const displayUsername = record.username;
+
+    // ── 2.5% platform fee ─────────────────────────────────────────────────────
+    const platformFee = parseFloat((listPrice * PLATFORM_FEE_PCT).toFixed(9));
+    const sellerPayout = parseFloat((listPrice - platformFee).toFixed(9));
 
     const newStats = {
       ...(record.stats ?? {}),
@@ -91,8 +97,8 @@ export async function POST(req: NextRequest) {
       $unset: { listedPrice: "" },
     });
 
-    // ── Credit seller earnings ────────────────────────────────────────────────
-    if (salePrice > 0) {
+    // ── Credit seller with payout AFTER 2.5% fee ──────────────────────────────
+    if (sellerPayout > 0) {
       let sellerCredited = false;
 
       if (sellerUserId) {
@@ -100,8 +106,8 @@ export async function POST(req: NextRequest) {
           sellerUserId,
           {
             $inc: {
-              earnings: salePrice,
-              marketplaceEarnings: salePrice,
+              earnings: sellerPayout,
+              marketplaceEarnings: sellerPayout,
               xp: 10,
             },
           },
@@ -115,8 +121,8 @@ export async function POST(req: NextRequest) {
           { wallet: sellerWallet },
           {
             $inc: {
-              earnings: salePrice,
-              marketplaceEarnings: salePrice,
+              earnings: sellerPayout,
+              marketplaceEarnings: sellerPayout,
               xp: 10,
             },
           },
@@ -137,14 +143,10 @@ export async function POST(req: NextRequest) {
       ).catch(() => {});
     }
 
-    // ── FIX: Clear seller's activeUsername if it matches the sold username ────
-    // Without this, the sold username keeps showing in the seller's UI
-    // even after the sale completes and it's removed from their inventory.
-    const soldClean = clean; // already lowercased, no @ prefix
+    // ── Clear seller's activeUsername if it matches the sold username ─────────
     const activeUsernameClearQuery = {
-      $or: [{ activeUsername: soldClean }, { activeUsername: `@${soldClean}` }],
+      $or: [{ activeUsername: clean }, { activeUsername: `@${clean}` }],
     };
-
     if (sellerUserId) {
       await User.findOneAndUpdate(
         { _id: sellerUserId, ...activeUsernameClearQuery },
@@ -156,9 +158,8 @@ export async function POST(req: NextRequest) {
         { $unset: { activeUsername: "" } },
       ).catch(() => {});
     }
-    // ── END FIX ───────────────────────────────────────────────────────────────
 
-    // ── Push to buyer's usernames[] ───────────────────────────────────────────
+    // ── Push username to buyer's usernames[] ──────────────────────────────────
     if (buyerUserId) {
       await User.findByIdAndUpdate(buyerUserId, {
         $push: {
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
-    // ── Resolve buyer's active username for Transaction.toUsername ────────────
+    // ── Resolve buyer's active username for Transaction record ────────────────
     const buyerDoc = buyerUserId
       ? ((await User.findById(buyerUserId)
           .select("activeUsername")
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
     // ── Write Transaction record ──────────────────────────────────────────────
     const txRecord = await Transaction.create({
       type: "purchase",
-      amount: salePrice,
+      amount: listPrice,
       token: "SOL",
       fromUsername: buyerActiveUsername ?? resolvedBuyerWallet ?? buyerUserId,
       fromWallet: resolvedBuyerWallet ?? null,
@@ -199,36 +200,43 @@ export async function POST(req: NextRequest) {
 
     const txHash = txRecord?._id?.toString() ?? null;
 
-    // ── Write Activity for BUYER ──────────────────────────────────────────────
+    // ── Activity for BUYER ────────────────────────────────────────────────────
     if (resolvedBuyerWallet || buyerUserId) {
       await Activity.create({
         wallet: resolvedBuyerWallet ?? buyerUserId,
         type: "transaction",
-        description: `You purchased ${displayUsername} for ${salePrice} SOL`,
-        amount: salePrice,
+        description: `You purchased @${clean} for ${listPrice} SOL`,
+        amount: listPrice,
         txHash,
       }).catch(() => {});
     }
 
-    // ── Write Activity for SELLER ─────────────────────────────────────────────
-    if (sellerWallet || sellerUserId) {
-      const sellerDoc = sellerUserId
+    // ── Activity for SELLER — shows net payout after fee ─────────────────────
+    const activityKey =
+      (sellerUserId
         ? ((await User.findById(sellerUserId).select("wallet").lean()) as any)
-        : null;
-      const resolvedSellerWallet = sellerDoc?.wallet ?? sellerWallet;
+            ?.wallet
+        : null) ??
+      sellerWallet ??
+      sellerUserId;
 
-      if (resolvedSellerWallet) {
-        await Activity.create({
-          wallet: resolvedSellerWallet,
-          type: "transaction",
-          description: `${displayUsername} was sold for ${salePrice} SOL`,
-          amount: salePrice,
-          txHash,
-        }).catch(() => {});
-      }
+    if (activityKey) {
+      await Activity.create({
+        wallet: activityKey,
+        type: "transaction",
+        description: `@${clean} sold for ${listPrice} SOL (you received ${sellerPayout.toFixed(4)} SOL after 2.5% fee)`,
+        amount: sellerPayout,
+        txHash,
+      }).catch(() => {});
     }
 
-    return NextResponse.json({ success: true, username: clean });
+    return NextResponse.json({
+      success: true,
+      username: clean,
+      listPrice,
+      platformFee,
+      sellerPayout,
+    });
   } catch (err: any) {
     console.error("[marketplace/buy]", err);
     return NextResponse.json(

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import type { TabId, UserData } from "@/types/dashboard";
+import type { TabId, UserData, UsernameTier } from "@/types/dashboard";
 import type { ProfileCustomization } from "@/components/dashboard/modals/ProfileCustomizeModal";
 
 const DEFAULT_USER_DATA: UserData = {
@@ -33,18 +33,12 @@ const DEFAULT_CUSTOMIZATION: ProfileCustomization = {
   avatarSeed: "",
 };
 
-/**
- * The DB stores `earnings` as a plain Number.
- * The frontend type expects EarningsBreakdown { today, week, month, allTime }.
- * This normalizes whatever the API returns into the object shape.
- */
 function normalizeEarnings(
   raw: unknown,
   prev?: UserData["earnings"],
 ): UserData["earnings"] {
   const base = prev ?? DEFAULT_USER_DATA.earnings;
   if (typeof raw === "number") {
-    // DB returned a plain number — treat it as allTime, keep rest from prev
     return { ...base, allTime: raw };
   }
   if (raw && typeof raw === "object") {
@@ -162,7 +156,6 @@ export function useDashboard() {
           ...prev,
           ...payload,
           ...referralRewards,
-          // FIX: normalize earnings — DB sends a Number, frontend expects an object
           earnings: normalizeEarnings(payload.earnings, prev.earnings),
           usernames: Array.isArray(payload.usernames)
             ? payload.usernames
@@ -170,9 +163,11 @@ export function useDashboard() {
           stakingPositions: positions,
           stakingRewards,
           stakedAmount,
-          activity: Array.isArray(payload.activity)
-            ? payload.activity
-            : prev.activity,
+          // ── FIX: activity is now returned by me/route.ts ──────────────────
+          activity:
+            Array.isArray(payload.activity) && payload.activity.length > 0
+              ? payload.activity
+              : prev.activity,
         }));
 
         if (payload.activeUsername)
@@ -292,7 +287,6 @@ export function useDashboard() {
             0,
             (prev.stakingRewards ?? 0) - (data.rewards ?? 0),
           ),
-          // FIX: also update earnings optimistically after staking claim
           earnings: {
             ...prev.earnings,
             allTime: (prev.earnings?.allTime ?? 0) + (data.rewards ?? 0),
@@ -425,7 +419,7 @@ export function useDashboard() {
         const newItem = {
           id: username,
           name: username,
-          tier: data.tier,
+          tier: data.tier as UsernameTier,
           yield:
             data.tier === "Diamond"
               ? 5
@@ -494,7 +488,7 @@ export function useDashboard() {
         await refreshUserData();
         return { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message ?? "Network error" };
+        return { success: false, error: err.message ?? "Failed to list" };
       }
     },
     [wallet, refreshUserData],
@@ -515,10 +509,60 @@ export function useDashboard() {
         await refreshUserData();
         return { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message ?? "Network error" };
+        return { success: false, error: err.message ?? "Failed to delist" };
       }
     },
     [wallet, refreshUserData],
+  );
+
+  // ── sellUsername: called from marketplace UI after a successful buy ────────
+  // Optimistically updates the seller's earnings and activity in state,
+  // then fires a full refresh to sync from DB.
+  const sellUsername = useCallback(
+    async (
+      username: string,
+      price: number,
+    ): Promise<{ success: boolean; error?: string; sellerPayout?: number }> => {
+      try {
+        const res = await fetch("/api/marketplace/buy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ username }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success)
+          return { success: false, error: data.error ?? "Purchase failed" };
+
+        const sellerPayout: number = data.sellerPayout ?? price * 0.975;
+
+        // Optimistic update for the BUYER's overview stats
+        setUserData((prev) => ({
+          ...prev,
+          usernames: [
+            ...prev.usernames,
+            {
+              id: username,
+              name: username,
+              tier: "Basic" as UsernameTier, // ── FIX: was `null`, incompatible with UsernameTier
+              yield: 0,
+              value: price,
+              expiresAt: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+              claimedAt: new Date().toISOString(),
+              staked: false,
+            },
+          ],
+        }));
+
+        // Full refresh to get accurate earnings + activity from DB
+        await refreshUserData();
+
+        return { success: true, sellerPayout };
+      } catch (err: any) {
+        return { success: false, error: err.message ?? "Network error" };
+      }
+    },
+    [refreshUserData],
   );
 
   const saveCustomization = useCallback(
@@ -578,6 +622,7 @@ export function useDashboard() {
     setActiveUsername,
     listUsername,
     delistUsername,
+    sellUsername,
     saveCustomization,
     refreshUserData,
     optimisticStakeUsername,
