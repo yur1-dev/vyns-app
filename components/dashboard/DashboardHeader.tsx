@@ -39,23 +39,6 @@ import { type ProfileCustomization } from "@/components/dashboard/modals/Profile
 const RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
-const READ_IDS_KEY = "vyns:read_notif_ids";
-const DELETED_IDS_KEY = "vyns:deleted_notif_ids";
-
-function loadSet(key: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-function saveSet(key: string, ids: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify([...ids]));
-  } catch {}
-}
-
 async function fetchSolBalance(pk: string): Promise<number> {
   try {
     const res = await fetch(RPC_URL, {
@@ -229,38 +212,11 @@ export default function DashboardHeader({
   const [linkingWallet, setLinkingWallet] = useState(false);
   const [unlinkingWallet, setUnlinkingWallet] = useState(false);
   const [linkError, setLinkError] = useState("");
-  const [liveNotifs, setLiveNotifs] = useState<Notification[]>([]);
+
+  // Server is the single source of truth — no localStorage
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifsLoading, setNotifsLoading] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
-
-  // Persisted state — survives page refreshes
-  const [readIds, setReadIds] = useState<Set<string>>(() =>
-    loadSet(READ_IDS_KEY),
-  );
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(() =>
-    loadSet(DELETED_IDS_KEY),
-  );
-
-  const updateReadIds = useCallback(
-    (updater: (p: Set<string>) => Set<string>) => {
-      setReadIds((p) => {
-        const n = updater(p);
-        saveSet(READ_IDS_KEY, n);
-        return n;
-      });
-    },
-    [],
-  );
-  const updateDeletedIds = useCallback(
-    (updater: (p: Set<string>) => Set<string>) => {
-      setDeletedIds((p) => {
-        const n = updater(p);
-        saveSet(DELETED_IDS_KEY, n);
-        return n;
-      });
-    },
-    [],
-  );
 
   const notifRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -276,26 +232,16 @@ export default function DashboardHeader({
       : displayUsername;
   const isDevnet = RPC_URL.includes("devnet");
 
-  // Merge, dedupe, filter deleted, apply read state
-  const allNotifs: Notification[] = (() => {
-    const map = new Map<string, Notification>();
-    for (const n of externalNotifs) map.set(n.id, n);
-    for (const n of liveNotifs) map.set(n.id, n);
-    return Array.from(map.values())
-      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-      .filter((n) => !deletedIds.has(n.id))
-      .map((n) => ({ ...n, read: readIds.has(n.id) ? true : n.read }));
-  })();
+  const unread = notifications.filter((n) => !n.read).length;
 
-  const unread = allNotifs.filter((n) => !n.read).length;
-
+  // ── Fetch notifications from server (server already filters deleted/read) ──
   const fetchNotifications = useCallback(async () => {
     setNotifsLoading(true);
     try {
       const res = await fetch("/api/notifications", { credentials: "include" });
       const data = await res.json();
       if (data.success && Array.isArray(data.notifications)) {
-        setLiveNotifs(
+        setNotifications(
           data.notifications.map((n: any) => ({
             id: n.id,
             type: n.type,
@@ -318,10 +264,11 @@ export default function DashboardHeader({
     return () => clearInterval(t);
   }, [fetchNotifications]);
 
-  // Mark all read
+  // ── Mark all read — optimistic update + server persist ──
   const handleMarkAllRead = useCallback(async () => {
-    const ids = allNotifs.map((n) => n.id);
-    updateReadIds(() => new Set(ids));
+    const ids = notifications.map((n) => n.id);
+    // Optimistic: mark all read in local state immediately
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     onMarkNotifsRead();
     try {
       await fetch("/api/notifications/read-all", {
@@ -330,13 +277,17 @@ export default function DashboardHeader({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-    } catch {}
-  }, [allNotifs, onMarkNotifsRead, updateReadIds]);
+    } catch {
+      // If server call fails, re-fetch to get real state
+      fetchNotifications();
+    }
+  }, [notifications, onMarkNotifsRead, fetchNotifications]);
 
-  // Delete one
+  // ── Delete one — optimistic update + server persist ──
   const handleDeleteOne = useCallback(
     async (id: string) => {
-      updateDeletedIds((p) => new Set([...p, id]));
+      // Optimistic: remove from local state immediately
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
       try {
         await fetch("/api/notifications/delete", {
           method: "DELETE",
@@ -344,17 +295,22 @@ export default function DashboardHeader({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
         });
-      } catch {}
+      } catch {
+        // If server call fails, re-fetch to get real state
+        fetchNotifications();
+      }
     },
-    [updateDeletedIds],
+    [fetchNotifications],
   );
 
-  // Clear all
+  // ── Clear all — optimistic update + server persist ──
   const handleClearAll = useCallback(async () => {
     if (clearingAll) return;
     setClearingAll(true);
-    const ids = allNotifs.map((n) => n.id);
-    updateDeletedIds((p) => new Set([...p, ...ids]));
+    const ids = notifications.map((n) => n.id);
+    // Optimistic: clear local state immediately
+    setNotifications([]);
+    setNotifOpen(false);
     try {
       await fetch("/api/notifications/delete", {
         method: "DELETE",
@@ -362,10 +318,12 @@ export default function DashboardHeader({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ all: true, ids }),
       });
-    } catch {}
+    } catch {
+      // If server call fails, re-fetch to get real state
+      fetchNotifications();
+    }
     setClearingAll(false);
-    setNotifOpen(false);
-  }, [allNotifs, clearingAll, updateDeletedIds]);
+  }, [notifications, clearingAll, fetchNotifications]);
 
   const refreshBalance = useCallback(async () => {
     if (!wallet) return;
@@ -605,13 +563,13 @@ export default function DashboardHeader({
 
                 {/* List */}
                 <div className="max-h-80 overflow-y-auto">
-                  {allNotifs.length === 0 ? (
+                  {notifications.length === 0 ? (
                     <div className="py-10 text-center">
                       <BellIcon className="h-5 w-5 mx-auto mb-2 text-white/10" />
                       <p className="text-xs text-white/20">No notifications</p>
                     </div>
                   ) : (
-                    allNotifs.map((n) => {
+                    notifications.map((n) => {
                       const { icon: Icon, cls } =
                         NOTIF_ICONS[n.type] ?? NOTIF_ICONS.system;
                       return (
@@ -636,7 +594,6 @@ export default function DashboardHeader({
                                   <Clock className="h-2.5 w-2.5" />
                                   {timeAgo(n.time)}
                                 </span>
-                                {/* Per-notification delete — shows on hover */}
                                 <button
                                   onClick={() => handleDeleteOne(n.id)}
                                   title="Delete"
@@ -685,7 +642,7 @@ export default function DashboardHeader({
                         Mark all read
                       </button>
                     )}
-                    {allNotifs.length > 0 && (
+                    {notifications.length > 0 && (
                       <button
                         onClick={handleClearAll}
                         disabled={clearingAll}

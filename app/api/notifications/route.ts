@@ -28,7 +28,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Load this user's read/deleted state from DB
-    const state = (await NotificationState.findOne({ userId }).lean()) as any;
+    // Always returns sets — never undefined — so filtering is always airtight
+    const state = (await NotificationState.findOne({
+      userId: userId.toString(),
+    }).lean()) as any;
     const readSet = new Set<string>(state?.readIds ?? []);
     const deletedSet = new Set<string>(state?.deletedIds ?? []);
 
@@ -40,55 +43,70 @@ export async function GET(req: NextRequest) {
     const notifications: any[] = [];
 
     // ── 1. Activity feed ──
-    if (wallet) {
-      const activities = (await Activity.find({ wallet })
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .lean()) as any[];
+    {
+      const activityQuery: any[] = [];
+      if (wallet) activityQuery.push({ wallet });
+      if (userId) activityQuery.push({ userId: userId.toString() });
 
-      for (const a of activities) {
-        let type: string = "system";
-        let title = "";
-        const body = a.description;
+      if (activityQuery.length > 0) {
+        const activities = (await Activity.find({ $or: activityQuery })
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .lean()) as any[];
 
-        switch (a.type) {
-          case "stake":
-            type = "staking";
-            title = "Username staked";
-            break;
-          case "unstake":
-            type = "staking";
-            title = "Username unstaked";
-            break;
-          case "claim":
-            type = "claim";
-            title = "Username claimed";
-            break;
-          case "referral":
-            type = "referral";
-            title = "Referral reward";
-            break;
-          case "transaction":
-            type = "transaction";
-            title = "SOL transaction";
-            break;
-          default:
-            type = "system";
-            title = "System update";
+        for (const a of activities) {
+          const id = `activity_${a._id}`;
+          // Skip deleted immediately — don't even add to list
+          if (deletedSet.has(id)) continue;
+
+          let type: string = "system";
+          let title = "";
+          const body = a.description;
+
+          switch (a.type) {
+            case "stake":
+              type = "staking";
+              title = "Username staked";
+              break;
+            case "unstake":
+              type = "staking";
+              title = "Username unstaked";
+              break;
+            case "claim":
+              type = "claim";
+              title = "Username claimed";
+              break;
+            case "referral":
+              type = "referral";
+              title = "Referral reward";
+              break;
+            case "transaction":
+              type = "transaction";
+              title = "SOL transaction";
+              break;
+            case "marketplace_sale":
+            case "sale":
+              type = "marketplace";
+              title = "Username sold";
+              break;
+            default:
+              type = "system";
+              title = "System update";
+          }
+
+          notifications.push({
+            id,
+            type,
+            title,
+            body,
+            amount: a.amount ?? null,
+            xpEarned: a.xpEarned ?? null,
+            txHash: a.txHash ?? null,
+            time: a.createdAt,
+            read: readSet.has(id),
+            source: "activity",
+          });
         }
-
-        notifications.push({
-          id: `activity_${a._id}`,
-          type,
-          title,
-          body,
-          amount: a.amount ?? null,
-          xpEarned: a.xpEarned ?? null,
-          txHash: a.txHash ?? null,
-          time: a.createdAt,
-          read: false,
-          source: "activity",
-        });
       }
     }
 
@@ -103,15 +121,17 @@ export async function GET(req: NextRequest) {
         .lean()) as any[];
 
       for (const tx of received) {
+        const id = `tx_in_${tx._id}`;
+        if (deletedSet.has(id)) continue;
         notifications.push({
-          id: `tx_in_${tx._id}`,
+          id,
           type: "transaction",
           title: "SOL received",
           body: `${tx.fromUsername} sent you ${tx.amount} SOL`,
           amount: tx.amount,
           txHash: tx.txHash ?? null,
           time: tx.timestamp,
-          read: false,
+          read: readSet.has(id),
           source: "transaction",
         });
       }
@@ -127,25 +147,32 @@ export async function GET(req: NextRequest) {
         .limit(20)
         .lean()) as any[];
 
-      const usernames = (await Username.find({
-        $or: [{ listedById: userId.toString() }, { listedByWallet: wallet }],
-      })
-        .select("username listedById listedByWallet")
-        .lean()) as any[];
+      const usernameQuery: any[] = [];
+      if (userId) usernameQuery.push({ listedById: userId.toString() });
+      if (wallet) usernameQuery.push({ listedByWallet: wallet });
+
+      const usernames =
+        usernameQuery.length > 0
+          ? ((await Username.find({ $or: usernameQuery })
+              .select("username listedById listedByWallet")
+              .lean()) as any[])
+          : [];
 
       const myUsernames = new Set(usernames.map((u: any) => u.username));
 
       for (const tx of soldTxs) {
+        const id = `sale_${tx._id}`;
+        if (deletedSet.has(id)) continue;
         if (tx.toUsername && myUsernames.has(tx.toUsername)) {
           notifications.push({
-            id: `sale_${tx._id}`,
-            type: "claim",
+            id,
+            type: "marketplace",
             title: "Username sold",
             body: `${tx.fromUsername ?? "Someone"} bought ${tx.toUsername} for ${tx.amount} SOL`,
             amount: tx.amount,
             txHash: tx.txHash ?? null,
             time: tx.timestamp,
-            read: false,
+            read: readSet.has(id),
             source: "marketplace",
           });
         }
@@ -154,37 +181,33 @@ export async function GET(req: NextRequest) {
 
     // ── 4. Referral signups ──
     if (user.referrals > 0) {
-      notifications.push({
-        id: `referral_total_${userId}`,
-        type: "referral",
-        title: "Referral program",
-        body: `You have ${user.referrals} referral${user.referrals !== 1 ? "s" : ""}. Keep sharing to level up your tier.`,
-        amount: user.referralEarnings ?? null,
-        time: user.updatedAt,
-        read: false,
-        source: "referral",
-      });
+      const id = `referral_total_${userId}`;
+      // Only add if not deleted
+      if (!deletedSet.has(id)) {
+        notifications.push({
+          id,
+          type: "referral",
+          title: "Referral program",
+          body: `You have ${user.referrals} referral${user.referrals !== 1 ? "s" : ""}. Keep sharing to level up your tier.`,
+          amount: user.referralEarnings ?? null,
+          time: user.updatedAt,
+          read: readSet.has(id),
+          source: "referral",
+        });
+      }
     }
 
-    // ── Sort, dedupe, apply read/deleted state ──
+    // ── Sort + dedupe (deleted already filtered above per-item) ──
     notifications.sort(
       (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
     );
 
     const seen = new Set<string>();
-    const unique = notifications
-      .filter((n) => {
-        if (seen.has(n.id)) return false;
-        seen.add(n.id);
-        // Filter out deleted notifications
-        if (deletedSet.has(n.id)) return false;
-        return true;
-      })
-      .map((n) => ({
-        ...n,
-        // Apply server-side read state
-        read: readSet.has(n.id) ? true : n.read,
-      }));
+    const unique = notifications.filter((n) => {
+      if (seen.has(n.id)) return false;
+      seen.add(n.id);
+      return true;
+    });
 
     return NextResponse.json({
       success: true,
