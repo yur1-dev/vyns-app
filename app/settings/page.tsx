@@ -19,8 +19,10 @@ import {
   Mail,
   CheckCircle2,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useDashboard } from "@/hook/useDashboard";
 
@@ -232,6 +234,162 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
+// ── Delete Account Modal ──────────────────────────────────────────────────────
+function DeleteAccountModal({
+  isEmailUser,
+  onClose,
+  onToast,
+}: {
+  isEmailUser: boolean;
+  onClose: () => void;
+  onToast: (msg: string, type: "success" | "error") => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [fieldError, setFieldError] = useState("");
+
+  const handleDelete = async () => {
+    if (isEmailUser && !password) {
+      setFieldError("Password is required");
+      return;
+    }
+    setFieldError("");
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/auth/delete-account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: isEmailUser ? JSON.stringify({ password }) : JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setFieldError(data.error ?? "Failed to delete account");
+        onToast(data.error ?? "Failed to delete account", "error");
+        setDeleting(false);
+        return;
+      }
+      // Success — sign out and redirect
+      await signOut({ callbackUrl: "/" });
+    } catch {
+      onToast("Something went wrong. Try again.", "error");
+      setDeleting(false);
+    }
+  };
+
+  // Close on backdrop click
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={handleBackdrop}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-[#0c0f17] shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-5 border-b border-red-500/10">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20">
+              <Trash2 className="h-4 w-4 text-red-400" />
+            </div>
+            <p className="text-base font-semibold text-white">Delete Account</p>
+          </div>
+          <p className="text-xs text-white/35 leading-relaxed mt-2">
+            This is permanent and cannot be undone. All your data, usernames,
+            and activity will be wiped.
+          </p>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          {/* Warning checklist */}
+          <div className="rounded-xl border border-red-500/15 bg-red-500/[0.04] p-4 space-y-2">
+            {[
+              "Your account will be permanently deleted",
+              "All owned usernames will be released",
+              "Your activity history will be erased",
+              "This action cannot be reversed",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-2.5">
+                <XCircle className="h-3.5 w-3.5 text-red-400/60 shrink-0" />
+                <p className="text-xs text-white/40">{item}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Password field for email users */}
+          {isEmailUser && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
+                Confirm your password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password to confirm"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setFieldError("");
+                  }}
+                  className={`w-full h-11 px-4 pr-10 rounded-xl border bg-white/[0.03] text-sm text-white placeholder-white/20 focus:outline-none focus:ring-2 transition-all ${
+                    fieldError
+                      ? "border-red-500/40 focus:ring-red-500/20"
+                      : "border-white/[0.07] focus:ring-red-500/20 focus:border-red-500/30"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors cursor-pointer"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {fieldError && (
+                <p className="text-xs text-red-400">{fieldError}</p>
+              )}
+            </div>
+          )}
+
+          {!isEmailUser && fieldError && (
+            <p className="text-xs text-red-400">{fieldError}</p>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onClose}
+              disabled={deleting}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting || (isEmailUser && !password)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {deleting ? "Deleting..." : "Delete my account"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Security Tab ──────────────────────────────────────────────────────────────
 function SecurityTab({
   session,
@@ -254,6 +412,7 @@ function SecurityTab({
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleChange = async () => {
     const errs: Record<string, string> = {};
@@ -321,196 +480,228 @@ function SecurityTab({
   const isOAuthUser = provider === "google" || provider === "github";
 
   return (
-    <div className="space-y-4">
-      <Card title="Active Session" desc="Your current authentication status.">
-        <Field
-          label="Status"
-          aside={
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-              Active
-            </span>
-          }
-        />
-        <Field label="Auth provider" value={provider || "email"} />
-        {session?.user?.email && (
-          <Field label="Email" value={session.user.email} />
-        )}
-        {wallet && (
+    <>
+      <div className="space-y-4">
+        <Card title="Active Session" desc="Your current authentication status.">
           <Field
-            label="Wallet"
-            value={`${wallet.slice(0, 8)}…${wallet.slice(-8)}`}
-            mono
+            label="Status"
+            aside={
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                Active
+              </span>
+            }
           />
-        )}
-        <div className="px-5 py-4">
-          <p className="text-xs text-white/25 leading-relaxed">
-            {wallet
-              ? "Authenticated via Solana wallet signature."
-              : isOAuthUser
-                ? `Authenticated via ${provider} OAuth. Session managed via NextAuth.js.`
-                : "Authenticated via email/password. Session managed via NextAuth.js with HTTP-only JWT cookies."}
-          </p>
-        </div>
-      </Card>
-
-      {isEmailUser && (
-        <Card title="Change Password" desc="Update your login password.">
-          <div className="p-5 space-y-4">
-            <PasswordInput
-              label="Current Password"
-              placeholder="Enter current password"
-              value={cur}
-              onChange={(v) => {
-                setCur(v);
-                setFieldErrors((e) => ({ ...e, cur: "" }));
-              }}
-              error={!!fieldErrors.cur}
+          <Field label="Auth provider" value={provider || "email"} />
+          {session?.user?.email && (
+            <Field label="Email" value={session.user.email} />
+          )}
+          {wallet && (
+            <Field
+              label="Wallet"
+              value={`${wallet.slice(0, 8)}…${wallet.slice(-8)}`}
+              mono
             />
-            {fieldErrors.cur && (
-              <p className="text-xs text-red-400 -mt-2">{fieldErrors.cur}</p>
-            )}
-
-            <PasswordInput
-              label="New Password"
-              placeholder="At least 8 characters"
-              value={next}
-              onChange={(v) => {
-                setNext(v);
-                setFieldErrors((e) => ({ ...e, next: "" }));
-              }}
-              error={!!fieldErrors.next}
-            />
-            {next && <PasswordStrength password={next} />}
-            {fieldErrors.next && (
-              <p className="text-xs text-red-400 -mt-2">{fieldErrors.next}</p>
-            )}
-
-            <PasswordInput
-              label="Confirm New Password"
-              placeholder="Confirm new password"
-              value={confirm}
-              onChange={(v) => {
-                setConfirm(v);
-                setFieldErrors((e) => ({ ...e, confirm: "" }));
-              }}
-              error={!!fieldErrors.confirm}
-            />
-            {next && confirm && (
-              <div
-                className={`flex items-center gap-1.5 text-xs ${next === confirm ? "text-teal-400" : "text-red-400"}`}
-              >
-                {next === confirm ? (
-                  <Check className="h-3 w-3" />
-                ) : (
-                  <XCircle className="h-3 w-3" />
-                )}
-                {next === confirm ? "Passwords match" : "Passwords don't match"}
-              </div>
-            )}
-            {fieldErrors.confirm && (
-              <p className="text-xs text-red-400 -mt-2">
-                {fieldErrors.confirm}
-              </p>
-            )}
-
-            <button
-              onClick={handleChange}
-              disabled={saving || !cur || !next || !confirm}
-              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Lock className="h-4 w-4" />
-              )}
-              {saving ? "Updating..." : "Update Password"}
-            </button>
-
-            <div className="pt-1 border-t border-white/[0.05]">
-              <p className="text-xs text-white/30 mb-2">
-                Forgot your current password?
-              </p>
-              {resetSent ? (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 text-teal-400 text-xs">
-                  <Check className="h-3.5 w-3.5 shrink-0" /> Reset link sent to{" "}
-                  {session?.user?.email}
-                </div>
-              ) : (
-                <button
-                  onClick={handleForgotPassword}
-                  disabled={sendingReset}
-                  className="flex items-center gap-2 text-xs text-white/30 hover:text-teal-400 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {sendingReset ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Mail className="h-3.5 w-3.5" />
-                  )}
-                  Send password reset email
-                </button>
-              )}
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {isOAuthUser && (
-        <Card title="Password" desc="Your account uses OAuth authentication.">
-          <div className="p-5">
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-              <KeyRound className="h-4 w-4 text-white/20 mt-0.5 shrink-0" />
-              <p className="text-xs text-white/35 leading-relaxed">
-                Your account is linked to {provider}. Manage your password from
-                your {provider} account settings.
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.03] overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-red-500/[0.08] flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-red-400/60" />
-          <div>
-            <p className="text-sm font-semibold text-red-400/70">Danger Zone</p>
-            <p className="text-xs text-white/20 mt-0.5">
-              Signing out will clear your local session.
+          )}
+          <div className="px-5 py-4">
+            <p className="text-xs text-white/25 leading-relaxed">
+              {wallet
+                ? "Authenticated via Solana wallet signature."
+                : isOAuthUser
+                  ? `Authenticated via ${provider} OAuth. Session managed via NextAuth.js.`
+                  : "Authenticated via email/password. Session managed via NextAuth.js with HTTP-only JWT cookies."}
             </p>
           </div>
-        </div>
-        <div className="p-5">
-          {!showLogoutConfirm ? (
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
-            >
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-white/40">
-                Are you sure you want to sign out?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={onLogout}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer"
+        </Card>
+
+        {isEmailUser && (
+          <Card title="Change Password" desc="Update your login password.">
+            <div className="p-5 space-y-4">
+              <PasswordInput
+                label="Current Password"
+                placeholder="Enter current password"
+                value={cur}
+                onChange={(v) => {
+                  setCur(v);
+                  setFieldErrors((e) => ({ ...e, cur: "" }));
+                }}
+                error={!!fieldErrors.cur}
+              />
+              {fieldErrors.cur && (
+                <p className="text-xs text-red-400 -mt-2">{fieldErrors.cur}</p>
+              )}
+
+              <PasswordInput
+                label="New Password"
+                placeholder="At least 8 characters"
+                value={next}
+                onChange={(v) => {
+                  setNext(v);
+                  setFieldErrors((e) => ({ ...e, next: "" }));
+                }}
+                error={!!fieldErrors.next}
+              />
+              {next && <PasswordStrength password={next} />}
+              {fieldErrors.next && (
+                <p className="text-xs text-red-400 -mt-2">{fieldErrors.next}</p>
+              )}
+
+              <PasswordInput
+                label="Confirm New Password"
+                placeholder="Confirm new password"
+                value={confirm}
+                onChange={(v) => {
+                  setConfirm(v);
+                  setFieldErrors((e) => ({ ...e, confirm: "" }));
+                }}
+                error={!!fieldErrors.confirm}
+              />
+              {next && confirm && (
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${next === confirm ? "text-teal-400" : "text-red-400"}`}
                 >
-                  <LogOut className="h-4 w-4" /> Yes, sign out
-                </button>
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
+                  {next === confirm ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <XCircle className="h-3 w-3" />
+                  )}
+                  {next === confirm
+                    ? "Passwords match"
+                    : "Passwords don't match"}
+                </div>
+              )}
+              {fieldErrors.confirm && (
+                <p className="text-xs text-red-400 -mt-2">
+                  {fieldErrors.confirm}
+                </p>
+              )}
+
+              <button
+                onClick={handleChange}
+                disabled={saving || !cur || !next || !confirm}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Lock className="h-4 w-4" />
+                )}
+                {saving ? "Updating..." : "Update Password"}
+              </button>
+
+              <div className="pt-1 border-t border-white/[0.05]">
+                <p className="text-xs text-white/30 mb-2">
+                  Forgot your current password?
+                </p>
+                {resetSent ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 text-teal-400 text-xs">
+                    <Check className="h-3.5 w-3.5 shrink-0" /> Reset link sent
+                    to {session?.user?.email}
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleForgotPassword}
+                    disabled={sendingReset}
+                    className="flex items-center gap-2 text-xs text-white/30 hover:text-teal-400 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingReset ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="h-3.5 w-3.5" />
+                    )}
+                    Send password reset email
+                  </button>
+                )}
               </div>
             </div>
-          )}
+          </Card>
+        )}
+
+        {isOAuthUser && (
+          <Card title="Password" desc="Your account uses OAuth authentication.">
+            <div className="p-5">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                <KeyRound className="h-4 w-4 text-white/20 mt-0.5 shrink-0" />
+                <p className="text-xs text-white/35 leading-relaxed">
+                  Your account is linked to {provider}. Manage your password
+                  from your {provider} account settings.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Danger Zone ── */}
+        <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.03] overflow-hidden">
+          <div className="px-5 pt-5 pb-4 border-b border-red-500/[0.08] flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-400/60" />
+            <div>
+              <p className="text-sm font-semibold text-red-400/70">
+                Danger Zone
+              </p>
+              <p className="text-xs text-white/20 mt-0.5">
+                Irreversible actions — proceed with caution.
+              </p>
+            </div>
+          </div>
+          <div className="p-5 space-y-3">
+            {/* Sign out */}
+            {!showLogoutConfirm ? (
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" /> Sign out
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-white/40">
+                  Are you sure you want to sign out?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={onLogout}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4" /> Yes, sign out
+                  </button>
+                  <button
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="border-t border-red-500/[0.08]" />
+
+            {/* Delete account */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-white/25 leading-relaxed">
+                Permanently delete your account and all associated data.
+              </p>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/25 bg-red-500/[0.06] hover:bg-red-500/[0.14] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4" /> Delete account
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      {showDeleteModal && (
+        <DeleteAccountModal
+          isEmailUser={isEmailUser}
+          onClose={() => setShowDeleteModal(false)}
+          onToast={onToast}
+        />
+      )}
+    </>
   );
 }
 
