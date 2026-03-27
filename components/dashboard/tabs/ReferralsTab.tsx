@@ -13,11 +13,10 @@ import {
   Coins,
   TrendingUp,
   Users,
-  Star,
+  Zap,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
-import { Card, SectionTitle, Pill } from "@/components/dashboard/ui";
+import { Card, SectionTitle } from "@/components/dashboard/ui";
 import type { UserData } from "@/types/dashboard";
 import {
   REFERRAL_TIERS,
@@ -35,36 +34,6 @@ interface Props {
     vynsRewarded?: number;
   }>;
 }
-
-// ─── Tier badge ───────────────────────────────────────────────────────────────
-
-function TierBadge({
-  label,
-  color,
-  bgColor,
-  borderColor,
-  active,
-}: {
-  label: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  active: boolean;
-}) {
-  return (
-    <div
-      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-        active
-          ? `${bgColor} ${borderColor} ${color}`
-          : "bg-white/[0.02] border-white/[0.05] text-white/15"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReferralsTab({
   userData,
@@ -112,10 +81,8 @@ export default function ReferralsTab({
     setClaiming(true);
     setClaimError("");
     setLastReward(null);
-
     const result = await onClaimReferralRewards();
     setClaiming(false);
-
     if (result.success) {
       setClaimDone(true);
       setLastReward({
@@ -131,65 +98,78 @@ export default function ReferralsTab({
   const isBusy = claiming || isPending;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <SectionTitle>Referrals</SectionTitle>
 
       {/* ── Stats row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            label: "Total referrals",
-            value: referrals,
-            accent: "text-sky-400",
-            icon: <Users className="h-3.5 w-3.5" />,
-          },
-          {
-            label: "SOL earned",
-            value: `${(userData.referralEarnings ?? 0).toFixed(4)} SOL`,
-            accent: "text-teal-400",
-            icon: <TrendingUp className="h-3.5 w-3.5" />,
-          },
-          {
-            label: "VYNS earned",
-            value: claimedVyns.toLocaleString(),
-            accent: "text-violet-400",
-            icon: <Coins className="h-3.5 w-3.5" />,
-          },
-          {
-            label: "Current tier",
-            value: currentTier.label,
-            accent: currentTier.color,
-            icon: <Star className="h-3.5 w-3.5" />,
-          },
-        ].map((s) => (
-          <Card key={s.label} className="p-4 text-center">
-            <div
-              className={`flex items-center justify-center gap-1.5 mb-2 ${s.accent} opacity-40`}
-            >
-              {s.icon}
-            </div>
-            <p
-              className={`text-xl font-semibold tabular-nums leading-none ${s.accent}`}
-            >
-              {s.value}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+            <Users className="h-4 w-4 text-sky-400" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-white tabular-nums leading-none">
+              {referrals}
             </p>
-            <p className="text-[10px] text-white/20 mt-1.5">{s.label}</p>
-          </Card>
-        ))}
+            <p className="text-[11px] text-white/30 mt-0.5">Total referrals</p>
+          </div>
+        </Card>
+
+        <Card className="p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-4 w-4 text-teal-400" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-teal-400 tabular-nums leading-none">
+              {(userData.referralEarnings ?? 0).toFixed(4)}
+            </p>
+            <p className="text-[11px] text-white/30 mt-0.5">SOL earned</p>
+          </div>
+        </Card>
+
+        <Card className="p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+            <Coins className="h-4 w-4 text-violet-400" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-violet-400 tabular-nums leading-none">
+              {claimedVyns.toLocaleString()}
+            </p>
+            <p className="text-[11px] text-white/30 mt-0.5">VYNS earned</p>
+          </div>
+        </Card>
+
+        <Card
+          className={`p-4 flex items-center gap-3 ${currentTier.bgColor} ${currentTier.borderColor}`}
+        >
+          <div
+            className={`w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center shrink-0`}
+          >
+            <Zap className={`h-4 w-4 ${currentTier.color}`} />
+          </div>
+          <div>
+            <p
+              className={`text-xl font-bold tabular-nums leading-none ${currentTier.color}`}
+            >
+              {currentTier.label}
+            </p>
+            <p className="text-[11px] text-white/30 mt-0.5">Current tier</p>
+          </div>
+        </Card>
       </div>
 
-      {/* ── Claim reward banner ────────────────────────────────────────────── */}
+      {/* ── Claim banner ──────────────────────────────────────────────────── */}
       {hasPending && !claimDone && (
-        <div className="p-4 rounded-2xl bg-teal-500/[0.07] border border-teal-500/20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/15 flex items-center justify-center shrink-0">
-              <Gift className="h-5 w-5 text-teal-400" />
+        <div className="p-4 rounded-2xl bg-teal-500/[0.07] border border-teal-500/20 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-teal-500/15 flex items-center justify-center shrink-0">
+              <Gift className="h-4 w-4 text-teal-400" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-teal-400">
-                Rewards ready to claim
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-teal-400 truncate">
+                Rewards ready
               </p>
-              <p className="text-xs text-teal-400/50 mt-0.5">
+              <p className="text-[11px] text-teal-400/50 mt-0.5 truncate">
                 {unclaimedSol.toFixed(4)} SOL + {unclaimedVyns.toLocaleString()}{" "}
                 VYNS
               </p>
@@ -213,37 +193,30 @@ export default function ReferralsTab({
         </div>
       )}
 
-      {/* Claim success state */}
       {claimDone && lastReward && (
         <div className="p-4 rounded-2xl bg-emerald-500/[0.07] border border-emerald-500/20 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <Check className="h-5 w-5 text-emerald-400" />
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+            <Check className="h-4 w-4 text-emerald-400" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-emerald-400">
-              Rewards claimed!
-            </p>
-            <p className="text-xs text-emerald-400/50 mt-0.5">
-              +{lastReward.sol.toFixed(4)} SOL and +
-              {lastReward.vyns.toLocaleString()} VYNS added to your account
+            <p className="text-sm font-semibold text-emerald-400">Claimed!</p>
+            <p className="text-[11px] text-emerald-400/50 mt-0.5">
+              +{lastReward.sol.toFixed(4)} SOL · +
+              {lastReward.vyns.toLocaleString()} VYNS
             </p>
           </div>
         </div>
       )}
 
-      {/* No pending state */}
       {!hasPending && !claimDone && (
-        <div className="p-4 rounded-2xl bg-white/[0.025] border border-white/[0.05] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center shrink-0">
-            <Sparkles className="h-4.5 w-4.5 text-white/20" />
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-center shrink-0">
+            <Gift className="h-4 w-4 text-white/15" />
           </div>
           <div>
-            <p className="text-sm font-medium text-white/40">
-              No rewards to claim yet
-            </p>
-            <p className="text-xs text-white/20 mt-0.5">
-              Invite friends using your link — rewards appear here once they
-              sign up
+            <p className="text-sm font-medium text-white/30">No rewards yet</p>
+            <p className="text-[11px] text-white/15 mt-0.5">
+              Share your link — rewards appear once friends sign up
             </p>
           </div>
         </div>
@@ -259,91 +232,100 @@ export default function ReferralsTab({
       {/* ── Tier progression ──────────────────────────────────────────────── */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-white/60">Referral tiers</p>
-          <Pill
-            className={`${currentTier.color} ${currentTier.bgColor} ${currentTier.borderColor}`}
+          <p className="text-sm font-semibold text-white/60">Tier progress</p>
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${currentTier.color} ${currentTier.bgColor} ${currentTier.borderColor}`}
           >
             {currentTier.label}
-          </Pill>
+          </span>
         </div>
 
-        {/* Tier ladder */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {REFERRAL_TIERS.map((tier) => (
-            <TierBadge
-              key={tier.id}
-              label={tier.label}
-              color={tier.color}
-              bgColor={tier.bgColor}
-              borderColor={tier.borderColor}
-              active={referrals >= tier.minReferrals}
-            />
-          ))}
+        {/* Segmented progress */}
+        <div className="flex items-center gap-1">
+          {REFERRAL_TIERS.map((tier, i) => {
+            const unlocked = referrals >= tier.minReferrals;
+            const isCurrent = currentTier.id === tier.id;
+            return (
+              <div
+                key={tier.id}
+                className="flex-1 flex flex-col items-center gap-1.5"
+              >
+                <div
+                  className={`h-1.5 w-full rounded-full transition-all duration-500 ${
+                    unlocked ? "bg-teal-500" : "bg-white/[0.06]"
+                  } ${isCurrent ? "ring-1 ring-teal-400/30 ring-offset-1 ring-offset-transparent" : ""}`}
+                />
+                <span
+                  className={`text-[9px] font-medium ${unlocked ? tier.color : "text-white/15"}`}
+                >
+                  {tier.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Progress to next tier */}
         {nextTier ? (
-          <div>
-            <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-white/30">
-                {referrals} / {nextTier.minReferrals} referrals
-              </span>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-white/30">{referrals} referrals</span>
               <span className="text-white/20">
-                {nextTier.minReferrals - referrals} more to {nextTier.label}
+                {nextTier.minReferrals - referrals} to {nextTier.label}
               </span>
             </div>
-            <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+            <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
               <div
-                className="h-full bg-teal-500 rounded-full transition-all duration-500"
+                className="h-full bg-teal-500 rounded-full transition-all duration-700"
                 style={{ width: `${progress}%` }}
               />
             </div>
           </div>
         ) : (
-          <p className="text-xs text-teal-400/60">
-            🎉 You've reached the highest tier — Legend!
-          </p>
+          <p className="text-xs text-teal-400/60">Max tier reached — Legend!</p>
         )}
 
-        {/* Reward rates table */}
-        <div className="rounded-xl bg-white/[0.02] border border-white/[0.05] divide-y divide-white/[0.04] overflow-hidden">
-          <div className="grid grid-cols-4 px-4 py-2 text-[10px] text-white/20 uppercase tracking-widest font-medium">
+        {/* Rate table — compact */}
+        <div className="rounded-xl overflow-hidden border border-white/[0.05]">
+          <div className="grid grid-cols-4 px-3 py-2 bg-white/[0.02] text-[10px] text-white/20 uppercase tracking-wider">
             <span>Tier</span>
-            <span className="text-center">From</span>
-            <span className="text-center">SOL / referral</span>
-            <span className="text-right">VYNS / referral</span>
+            <span className="text-center">Min</span>
+            <span className="text-center">SOL</span>
+            <span className="text-right">VYNS</span>
           </div>
           {REFERRAL_TIERS.map((tier) => {
             const isActive = currentTier.id === tier.id;
+            const unlocked = referrals >= tier.minReferrals;
             return (
               <div
                 key={tier.id}
-                className={`grid grid-cols-4 px-4 py-2.5 text-xs transition-colors ${
+                className={`grid grid-cols-4 px-3 py-2.5 text-xs border-t border-white/[0.04] transition-colors ${
                   isActive ? "bg-white/[0.03]" : ""
                 }`}
               >
                 <span
-                  className={`font-semibold ${isActive ? tier.color : "text-white/30"}`}
+                  className={`font-semibold ${unlocked ? tier.color : "text-white/20"}`}
                 >
                   {tier.label}
                   {isActive && (
-                    <span className="ml-1.5 text-[9px] text-white/20 font-normal">
-                      ← you
+                    <span className="ml-1 text-[9px] text-white/15 font-normal">
+                      you
                     </span>
                   )}
                 </span>
-                <span className="text-center text-white/25">
+                <span
+                  className={`text-center ${unlocked ? "text-white/40" : "text-white/15"}`}
+                >
                   {tier.minReferrals === 0 ? "—" : `${tier.minReferrals}+`}
                 </span>
                 <span
-                  className={`text-center font-medium ${isActive ? "text-teal-400" : "text-white/20"}`}
+                  className={`text-center font-medium ${isActive ? "text-teal-400" : unlocked ? "text-white/30" : "text-white/15"}`}
                 >
-                  {tier.solPerReferral} SOL
+                  {tier.solPerReferral}
                 </span>
                 <span
-                  className={`text-right font-medium ${isActive ? "text-violet-400" : "text-white/20"}`}
+                  className={`text-right font-medium ${isActive ? "text-violet-400" : unlocked ? "text-white/30" : "text-white/15"}`}
                 >
-                  {tier.vynsPerReferral} VYNS
+                  {tier.vynsPerReferral}
                 </span>
               </div>
             );
@@ -351,11 +333,11 @@ export default function ReferralsTab({
         </div>
       </Card>
 
-      {/* ── Your referral link ─────────────────────────────────────────────── */}
-      <Card className="p-5 space-y-4">
+      {/* ── Referral link ─────────────────────────────────────────────────── */}
+      <Card className="p-5 space-y-3">
         <p className="text-sm font-medium text-white/50">Your referral link</p>
         <div className="flex items-center gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-          <span className="text-sm text-white/40 font-mono truncate flex-1">
+          <span className="text-sm text-white/35 font-mono truncate flex-1 text-[12px]">
             {link}
           </span>
           <button
@@ -381,7 +363,7 @@ export default function ReferralsTab({
                 "_blank",
               )
             }
-            className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] text-sm text-white/40 hover:text-white/70 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] text-sm text-white/35 hover:text-white/60 transition-all cursor-pointer"
           >
             <ExternalLink className="h-3.5 w-3.5" /> Share on X
           </button>
@@ -392,7 +374,7 @@ export default function ReferralsTab({
                 "_blank",
               )
             }
-            className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] text-sm text-white/40 hover:text-white/70 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] text-sm text-white/35 hover:text-white/60 transition-all cursor-pointer"
           >
             <ExternalLink className="h-3.5 w-3.5" /> Telegram
           </button>
@@ -401,34 +383,34 @@ export default function ReferralsTab({
 
       {/* ── How it works ──────────────────────────────────────────────────── */}
       <Card className="p-5">
-        <p className="text-sm font-medium text-white/50 mb-4">How it works</p>
+        <p className="text-sm font-medium text-white/40 mb-4">How it works</p>
         <div className="space-y-3">
           {[
             `Share your link — earn ${currentTier.solPerReferral} SOL + ${currentTier.vynsPerReferral} VYNS per signup`,
-            "They sign up and claim a username on VYNS",
-            "Rewards appear in your dashboard instantly",
-            "Reach higher tiers by inviting more friends for bigger rewards",
+            "They claim a username on VYNS",
+            "Rewards drop into your dashboard instantly",
+            "More referrals = higher tier = bigger rewards",
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full border border-teal-500/30 text-teal-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+              <span className="w-5 h-5 rounded-full border border-teal-500/25 text-teal-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                 {i + 1}
               </span>
-              <p className="text-sm text-white/40">{step}</p>
+              <p className="text-sm text-white/35 leading-snug">{step}</p>
             </div>
           ))}
         </div>
 
         {nextTier && (
-          <div className="mt-4 flex items-center gap-2.5 p-3 rounded-xl bg-white/[0.025] border border-white/[0.04]">
-            <ChevronRight className="h-3.5 w-3.5 text-teal-400/40 shrink-0" />
-            <p className="text-xs text-white/25">
+          <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <ChevronRight className="h-3.5 w-3.5 text-white/15 shrink-0" />
+            <p className="text-[11px] text-white/20 leading-relaxed">
               Reach <span className={nextTier.color}>{nextTier.label}</span> at{" "}
-              {nextTier.minReferrals} referrals to earn{" "}
-              <span className="text-teal-400/70">
+              {nextTier.minReferrals} referrals for{" "}
+              <span className="text-teal-400/60">
                 {nextTier.solPerReferral} SOL
               </span>{" "}
               +{" "}
-              <span className="text-violet-400/70">
+              <span className="text-violet-400/60">
                 {nextTier.vynsPerReferral} VYNS
               </span>{" "}
               per referral

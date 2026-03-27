@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const sellerUserId = record.listedById ?? record.stats?.ownerId ?? null;
     const sellerWallet = record.listedByWallet ?? record.walletAddress ?? null;
     const salePrice = record.listedPrice ?? 0;
-    const displayUsername = record.username; // e.g. "@luna"
+    const displayUsername = record.username;
 
     const newStats = {
       ...(record.stats ?? {}),
@@ -81,6 +81,30 @@ export async function POST(req: NextRequest) {
       },
       $unset: { listedPrice: "" },
     });
+
+    // ── Credit seller earnings in User doc ──────────────────────────────────
+    // This is what actually shows up in the Earnings tab.
+    // We try by userId first (email/google users), then by wallet (phantom users).
+    if (salePrice > 0) {
+      let sellerCredited = false;
+
+      if (sellerUserId) {
+        const result = await User.findByIdAndUpdate(
+          sellerUserId,
+          { $inc: { earnings: salePrice, xp: 10 } },
+          { new: false },
+        ).catch(() => null);
+        sellerCredited = !!result;
+      }
+
+      // Fallback: wallet-based seller (pure phantom user, no email account)
+      if (!sellerCredited && sellerWallet) {
+        await User.findOneAndUpdate(
+          { wallet: sellerWallet },
+          { $inc: { earnings: salePrice, xp: 10 } },
+        ).catch(() => {});
+      }
+    }
 
     // Remove username from seller's User.usernames[]
     const usernameVariants = [clean, `@${clean}`];
@@ -119,15 +143,13 @@ export async function POST(req: NextRequest) {
       ? `@${buyerDoc.activeUsername.replace("@", "")}`
       : null;
 
-    // ── Write Transaction record (used by notifications aggregator) ──
+    // ── Write Transaction record ──────────────────────────────────────────────
     const txRecord = await Transaction.create({
       type: "purchase",
       amount: salePrice,
       token: "SOL",
-      // buyer
       fromUsername: buyerActiveUsername ?? buyerWallet ?? buyerUserId,
       fromWallet: buyerWallet ?? null,
-      // seller / listing info — notifications route uses these to match sales
       toUsername: displayUsername,
       toWallet: sellerWallet ?? null,
       listedByWallet: sellerWallet ?? null,
@@ -138,7 +160,7 @@ export async function POST(req: NextRequest) {
 
     const txHash = txRecord?._id?.toString() ?? null;
 
-    // ── Write Activity for BUYER ──
+    // ── Write Activity for BUYER ──────────────────────────────────────────────
     if (buyerWallet || buyerUserId) {
       await Activity.create({
         wallet: buyerWallet ?? buyerUserId,
@@ -149,7 +171,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
-    // ── Write Activity for SELLER ──
+    // ── Write Activity for SELLER ─────────────────────────────────────────────
     if (sellerWallet || sellerUserId) {
       const sellerDoc = sellerUserId
         ? ((await User.findById(sellerUserId).select("wallet").lean()) as any)

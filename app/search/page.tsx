@@ -191,12 +191,12 @@ function SearchPageInner() {
             />
           </Link>
           <div className="flex items-center gap-3">
-            <Link
+            {/* <Link
               href="/marketplace"
               className="text-sm text-white/40 hover:text-white/70 transition-colors"
             >
               Marketplace
-            </Link>
+            </Link> */}
             <Link
               href="/dashboard"
               className="px-4 py-1.5 rounded-xl bg-teal-500/15 border border-teal-500/20 text-teal-400 text-sm font-medium hover:bg-teal-500/25 transition-all"

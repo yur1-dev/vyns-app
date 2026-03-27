@@ -33,6 +33,26 @@ const DEFAULT_CUSTOMIZATION: ProfileCustomization = {
   avatarSeed: "",
 };
 
+/**
+ * The DB stores `earnings` as a plain Number.
+ * The frontend type expects EarningsBreakdown { today, week, month, allTime }.
+ * This normalizes whatever the API returns into the object shape.
+ */
+function normalizeEarnings(
+  raw: unknown,
+  prev?: UserData["earnings"],
+): UserData["earnings"] {
+  const base = prev ?? DEFAULT_USER_DATA.earnings;
+  if (typeof raw === "number") {
+    // DB returned a plain number — treat it as allTime, keep rest from prev
+    return { ...base, allTime: raw };
+  }
+  if (raw && typeof raw === "object") {
+    return { ...base, ...(raw as Partial<UserData["earnings"]>) };
+  }
+  return base;
+}
+
 export function useDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -53,7 +73,6 @@ export function useDashboard() {
   const initDone = useRef(false);
   const walletRef = useRef<string | null>(null);
 
-  // Keep walletRef in sync so visibilitychange handler always has latest value
   useEffect(() => {
     walletRef.current = wallet;
   }, [wallet]);
@@ -125,7 +144,6 @@ export function useDashboard() {
         const data = await userRes.json();
         const payload = data.user ?? data;
 
-        // FIX: sync wallet from server response so header updates after linking
         if (payload.wallet && !walletRef.current) {
           setWallet(payload.wallet);
           fetchBalance(payload.wallet);
@@ -144,10 +162,8 @@ export function useDashboard() {
           ...prev,
           ...payload,
           ...referralRewards,
-          earnings: {
-            ...DEFAULT_USER_DATA.earnings,
-            ...(payload.earnings ?? {}),
-          },
+          // FIX: normalize earnings — DB sends a Number, frontend expects an object
+          earnings: normalizeEarnings(payload.earnings, prev.earnings),
           usernames: Array.isArray(payload.usernames)
             ? payload.usernames
             : prev.usernames,
@@ -178,7 +194,6 @@ export function useDashboard() {
     if (wallet) await fetchBalance(wallet);
   }, [wallet, session, fetchUserData, fetchBalance]);
 
-  // FIX: Re-sync wallet from server whenever user navigates back to this tab
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
@@ -277,6 +292,11 @@ export function useDashboard() {
             0,
             (prev.stakingRewards ?? 0) - (data.rewards ?? 0),
           ),
+          // FIX: also update earnings optimistically after staking claim
+          earnings: {
+            ...prev.earnings,
+            allTime: (prev.earnings?.allTime ?? 0) + (data.rewards ?? 0),
+          },
         }));
         return { success: true };
       } catch (err: any) {
@@ -306,10 +326,8 @@ export function useDashboard() {
                   : "credentials",
           );
 
-          // Always read wallet from DB — session JWT is stale after link-wallet
           await fetchUserData(null, session);
 
-          // Also fetch directly to get wallet + balance right away
           try {
             const meRes = await fetch("/api/user/me", {
               credentials: "include",
