@@ -82,16 +82,21 @@ export async function POST(req: NextRequest) {
       $unset: { listedPrice: "" },
     });
 
-    // ── Credit seller earnings in User doc ──────────────────────────────────
-    // This is what actually shows up in the Earnings tab.
-    // We try by userId first (email/google users), then by wallet (phantom users).
+    // ── Credit seller earnings ────────────────────────────────────────────────
+    // Increments both earnings (total) and marketplaceEarnings (per-source).
     if (salePrice > 0) {
       let sellerCredited = false;
 
       if (sellerUserId) {
         const result = await User.findByIdAndUpdate(
           sellerUserId,
-          { $inc: { earnings: salePrice, xp: 10 } },
+          {
+            $inc: {
+              earnings: salePrice,
+              marketplaceEarnings: salePrice, // ── NEW per-source field
+              xp: 10,
+            },
+          },
           { new: false },
         ).catch(() => null);
         sellerCredited = !!result;
@@ -101,7 +106,13 @@ export async function POST(req: NextRequest) {
       if (!sellerCredited && sellerWallet) {
         await User.findOneAndUpdate(
           { wallet: sellerWallet },
-          { $inc: { earnings: salePrice, xp: 10 } },
+          {
+            $inc: {
+              earnings: salePrice,
+              marketplaceEarnings: salePrice, // ── NEW per-source field
+              xp: 10,
+            },
+          },
         ).catch(() => {});
       }
     }

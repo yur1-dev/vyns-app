@@ -70,10 +70,13 @@ export async function POST(req: NextRequest) {
     await position.save();
 
     const filter = auth.wallet ? { wallet: auth.wallet } : { _id: auth.userId };
+
+    // ── Increment both earnings (total) and stakingEarnings (per-source) ──
     await User.findOneAndUpdate(filter, {
       $inc: {
         stakedAmount: -position.amount,
         earnings: rewards,
+        stakingEarnings: rewards, // ── NEW per-source field
       },
     });
 

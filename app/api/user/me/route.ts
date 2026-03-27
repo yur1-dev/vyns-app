@@ -12,12 +12,6 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // FIX: Always check Bearer token first.
-    // If the request has an Authorization: Bearer header, use that — never fall
-    // back to the NextAuth session. This is what mobile uses after Google login.
-    // The old code did it the wrong way around: if a NextAuth session existed
-    // (from a previous email/password login), it ignored the Bearer token entirely
-    // and returned the wrong user.
     const hasBearerToken = req.headers
       .get("authorization")
       ?.startsWith("Bearer ");
@@ -46,12 +40,13 @@ export async function GET(req: NextRequest) {
         xp: 0,
         level: 1,
         earnings: 0,
+        marketplaceEarnings: 0,
+        stakingEarnings: 0,
         stakedAmount: 0,
         referralCode: nanoid(8),
       });
     }
 
-    // FIX: Always use wallet from DB — session JWT is stale after link-wallet
     const wallet = user.wallet ?? sessionWallet ?? null;
 
     const usernameRecords = await Username.find({
@@ -91,9 +86,17 @@ export async function GET(req: NextRequest) {
 
     const userObj = user.toObject();
 
+    // ── Per-source earnings breakdown ────────────────────────────────────────
+    // marketplaceEarnings and stakingEarnings are new fields — old users will
+    // have undefined, so we default to 0. referralEarnings already existed.
+    // allTime = earnings (the running total, always the source of truth).
+    const marketplaceEarnings = userObj.marketplaceEarnings ?? 0;
+    const stakingEarnings = userObj.stakingEarnings ?? 0;
+    const referralEarnings = userObj.referralEarnings ?? 0;
+    const allTime = userObj.earnings ?? 0;
+
     const payload = {
       _id: userObj._id?.toString() ?? null,
-      // FIX: DB wallet takes priority over stale session wallet
       wallet,
       email: userObj.email ?? null,
       name: userObj.name ?? null,
@@ -103,12 +106,26 @@ export async function GET(req: NextRequest) {
       referralCode: userObj.referralCode ?? null,
       activeUsername: userObj.activeUsername ?? null,
       usernames,
-      earnings: { today: 0, week: 0, month: 0, allTime: userObj.earnings ?? 0 },
+      earnings: {
+        today: 0,
+        week: 0,
+        month: 0,
+        allTime,
+        marketplace: marketplaceEarnings, // ── NEW
+        staking: stakingEarnings, // ── NEW
+        referral: referralEarnings, // ── already existed, now explicit
+      },
       stakingPositions: [],
       referrals: userObj.referrals ?? 0,
+      referralEarnings,
+      stakingRewards: stakingEarnings, // kept for backwards compat with useDashboard
       activity: [],
       isNewUser: usernameRecords.length === 0,
       bio: userObj.bio ?? "",
+      claimedVyns: userObj.claimedVyns ?? 0,
+      unclaimedReferralSol: 0,
+      unclaimedVyns: 0,
+      referralClaimPending: userObj.referralClaimPending ?? false,
       customization: userObj.customization ?? {
         theme: "teal",
         petId: "none",
@@ -121,7 +138,6 @@ export async function GET(req: NextRequest) {
 
     const res = NextResponse.json({ success: true, user: payload });
 
-    // Clear stale wallet cookie if NextAuth session is active
     if (session?.user && req.cookies.get("auth-token")) {
       res.cookies.set("auth-token", "", { maxAge: 0, path: "/" });
     }

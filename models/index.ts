@@ -18,6 +18,8 @@ export interface IUser extends Document {
   xp: number;
   level: number;
   earnings: number;
+  marketplaceEarnings: number; // ── NEW: from buy/sell
+  stakingEarnings: number; // ── NEW: from staking claim
   stakedAmount: number;
   referralCode: string;
   referredBy?: string;
@@ -67,6 +69,8 @@ const UserSchema = new Schema<IUser>(
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     earnings: { type: Number, default: 0 },
+    marketplaceEarnings: { type: Number, default: 0 }, // ── NEW
+    stakingEarnings: { type: Number, default: 0 }, // ── NEW
     stakedAmount: { type: Number, default: 0 },
     referralCode: { type: String, unique: true, sparse: true },
     referredBy: { type: String, default: null },
@@ -113,11 +117,8 @@ export interface IUsername extends Document {
   isListed: boolean;
   staked: boolean;
   listedPrice?: number;
-  // FIX: Track who listed it separately from current owner.
-  // walletAddress/stats.ownerId changes on purchase — listedBy never changes
-  // after listing, so "Listed by you" is always accurate.
-  listedById?: string; // userId of the lister (email users)
-  listedByWallet?: string; // wallet of the lister (wallet users)
+  listedById?: string;
+  listedByWallet?: string;
   totalTransactions: number;
   totalVolume: number;
   totalYield: number;
