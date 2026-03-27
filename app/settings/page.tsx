@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   ExternalLink,
-  LogOut,
   AlertTriangle,
   Eye,
   EyeOff,
@@ -434,13 +433,11 @@ function SecurityTab({
   session,
   wallet,
   provider,
-  onLogout,
   onToast,
 }: {
   session: any;
   wallet: string | null;
   provider: string;
-  onLogout: () => void;
   onToast: (msg: string, type: "success" | "error") => void;
 }) {
   const [cur, setCur] = useState("");
@@ -450,7 +447,6 @@ function SecurityTab({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleChange = async () => {
@@ -683,41 +679,7 @@ function SecurityTab({
               </p>
             </div>
           </div>
-          <div className="p-5 space-y-3">
-            {/* Sign out */}
-            {!showLogoutConfirm ? (
-              <button
-                onClick={() => setShowLogoutConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-sm text-red-400/70 hover:text-red-400 transition-all cursor-pointer"
-              >
-                <LogOut className="h-4 w-4" /> Sign out
-              </button>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-white/40">
-                  Are you sure you want to sign out?
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={onLogout}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" /> Yes, sign out
-                  </button>
-                  <button
-                    onClick={() => setShowLogoutConfirm(false)}
-                    className="px-4 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Divider */}
-            <div className="border-t border-red-500/[0.08]" />
-
-            {/* Delete account */}
+          <div className="p-5">
             <div className="space-y-1.5">
               <p className="text-xs text-white/25 leading-relaxed">
                 Permanently delete your account and all associated data.
@@ -1029,7 +991,6 @@ export default function SettingsPageRoute() {
             session={dash.session}
             wallet={dash.wallet}
             provider={dash.provider}
-            onLogout={dash.logout}
             onToast={showToast}
           />
         )}
