@@ -21,6 +21,7 @@ import {
   Coins,
   Gift,
   Clock,
+  Tag,
 } from "lucide-react";
 import {
   Card,
@@ -58,21 +59,13 @@ const TIER_CHARS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Strip leading @ so length-based tier is always accurate */
 function stripAt(name: string) {
   return name.replace(/^@+/, "");
 }
 
-/**
- * Derive the correct tier for a username item.
- * Priority: u.tier (if it's a real tier string) → length of clean name.
- * Marketplace-bought names often have u.tier = undefined or null,
- * so we always fall back to length using the stripped name.
- */
 function deriveTier(u: UsernameItem): string {
   const rawName = (u as any).username ?? u.name ?? "";
   const cleanName = stripAt(rawName);
-
   const VALID_TIERS = new Set([
     "Diamond",
     "Platinum",
@@ -81,7 +74,6 @@ function deriveTier(u: UsernameItem): string {
     "Bronze",
   ]);
   if (u.tier && VALID_TIERS.has(u.tier)) return u.tier;
-
   return tierFromLen(cleanName.length);
 }
 
@@ -162,7 +154,6 @@ function PositionCard({
   claiming: boolean;
 }) {
   const [done, setDone] = useState(false);
-
   const start = new Date(pos.startDate).getTime();
   const end = start + pos.lockPeriod * 86_400_000;
   const now = Date.now();
@@ -176,10 +167,8 @@ function PositionCard({
     day: "numeric",
     year: "numeric",
   });
-
   const isUnlocked = pos.status === "unlocked";
   const isClaimed = pos.status === "claimed";
-
   if (isClaimed) return null;
 
   async function handleClaim() {
@@ -225,7 +214,6 @@ function PositionCard({
           )}
         </Pill>
       </div>
-
       <div>
         <div className="flex justify-between text-[10px] text-white/20 mb-1.5">
           <span>Lock progress</span>
@@ -233,14 +221,11 @@ function PositionCard({
         </div>
         <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${
-              isUnlocked ? "bg-emerald-500" : "bg-teal-500"
-            }`}
+            className={`h-full rounded-full transition-all ${isUnlocked ? "bg-emerald-500" : "bg-teal-500"}`}
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
-
       <div className="flex items-center justify-between pt-0.5">
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3 w-3 text-emerald-400/60" />
@@ -251,7 +236,6 @@ function PositionCard({
             </span>
           </span>
         </div>
-
         {isUnlocked ? (
           <button
             onClick={handleClaim}
@@ -283,7 +267,6 @@ function PositionCard({
           </div>
         )}
       </div>
-
       {pos.txSignature && (
         <a
           href={`https://solscan.io/tx/${pos.txSignature}`}
@@ -356,9 +339,7 @@ function CollateralModal({
       />
       <div className="relative z-10 w-full max-w-sm rounded-3xl border border-white/[0.08] bg-[#0a0f1a] shadow-2xl overflow-hidden">
         <div
-          className={`px-6 pt-6 pb-5 ${
-            isStaking ? "bg-violet-500/[0.06]" : "bg-red-500/[0.04]"
-          }`}
+          className={`px-6 pt-6 pb-5 ${isStaking ? "bg-violet-500/[0.06]" : "bg-red-500/[0.04]"}`}
         >
           {!busy && (
             <button
@@ -369,9 +350,7 @@ function CollateralModal({
             </button>
           )}
           <div
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-3 ${
-              isStaking ? "bg-violet-500/20" : "bg-red-500/10"
-            }`}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-3 ${isStaking ? "bg-violet-500/20" : "bg-red-500/10"}`}
           >
             {isStaking ? (
               <Coins className="h-5 w-5 text-violet-400" />
@@ -388,15 +367,10 @@ function CollateralModal({
               : "Unstaking stops earnings and makes this username available to sell."}
           </p>
         </div>
-
         <div className="p-5 space-y-4">
           {isStaking && (
             <div
-              className={`rounded-xl border p-4 space-y-3 ${
-                yieldPct > 0
-                  ? "bg-violet-500/[0.04] border-violet-500/15"
-                  : "bg-white/[0.02] border-white/[0.05]"
-              }`}
+              className={`rounded-xl border p-4 space-y-3 ${yieldPct > 0 ? "bg-violet-500/[0.04] border-violet-500/15" : "bg-white/[0.02] border-white/[0.05]"}`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/40">Username value</span>
@@ -407,9 +381,7 @@ function CollateralModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/40">Yield rate</span>
                 <span
-                  className={`text-sm font-bold ${
-                    yieldPct > 0 ? "text-teal-400" : "text-white/20"
-                  }`}
+                  className={`text-sm font-bold ${yieldPct > 0 ? "text-teal-400" : "text-white/20"}`}
                 >
                   {yieldPct > 0 ? `${yieldPct}% APY` : "No yield"}
                 </span>
@@ -430,7 +402,6 @@ function CollateralModal({
               )}
             </div>
           )}
-
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] divide-y divide-white/[0.04]">
             {[
               ["Username", `@${displayName}`],
@@ -454,7 +425,6 @@ function CollateralModal({
               </div>
             ))}
           </div>
-
           {sigStatus === "signing" && (
             <div className="flex items-center justify-center gap-2 py-1">
               <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
@@ -477,7 +447,6 @@ function CollateralModal({
               {error || sigError}
             </div>
           )}
-
           {(sigStatus === "idle" || sigStatus === "error") && (
             <div className="flex gap-2">
               <button
@@ -591,7 +560,13 @@ export default function StakingTab({
   );
 
   const stakedUsernames = userData.usernames?.filter((u) => u.staked) ?? [];
-  const unstakedUsernames = userData.usernames?.filter((u) => !u.staked) ?? [];
+
+  // ── GUARD: split unstaked into available vs listed ──
+  const availableToStake =
+    userData.usernames?.filter((u) => !u.staked && !u.isListed) ?? [];
+  const listedUsernames =
+    userData.usernames?.filter((u) => !u.staked && u.isListed) ?? [];
+
   const totalYield = stakedUsernames.reduce((acc, u) => {
     const tierKey = deriveTier(u);
     return acc + ((u.value ?? 0) * (USERNAME_YIELD[tierKey] ?? 0)) / 100;
@@ -829,13 +804,13 @@ export default function StakingTab({
               </div>
             )}
 
-            {/* Unstaked usernames */}
-            {unstakedUsernames.length > 0 && (
+            {/* Available to stake */}
+            {availableToStake.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
                   Available to stake
                 </p>
-                {unstakedUsernames.map((u, i) => {
+                {availableToStake.map((u, i) => {
                   const rawName = (u as any).username ?? u.name ?? "";
                   const displayName = stripAt(rawName);
                   const tierKey = deriveTier(u);
@@ -881,6 +856,69 @@ export default function StakingTab({
                       >
                         Stake
                       </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Listed usernames — cannot be staked ── */}
+            {listedUsernames.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
+                  Listed on marketplace
+                </p>
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/[0.05] border border-amber-500/15 mb-2">
+                  <Tag className="h-3.5 w-3.5 text-amber-400/60 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-300/50 leading-relaxed">
+                    These usernames are listed for sale. Delist them from the
+                    marketplace before staking.
+                  </p>
+                </div>
+                {listedUsernames.map((u, i) => {
+                  const rawName = (u as any).username ?? u.name ?? "";
+                  const displayName = stripAt(rawName);
+                  const tierKey = deriveTier(u);
+                  const cfg =
+                    TIER_CONFIG[tierKey as keyof typeof TIER_CONFIG] ??
+                    TIER_CONFIG.Bronze;
+                  return (
+                    <div
+                      key={displayName ?? i}
+                      className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.015] border border-white/[0.04] opacity-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white/[0.03] flex items-center justify-center shrink-0">
+                          <Tag className="h-4 w-4 text-amber-400/40" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-white/50">
+                              @{displayName}
+                            </p>
+                            <Pill className={cfg.cls}>{cfg.label}</Pill>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400/70 font-medium">
+                              Listed · {u.listedPrice ?? "?"} SOL
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-white/20 mt-0.5">
+                            {displayName.length} chars
+                          </p>
+                        </div>
+                      </div>
+                      {/* Disabled stake button with tooltip wrapper */}
+                      <div className="relative group shrink-0 ml-3">
+                        <button
+                          disabled
+                          className="text-[10px] px-3 py-1.5 rounded-lg border border-white/[0.06] text-white/15 cursor-not-allowed"
+                        >
+                          Stake
+                        </button>
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full right-0 mb-2 w-44 px-2.5 py-1.5 rounded-lg bg-[#0d1320] border border-white/10 text-[10px] text-white/50 leading-relaxed opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 text-center">
+                          Delist from marketplace first
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -934,7 +972,6 @@ export default function StakingTab({
                 ))}
               </div>
             </div>
-
             {num > 0 && (
               <div className="p-3.5 rounded-xl bg-white/[0.025] border border-white/[0.06] space-y-2.5">
                 <p className="text-[10px] text-white/25 uppercase tracking-widest font-medium">
@@ -958,13 +995,11 @@ export default function StakingTab({
                 </div>
               </div>
             )}
-
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-red-400 text-xs">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}
               </div>
             )}
-
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
               <Info className="h-3.5 w-3.5 text-white/20 shrink-0 mt-0.5" />
               <p className="text-xs text-white/25 leading-relaxed">
@@ -972,7 +1007,6 @@ export default function StakingTab({
                 Rewards accumulate daily and can be claimed once unlocked.
               </p>
             </div>
-
             <button
               onClick={handleStake}
               disabled={!canStake}
@@ -1015,7 +1049,6 @@ export default function StakingTab({
                 </div>
               </div>
             )}
-
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3">
                 Active positions ({activePositions.length})

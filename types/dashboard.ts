@@ -30,6 +30,8 @@ export interface UsernameItem {
   stakedAmount?: number;
   views?: number;
   transfers?: number;
+  isListed?: boolean;
+  listedPrice?: number | null;
 }
 
 export interface StakingPosition {

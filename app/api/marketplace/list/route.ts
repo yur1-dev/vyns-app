@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     if (!record) {
       return NextResponse.json(
-        { success: false, error: `Username @${lowerUsername} not found in DB` },
+        { success: false, error: `Username @${lowerUsername} not found` },
         { status: 404 },
       );
     }
@@ -48,26 +48,25 @@ export async function POST(req: NextRequest) {
 
     if (!isOwner) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `Ownership mismatch — storedWallet: ${storedWallet?.slice(0, 10)}, ownerId: ${ownerId?.slice(0, 10)}, yourUserId: ${auth.userId?.slice(0, 10)}, yourWallet: ${auth.wallet?.slice(0, 10)}`,
-        },
+        { success: false, error: "You don't own this username" },
         { status: 403 },
       );
     }
 
-    if (record.staked) {
+    // ── GUARD: cannot list a staked username ──
+    if (record.staked || record.stats?.staked) {
       return NextResponse.json(
-        { success: false, error: "Unstake before listing" },
+        {
+          success: false,
+          error:
+            "This username is currently staked. Unstake it before listing on the marketplace.",
+        },
         { status: 400 },
       );
     }
 
     record.listedPrice = price;
     record.isListed = true;
-    // FIX: Save who is listing it right now, separately from ownership.
-    // These never change after listing — even if someone buys it later,
-    // we still know who the original lister was.
     record.listedById = auth.userId ?? null;
     record.listedByWallet = auth.wallet ?? null;
     await record.save();

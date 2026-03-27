@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   Check,
+  Lock,
 } from "lucide-react";
 import { SectionTitle } from "@/components/dashboard/ui";
 
@@ -44,7 +45,6 @@ const TIER_CONFIG = {
   },
 } as const;
 
-// FIX: Always strip @ before measuring length, never trust stored tier
 function getTier(username: string): keyof typeof TIER_CONFIG {
   const n = username.replace(/^@/, "").length;
   if (n <= 3) return "Diamond";
@@ -62,6 +62,7 @@ interface MarketplaceListing {
   level: number;
   listedAt: string;
   tier?: string;
+  staked?: boolean; // guard: should never be true in a healthy state, but handle it
 }
 
 const FILTERS = [
@@ -93,9 +94,6 @@ function ListingCard({
   currentWallet: string | null;
 }) {
   const clean = listing.username.replace(/^@/, "");
-
-  // FIX: Always recalculate tier from the actual username length.
-  // Never use listing.tier from the DB — it may have been stored incorrectly.
   const tier = getTier(clean);
   const cfg = TIER_CONFIG[tier];
 
@@ -119,22 +117,38 @@ function ListingCard({
         ? `${listing.owner.slice(0, 4)}…${listing.owner.slice(-4)}`
         : "Unknown";
 
-  return (
-    <Link
-      href={`/username/${clean}`}
-      className="group flex flex-col p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.03] transition-all duration-200"
+  // Staked = broken state (backend blocks this, but render defensively anyway)
+  const isStaked = !!listing.staked;
+
+  const cardContent = (
+    <div
+      className={`group flex flex-col p-5 rounded-2xl border transition-all duration-200 ${
+        isStaked
+          ? "border-white/[0.04] bg-white/[0.01] opacity-60 cursor-not-allowed"
+          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.03] cursor-pointer"
+      }`}
     >
       <div className="flex items-center justify-between mb-4">
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${cfg.cls}`}
-        >
-          {cfg.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${cfg.cls}`}
+          >
+            {cfg.label}
+          </span>
+          {/* ── Staked badge: shown only in broken state ── */}
+          {isStaked && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold border border-red-500/20 bg-red-500/[0.08] text-red-400/70">
+              <Lock className="w-2.5 h-2.5" /> Staked
+            </span>
+          )}
+        </div>
         <span className="text-[10px] text-white/20">{listedDate}</span>
       </div>
 
       <div className="mb-4">
-        <h3 className="text-2xl font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+        <h3
+          className={`text-2xl font-bold transition-colors truncate ${isStaked ? "text-white/40" : "text-white group-hover:text-teal-300"}`}
+        >
           @{clean}
         </h3>
         <p className="text-xs text-white/30 mt-1">
@@ -161,7 +175,11 @@ function ListingCard({
       </div>
 
       <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center justify-between">
-        {isOwner ? (
+        {isStaked ? (
+          <span className="text-xs text-red-400/50 font-medium flex items-center gap-1.5">
+            <Lock className="w-3 h-3" /> Unavailable
+          </span>
+        ) : isOwner ? (
           <>
             <span className="text-xs text-white/30 font-medium flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-teal-400" /> Your listing
@@ -177,8 +195,13 @@ function ListingCard({
           </>
         )}
       </div>
-    </Link>
+    </div>
   );
+
+  // Don't make staked listings clickable
+  if (isStaked) return cardContent;
+
+  return <Link href={`/username/${clean}`}>{cardContent}</Link>;
 }
 
 export default function MarketplaceTab() {
