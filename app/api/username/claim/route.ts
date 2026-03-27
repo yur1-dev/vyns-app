@@ -87,22 +87,22 @@ export async function POST(req: NextRequest) {
     }
 
     const ownerId = user._id.toString();
-
-    // ── FIXED: walletAddress is ONLY ever a real wallet address or empty string.
-    // Never store a userId here — it corrupts every ownership check downstream.
-    // ownerId in stats is the canonical owner key for email/Google users.
-    const walletAddress = resolvedWallet ?? "";
-
     const tier = getTier(cleanUsername.length);
     const price = getPrice(tier);
     const yieldRate = getYield(tier);
     const claimedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
 
-    await Username.create({
+    // ── Build the Username document ───────────────────────────────────────────
+    // walletAddress: only set if the user actually has a wallet.
+    // The schema has required:true on walletAddress — so we pass the ownerId
+    // as a last resort to satisfy the constraint, but tag it clearly in stats
+    // so ownership checks use stats.ownerId (the canonical key) not walletAddress.
+    // Better fix: make walletAddress optional in the schema (see models/index.ts note).
+    const usernameDoc: Record<string, any> = {
       username: cleanUsername,
-      walletAddress, // real wallet or ""  — never a userId
-      listedById: ownerId, // always set at claim time so list/delist can match
+      walletAddress: resolvedWallet ?? ownerId, // ownerId only as schema fallback
+      listedById: ownerId, // set at claim so delist works immediately
       level: 1,
       xp: 0,
       isPremium: tier === "Legendary" || tier === "Premium",
@@ -116,9 +116,12 @@ export async function POST(req: NextRequest) {
         claimedAt,
         expiresAt,
         staked: false,
-        ownerId, // canonical owner — used by all ownership checks
+        ownerId, // canonical owner key — all ownership checks use this
+        isEmailUser: !resolvedWallet, // flag so we know walletAddress is a userId fallback
       },
-    });
+    };
+
+    await Username.create(usernameDoc);
 
     await User.findByIdAndUpdate(user._id, {
       $inc: { xp: 50 },

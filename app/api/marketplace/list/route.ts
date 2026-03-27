@@ -26,36 +26,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lowerUsername = username.toLowerCase().replace(/^@/, "");
+    const clean = username.toLowerCase().replace(/^@/, "");
     const record =
-      (await Username.findOne({ username: lowerUsername })) ||
-      (await Username.findOne({ username: `@${lowerUsername}` }));
+      (await Username.findOne({ username: clean })) ||
+      (await Username.findOne({ username: `@${clean}` }));
 
     if (!record) {
       return NextResponse.json(
-        { success: false, error: `Username @${lowerUsername} not found` },
+        { success: false, error: `Username @${clean} not found` },
         { status: 404 },
       );
     }
 
-    // ── Resolve caller's wallet ───────────────────────────────────────────────
+    // ── Resolve caller's wallet from DB if not in token ───────────────────────
     let callerWallet = auth.wallet;
     if (!callerWallet && auth.userId) {
-      const userDoc = await User.findById(auth.userId).lean();
-      callerWallet = (userDoc as any)?.wallet ?? undefined;
+      const userDoc = (await User.findById(auth.userId)
+        .select("wallet")
+        .lean()) as any;
+      callerWallet = userDoc?.wallet ?? null;
     }
 
     const callerId = auth.userId;
     const recordOwnerId = record.stats?.ownerId as string | undefined;
+    const recordListedBy = record.listedById as string | undefined;
 
-    // ── Ownership check ───────────────────────────────────────────────────────
-    // Primary: ownerId match (works for ALL auth types)
-    // Fallback: wallet match (wallet users whose ownerId may not be set on old records)
-    const ownerIdMatch =
-      callerId && recordOwnerId && recordOwnerId === callerId;
-    const walletMatch = callerWallet && record.walletAddress === callerWallet;
+    // ── Ownership: any one of these must match ────────────────────────────────
+    const byOwnerId = callerId && recordOwnerId && recordOwnerId === callerId;
+    const byListedBy =
+      callerId && recordListedBy && recordListedBy === callerId;
+    const byWallet = callerWallet && record.walletAddress === callerWallet;
 
-    if (!ownerIdMatch && !walletMatch) {
+    if (!byOwnerId && !byListedBy && !byWallet) {
       return NextResponse.json(
         { success: false, error: "You don't own this username" },
         { status: 403 },

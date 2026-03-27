@@ -23,6 +23,16 @@ export async function POST(req: NextRequest) {
     const buyerUserId = (session?.user as any)?.id ?? auth?.userId ?? null;
     const buyerWallet = (session?.user as any)?.wallet ?? auth?.wallet ?? null;
 
+    // ── Resolve buyer's wallet from DB if not in session/token ───────────────
+    // This prevents walletAddress being set to a userId on the Username doc.
+    let resolvedBuyerWallet = buyerWallet;
+    if (!resolvedBuyerWallet && buyerUserId) {
+      const buyerDoc = (await User.findById(buyerUserId)
+        .select("wallet")
+        .lean()) as any;
+      resolvedBuyerWallet = buyerDoc?.wallet ?? null;
+    }
+
     const body = await req.json();
     const { username } = body;
     if (!username) {
@@ -48,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isSelfPurchase =
-      (buyerWallet && record.walletAddress === buyerWallet) ||
+      (resolvedBuyerWallet && record.walletAddress === resolvedBuyerWallet) ||
       (buyerUserId &&
         record.stats?.ownerId &&
         record.stats.ownerId === buyerUserId);
@@ -68,22 +78,26 @@ export async function POST(req: NextRequest) {
 
     const newStats = {
       ...(record.stats ?? {}),
-      ownerId: buyerUserId ?? buyerWallet,
+      ownerId: buyerUserId, // always use userId as canonical owner
+      isEmailUser: !resolvedBuyerWallet, // track if buyer has no wallet
     };
 
     await Username.findByIdAndUpdate(record._id, {
       $set: {
-        walletAddress: buyerWallet ?? buyerUserId,
+        // ── FIXED: walletAddress is only ever a real wallet.
+        // For email/Google buyers with no wallet, fall back to their userId
+        // (same schema-required fallback as claim) but ownerId in stats
+        // is the canonical key all ownership checks use.
+        walletAddress: resolvedBuyerWallet ?? buyerUserId,
         isListed: false,
         stats: newStats,
-        listedById: null,
-        listedByWallet: null,
+        listedById: buyerUserId, // update to new owner so delist works
+        listedByWallet: resolvedBuyerWallet ?? null,
       },
       $unset: { listedPrice: "" },
     });
 
     // ── Credit seller earnings ────────────────────────────────────────────────
-    // Increments both earnings (total) and marketplaceEarnings (per-source).
     if (salePrice > 0) {
       let sellerCredited = false;
 
@@ -93,7 +107,7 @@ export async function POST(req: NextRequest) {
           {
             $inc: {
               earnings: salePrice,
-              marketplaceEarnings: salePrice, // ── NEW per-source field
+              marketplaceEarnings: salePrice,
               xp: 10,
             },
           },
@@ -102,14 +116,13 @@ export async function POST(req: NextRequest) {
         sellerCredited = !!result;
       }
 
-      // Fallback: wallet-based seller (pure phantom user, no email account)
       if (!sellerCredited && sellerWallet) {
         await User.findOneAndUpdate(
           { wallet: sellerWallet },
           {
             $inc: {
               earnings: salePrice,
-              marketplaceEarnings: salePrice, // ── NEW per-source field
+              marketplaceEarnings: salePrice,
               xp: 10,
             },
           },
@@ -144,7 +157,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
-    // ── Resolve buyer's active username for Transaction.toUsername ──
+    // ── Resolve buyer's active username for Transaction.toUsername ────────────
     const buyerDoc = buyerUserId
       ? ((await User.findById(buyerUserId)
           .select("activeUsername")
@@ -159,8 +172,8 @@ export async function POST(req: NextRequest) {
       type: "purchase",
       amount: salePrice,
       token: "SOL",
-      fromUsername: buyerActiveUsername ?? buyerWallet ?? buyerUserId,
-      fromWallet: buyerWallet ?? null,
+      fromUsername: buyerActiveUsername ?? resolvedBuyerWallet ?? buyerUserId,
+      fromWallet: resolvedBuyerWallet ?? null,
       toUsername: displayUsername,
       toWallet: sellerWallet ?? null,
       listedByWallet: sellerWallet ?? null,
@@ -172,9 +185,9 @@ export async function POST(req: NextRequest) {
     const txHash = txRecord?._id?.toString() ?? null;
 
     // ── Write Activity for BUYER ──────────────────────────────────────────────
-    if (buyerWallet || buyerUserId) {
+    if (resolvedBuyerWallet || buyerUserId) {
       await Activity.create({
-        wallet: buyerWallet ?? buyerUserId,
+        wallet: resolvedBuyerWallet ?? buyerUserId,
         type: "transaction",
         description: `You purchased ${displayUsername} for ${salePrice} SOL`,
         amount: salePrice,
