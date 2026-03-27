@@ -56,6 +56,35 @@ const TIER_CHARS: Record<string, string> = {
   Bronze: "16+ chars",
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Strip leading @ so length-based tier is always accurate */
+function stripAt(name: string) {
+  return name.replace(/^@+/, "");
+}
+
+/**
+ * Derive the correct tier for a username item.
+ * Priority: u.tier (if it's a real tier string) → length of clean name.
+ * Marketplace-bought names often have u.tier = undefined or null,
+ * so we always fall back to length using the stripped name.
+ */
+function deriveTier(u: UsernameItem): string {
+  const rawName = (u as any).username ?? u.name ?? "";
+  const cleanName = stripAt(rawName);
+
+  const VALID_TIERS = new Set([
+    "Diamond",
+    "Platinum",
+    "Gold",
+    "Silver",
+    "Bronze",
+  ]);
+  if (u.tier && VALID_TIERS.has(u.tier)) return u.tier;
+
+  return tierFromLen(cleanName.length);
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -122,8 +151,6 @@ function LockCard({
 }
 
 // ─── Position card ────────────────────────────────────────────────────────────
-// Guard: claim button only appears when status === "unlocked".
-// Shows a countdown + unlock date when still locked.
 
 function PositionCard({
   pos,
@@ -150,9 +177,7 @@ function PositionCard({
     year: "numeric",
   });
 
-  // Derive unlock state purely from status field — never trust client-side date alone
   const isUnlocked = pos.status === "unlocked";
-  // If already claimed we hide this card entirely (caller should filter)
   const isClaimed = pos.status === "claimed";
 
   if (isClaimed) return null;
@@ -160,7 +185,6 @@ function PositionCard({
   async function handleClaim() {
     if (!isUnlocked || claiming || done) return;
     onClaim(pos.id);
-    // optimistic done state; parent will re-render with updated status
     setDone(true);
     setTimeout(() => setDone(false), 3000);
   }
@@ -202,7 +226,6 @@ function PositionCard({
         </Pill>
       </div>
 
-      {/* Progress bar */}
       <div>
         <div className="flex justify-between text-[10px] text-white/20 mb-1.5">
           <span>Lock progress</span>
@@ -218,7 +241,6 @@ function PositionCard({
         </div>
       </div>
 
-      {/* Rewards row */}
       <div className="flex items-center justify-between pt-0.5">
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3 w-3 text-emerald-400/60" />
@@ -230,7 +252,6 @@ function PositionCard({
           </span>
         </div>
 
-        {/* Claim button — only shown when unlocked */}
         {isUnlocked ? (
           <button
             onClick={handleClaim}
@@ -256,7 +277,6 @@ function PositionCard({
             )}
           </button>
         ) : (
-          /* Locked — show unlock date, no claim button */
           <div className="flex items-center gap-1 text-xs text-white/20">
             <Clock className="h-3 w-3" />
             <span>Unlocks {unlockDate}</span>
@@ -299,8 +319,10 @@ function CollateralModal({
     "idle" | "signing" | "confirming" | "error"
   >("idle");
   const [sigError, setSigError] = useState("");
-  const displayName = (username as any).username ?? username.name ?? "";
-  const tierKey = username.tier ?? tierFromLen(displayName.length);
+
+  const rawName = (username as any).username ?? username.name ?? "";
+  const displayName = stripAt(rawName);
+  const tierKey = deriveTier(username);
   const yieldPct = USERNAME_YIELD[tierKey] ?? 0;
   const annualEarning =
     yieldPct > 0 ? ((username.value ?? 0) * yieldPct) / 100 : 0;
@@ -493,7 +515,6 @@ function CollateralModal({
 }
 
 // ─── Claim summary banner ─────────────────────────────────────────────────────
-// Shown at top of positions list when ≥1 position is unlocked.
 
 function ClaimBanner({
   count,
@@ -560,7 +581,6 @@ export default function StakingTab({
     [period.days],
   );
 
-  // Partition positions by status
   const activePositions =
     userData.stakingPositions?.filter((p) => p.status === "active") ?? [];
   const unlockedPositions =
@@ -570,13 +590,12 @@ export default function StakingTab({
     0,
   );
 
-  // Username partitions — staked usernames cannot be staked again
   const stakedUsernames = userData.usernames?.filter((u) => u.staked) ?? [];
   const unstakedUsernames = userData.usernames?.filter((u) => !u.staked) ?? [];
-  const totalYield = stakedUsernames.reduce(
-    (acc, u) => acc + ((u.value ?? 0) * (USERNAME_YIELD[u.tier] ?? 0)) / 100,
-    0,
-  );
+  const totalYield = stakedUsernames.reduce((acc, u) => {
+    const tierKey = deriveTier(u);
+    return acc + ((u.value ?? 0) * (USERNAME_YIELD[tierKey] ?? 0)) / 100;
+  }, 0);
 
   const handleStake = async () => {
     setLoading(true);
@@ -592,9 +611,8 @@ export default function StakingTab({
     }
   };
 
-  // Claim guard: only one claim in-flight at a time; ignore if already claiming
   const handleClaim = async (id: string) => {
-    if (claimingId) return; // one at a time
+    if (claimingId) return;
     setClaimingId(id);
     await onClaim(id);
     setClaimingId(null);
@@ -605,7 +623,8 @@ export default function StakingTab({
     setModalLoading(true);
     setModalError("");
     const { u, isStaking } = modal;
-    const displayName = (u as any).username ?? u.name ?? "";
+    const rawName = (u as any).username ?? u.name ?? "";
+    const displayName = stripAt(rawName);
     const fn = isStaking ? onStakeUsername : onUnstakeUsername;
     const r = await fn?.(u.id ?? displayName, displayName, sig);
     setModalLoading(false);
@@ -743,15 +762,16 @@ export default function StakingTab({
               ))}
             </div>
 
-            {/* Staked — already staked, cannot stake again */}
+            {/* Staked usernames */}
             {stakedUsernames.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
                   Earning now
                 </p>
                 {stakedUsernames.map((u, i) => {
-                  const name = (u as any).username ?? u.name ?? "";
-                  const tierKey = u.tier ?? tierFromLen(name.length);
+                  const rawName = (u as any).username ?? u.name ?? "";
+                  const displayName = stripAt(rawName);
+                  const tierKey = deriveTier(u);
                   const cfg =
                     TIER_CONFIG[tierKey as keyof typeof TIER_CONFIG] ??
                     TIER_CONFIG.Bronze;
@@ -759,7 +779,7 @@ export default function StakingTab({
                   const earn = yp > 0 ? ((u.value ?? 0) * yp) / 100 : 0;
                   return (
                     <div
-                      key={name ?? i}
+                      key={displayName ?? i}
                       className="flex items-center justify-between p-3.5 rounded-xl bg-violet-500/[0.05] border border-violet-500/20"
                     >
                       <div className="flex items-center gap-3">
@@ -769,12 +789,12 @@ export default function StakingTab({
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-white">
-                              @{name}
+                              @{displayName}
                             </p>
                             <Pill className={cfg.cls}>{cfg.label}</Pill>
                           </div>
                           <p className="text-[10px] text-white/30 mt-0.5">
-                            {u.value ?? 0} SOL value · {name.length} chars
+                            {u.value ?? 0} SOL · {displayName.length} chars
                           </p>
                         </div>
                       </div>
@@ -809,15 +829,16 @@ export default function StakingTab({
               </div>
             )}
 
-            {/* Unstaked — available to stake */}
+            {/* Unstaked usernames */}
             {unstakedUsernames.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">
                   Available to stake
                 </p>
                 {unstakedUsernames.map((u, i) => {
-                  const name = (u as any).username ?? u.name ?? "";
-                  const tierKey = u.tier ?? tierFromLen(name.length);
+                  const rawName = (u as any).username ?? u.name ?? "";
+                  const displayName = stripAt(rawName);
+                  const tierKey = deriveTier(u);
                   const cfg =
                     TIER_CONFIG[tierKey as keyof typeof TIER_CONFIG] ??
                     TIER_CONFIG.Bronze;
@@ -825,7 +846,7 @@ export default function StakingTab({
                   const earn = yp > 0 ? ((u.value ?? 0) * yp) / 100 : 0;
                   return (
                     <div
-                      key={name ?? i}
+                      key={displayName ?? i}
                       className="flex items-center justify-between p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.10] transition-all"
                     >
                       <div className="flex items-center gap-3">
@@ -835,12 +856,12 @@ export default function StakingTab({
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-white">
-                              @{name}
+                              @{displayName}
                             </p>
                             <Pill className={cfg.cls}>{cfg.label}</Pill>
                           </div>
                           <p className="text-[10px] text-white/30 mt-0.5">
-                            {u.value ?? 0} SOL value · {name.length} chars ·{" "}
+                            {u.value ?? 0} SOL · {displayName.length} chars ·{" "}
                             {yp > 0 ? (
                               <span className="text-teal-400">
                                 {yp}% APY → +{earn.toFixed(4)} SOL/yr
@@ -851,7 +872,6 @@ export default function StakingTab({
                           </p>
                         </div>
                       </div>
-                      {/* Stake button — only shown for unstaked usernames */}
                       <button
                         onClick={() => {
                           setModal({ u, isStaking: true });
@@ -977,7 +997,6 @@ export default function StakingTab({
 
           {/* Right: positions */}
           <div className="space-y-4">
-            {/* Unlocked — claimable */}
             {unlockedPositions.length > 0 && (
               <div>
                 <ClaimBanner
@@ -997,7 +1016,6 @@ export default function StakingTab({
               </div>
             )}
 
-            {/* Active — locked, no claim */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3">
                 Active positions ({activePositions.length})
