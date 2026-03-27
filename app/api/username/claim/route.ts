@@ -56,10 +56,8 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
-    // Normalize: ALWAYS store WITHOUT @ prefix going forward
     const cleanUsername = username.toLowerCase().replace(/^@/, "");
 
-    // Check BOTH formats to catch legacy entries that have @ prefix
     const existing = await Username.findOne({
       username: { $in: [cleanUsername, `@${cleanUsername}`] },
     });
@@ -70,6 +68,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Resolve user ──────────────────────────────────────────────────────────
     const resolvedWallet = auth.wallet ?? wallet ?? null;
     const resolvedUserId = auth.userId ?? null;
 
@@ -87,16 +86,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const ownerId = user._id.toString();
+
+    // ── FIXED: walletAddress is ONLY ever a real wallet address or empty string.
+    // Never store a userId here — it corrupts every ownership check downstream.
+    // ownerId in stats is the canonical owner key for email/Google users.
+    const walletAddress = resolvedWallet ?? "";
+
     const tier = getTier(cleanUsername.length);
     const price = getPrice(tier);
     const yieldRate = getYield(tier);
     const claimedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 365 * 86_400_000).toISOString();
 
-    // Store WITHOUT @ prefix for consistency
     await Username.create({
       username: cleanUsername,
-      walletAddress: resolvedWallet ?? resolvedUserId ?? user._id.toString(),
+      walletAddress, // real wallet or ""  — never a userId
+      listedById: ownerId, // always set at claim time so list/delist can match
       level: 1,
       xp: 0,
       isPremium: tier === "Legendary" || tier === "Premium",
@@ -110,7 +116,7 @@ export async function POST(req: NextRequest) {
         claimedAt,
         expiresAt,
         staked: false,
-        ownerId: user._id.toString(),
+        ownerId, // canonical owner — used by all ownership checks
       },
     });
 

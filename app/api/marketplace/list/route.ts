@@ -38,28 +38,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ownerId = record.stats?.ownerId ?? null;
-    const storedWallet = record.walletAddress ?? null;
+    // ── Resolve caller's wallet ───────────────────────────────────────────────
+    let callerWallet = auth.wallet;
+    if (!callerWallet && auth.userId) {
+      const userDoc = await User.findById(auth.userId).lean();
+      callerWallet = (userDoc as any)?.wallet ?? undefined;
+    }
 
-    const isOwner =
-      (auth.wallet && storedWallet === auth.wallet) ||
-      (auth.userId && storedWallet === auth.userId) ||
-      (auth.userId && ownerId === auth.userId);
+    const callerId = auth.userId;
+    const recordOwnerId = record.stats?.ownerId as string | undefined;
 
-    if (!isOwner) {
+    // ── Ownership check ───────────────────────────────────────────────────────
+    // Primary: ownerId match (works for ALL auth types)
+    // Fallback: wallet match (wallet users whose ownerId may not be set on old records)
+    const ownerIdMatch =
+      callerId && recordOwnerId && recordOwnerId === callerId;
+    const walletMatch = callerWallet && record.walletAddress === callerWallet;
+
+    if (!ownerIdMatch && !walletMatch) {
       return NextResponse.json(
         { success: false, error: "You don't own this username" },
         { status: 403 },
       );
     }
 
-    // ── GUARD: cannot list a staked username ──
+    // ── GUARD: cannot list a staked username ─────────────────────────────────
     if (record.staked || record.stats?.staked) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "This username is currently staked. Unstake it before listing on the marketplace.",
+            "This username is currently staked. Unstake it before listing.",
         },
         { status: 400 },
       );
@@ -67,8 +76,8 @@ export async function POST(req: NextRequest) {
 
     record.listedPrice = price;
     record.isListed = true;
-    record.listedById = auth.userId ?? null;
-    record.listedByWallet = auth.wallet ?? null;
+    record.listedById = callerId ?? undefined;
+    record.listedByWallet = callerWallet ?? undefined;
     await record.save();
 
     return NextResponse.json({ success: true });
