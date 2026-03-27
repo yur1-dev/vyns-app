@@ -244,12 +244,19 @@ function DeleteAccountModal({
   onClose: () => void;
   onToast: (msg: string, type: "success" | "error") => void;
 }) {
+  const CONFIRM_PHRASE = "delete my account";
+
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [fieldError, setFieldError] = useState("");
 
+  const phraseMatch = confirmText.toLowerCase() === CONFIRM_PHRASE;
+  const canSubmit = phraseMatch && (!isEmailUser || password.length > 0);
+
   const handleDelete = async () => {
+    if (!canSubmit) return;
     if (isEmailUser && !password) {
       setFieldError("Password is required");
       return;
@@ -269,7 +276,6 @@ function DeleteAccountModal({
         setDeleting(false);
         return;
       }
-      // Success — sign out and redirect
       await signOut({ callbackUrl: "/" });
     } catch {
       onToast("Something went wrong. Try again.", "error");
@@ -277,7 +283,6 @@ function DeleteAccountModal({
     }
   };
 
-  // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
   };
@@ -328,7 +333,7 @@ function DeleteAccountModal({
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password to confirm"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -358,6 +363,40 @@ function DeleteAccountModal({
             </div>
           )}
 
+          {/* Typed confirmation */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/40 uppercase tracking-widest">
+              Type to confirm
+            </label>
+            <p className="text-xs text-white/25">
+              Type{" "}
+              <span className="font-mono text-red-400/70 bg-red-500/[0.08] px-1.5 py-0.5 rounded-md">
+                delete my account
+              </span>{" "}
+              to continue
+            </p>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="delete my account"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                className={`w-full h-11 px-4 pr-10 rounded-xl border bg-white/[0.03] text-sm placeholder-white/15 focus:outline-none focus:ring-2 transition-all font-mono ${
+                  confirmText.length > 0 && !phraseMatch
+                    ? "border-red-500/30 focus:ring-red-500/15 text-red-400/60"
+                    : phraseMatch
+                      ? "border-red-500/40 focus:ring-red-500/20 text-red-400"
+                      : "border-white/[0.07] focus:ring-red-500/20 focus:border-red-500/30 text-white/60"
+                }`}
+              />
+              {phraseMatch && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Check className="h-4 w-4 text-red-400" />
+                </div>
+              )}
+            </div>
+          </div>
+
           {!isEmailUser && fieldError && (
             <p className="text-xs text-red-400">{fieldError}</p>
           )}
@@ -373,8 +412,8 @@ function DeleteAccountModal({
             </button>
             <button
               onClick={handleDelete}
-              disabled={deleting || (isEmailUser && !password)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={deleting || !canSubmit}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-sm text-red-400 font-medium hover:bg-red-500/30 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               {deleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
