@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
     }
 
     // Load this user's read/deleted state from DB
-    // Always returns sets — never undefined — so filtering is always airtight
     const state = (await NotificationState.findOne({
       userId: userId.toString(),
     }).lean()) as any;
@@ -56,7 +55,6 @@ export async function GET(req: NextRequest) {
 
         for (const a of activities) {
           const id = `activity_${a._id}`;
-          // Skip deleted immediately — don't even add to list
           if (deletedSet.has(id)) continue;
 
           let type: string = "system";
@@ -139,14 +137,7 @@ export async function GET(req: NextRequest) {
 
     // ── 3. Marketplace sales ──
     if (wallet || userId) {
-      const soldTxs = (await Transaction.find({
-        type: { $in: ["purchase", "marketplace_sale", "buy"] },
-        fromUsername: { $exists: true },
-      })
-        .sort({ timestamp: -1 })
-        .limit(20)
-        .lean()) as any[];
-
+      // Find usernames owned/listed by this user
       const usernameQuery: any[] = [];
       if (userId) usernameQuery.push({ listedById: userId.toString() });
       if (wallet) usernameQuery.push({ listedByWallet: wallet });
@@ -160,15 +151,73 @@ export async function GET(req: NextRequest) {
 
       const myUsernames = new Set(usernames.map((u: any) => u.username));
 
-      for (const tx of soldTxs) {
-        const id = `sale_${tx._id}`;
-        if (deletedSet.has(id)) continue;
-        if (tx.toUsername && myUsernames.has(tx.toUsername)) {
+      if (myUsernames.size > 0) {
+        // Fetch purchase transactions where the sold username belongs to this user
+        const soldTxs = (await Transaction.find({
+          type: { $in: ["purchase", "marketplace_sale", "buy"] },
+          toUsername: { $in: Array.from(myUsernames) },
+        })
+          .sort({ timestamp: -1 })
+          .limit(20)
+          .lean()) as any[];
+
+        // Collect all buyer wallet addresses so we can resolve their usernames
+        const buyerWallets = [
+          ...new Set(
+            soldTxs
+              .map(
+                (tx: any) =>
+                  tx.buyerWallet ?? tx.fromWallet ?? tx.buyer ?? null,
+              )
+              .filter(Boolean),
+          ),
+        ];
+
+        // Build a wallet → username map for buyers
+        const buyerUsernameMap = new Map<string, string>();
+        if (buyerWallets.length > 0) {
+          const buyerUsers = (await User.find({
+            wallet: { $in: buyerWallets },
+          })
+            .select("wallet activeUsername")
+            .lean()) as any[];
+
+          for (const bu of buyerUsers) {
+            if (bu.wallet && bu.activeUsername) {
+              buyerUsernameMap.set(
+                bu.wallet,
+                `@${bu.activeUsername.replace("@", "")}`,
+              );
+            }
+          }
+        }
+
+        for (const tx of soldTxs) {
+          const id = `sale_${tx._id}`;
+          if (deletedSet.has(id)) continue;
+
+          // Resolve buyer display name — prefer stored username fields, then
+          // wallet→username lookup, then truncated wallet, then "Someone"
+          const buyerWallet =
+            tx.buyerWallet ?? tx.fromWallet ?? tx.buyer ?? null;
+
+          const buyerDisplay: string =
+            // 1. Explicit buyer username stored on the transaction
+            tx.buyerUsername ??
+            tx.fromUsername ??
+            // 2. Resolved from wallet → User lookup
+            (buyerWallet ? buyerUsernameMap.get(buyerWallet) : undefined) ??
+            // 3. Truncated wallet address as last resort (not a contract hash)
+            (buyerWallet && buyerWallet.length > 12
+              ? `${buyerWallet.slice(0, 4)}…${buyerWallet.slice(-4)}`
+              : buyerWallet) ??
+            "Someone";
+
           notifications.push({
             id,
             type: "marketplace",
             title: "Username sold",
-            body: `${tx.fromUsername ?? "Someone"} bought ${tx.toUsername} for ${tx.amount} SOL`,
+            body: `${buyerDisplay} bought ${tx.toUsername} for ${tx.amount} SOL`,
             amount: tx.amount,
             txHash: tx.txHash ?? null,
             time: tx.timestamp,
@@ -182,7 +231,6 @@ export async function GET(req: NextRequest) {
     // ── 4. Referral signups ──
     if (user.referrals > 0) {
       const id = `referral_total_${userId}`;
-      // Only add if not deleted
       if (!deletedSet.has(id)) {
         notifications.push({
           id,
@@ -197,7 +245,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Sort + dedupe (deleted already filtered above per-item) ──
+    // ── Sort + dedupe ──
     notifications.sort(
       (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
     );
